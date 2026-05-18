@@ -1,203 +1,222 @@
 <?= $this->extend('templates/admin/admin_template') ?>
-
 <?= $this->section('content') ?>
-<br><br>
 
-<!-- Alert Messages -->
-<?php if (session()->getFlashdata('success')): ?>
-  <div class="alert alert-success alert-dismissible fade show" role="alert">
-    <i class="fas fa-check-circle me-2"></i><?= session()->getFlashdata('success') ?>
-    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-  </div>
-<?php endif; ?>
+<style>
+.bs-card { border-radius: 0; overflow: hidden; transition: all 0.25s ease; border: 1px solid #e9ecef; }
+.bs-card:hover { transform: translateY(-3px); box-shadow: 0 10px 24px rgba(0,0,0,0.08) !important; border-color: #d7dee7; }
+.bs-icon-wrap { width: 52px; height: 52px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.35rem; flex-shrink: 0; }
+.bs-card-title { font-size: 1.02rem; line-height: 1.3; }
+.bs-card-subtitle { font-size: 0.76rem; letter-spacing: 0.02em; }
+.bs-card-desc { font-size: 0.82rem; line-height: 1.55; color: #6c757d; }
+.bs-meta-box { background: #fbfcfd; border: 1px solid #edf1f5; padding: 0.7rem 0.8rem; margin-bottom: 0.85rem; }
+.bs-meta-label { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #8b95a1; margin-bottom: 0.28rem; }
+.bs-meta-value { font-size: 0.8rem; color: #3f4954; line-height: 1.45; }
+.stat-box { background: #f8f9fa; border: 1px solid #eef1f4; padding: 0.65rem 0.8rem; margin-bottom: 1rem; }
+.empty-state { padding: 4rem 1rem; text-align: center; }
+.empty-state i { font-size: 3.5rem; color: #adb5bd; display: block; margin-bottom: 1rem; }
+.empty-state h5 { color: #6c757d; }
+.empty-state p { color: #adb5bd; }
+</style>
 
-<?php if (session()->getFlashdata('error')): ?>
-  <div class="alert alert-danger alert-dismissible fade show" role="alert">
-    <i class="fas fa-exclamation-circle me-2"></i><?= session()->getFlashdata('error') ?>
-    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-  </div>
-<?php endif; ?>
-
-<!-- Tambahkan ini untuk debug validation errors -->
-<?php if (session()->getFlashdata('errors')): ?>
-  <div class="alert alert-warning alert-dismissible fade show" role="alert">
-    <i class="fas fa-exclamation-triangle me-2"></i>
-    <strong>Validation Errors:</strong>
-    <ul class="mb-0 mt-2">
-      <?php foreach (session()->getFlashdata('errors') as $error): ?>
-        <li><?= $error ?></li>
-      <?php endforeach; ?>
-    </ul>
-    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-  </div>
-<?php endif; ?>
 <div class="container-fluid py-4">
-  <div class="row mb-4 align-items-center">
-    <div class="col">
-      <h2 class="fw-bold text-primary">Bank Soal</h2>
-      <p class="text-muted">Kelola semua bank soal dalam sistem</p>
+
+  <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+    <div>
+      <h2 class="fw-bold text-dark mb-1">Bank Soal</h2>
+      <p class="text-muted mb-0">Kelola semua bank soal berdasarkan kategori kelas</p>
     </div>
-    <div class="col-auto">
-      <button type="button" class="btn btn-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#modalTambahBankSoal">
-        <i class="fas fa-plus me-2"></i>Tambah Bank Soal Baru
-      </button>
-    </div>
+    <button class="btn btn-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#modalTambahBankSoal">
+      <i class="bi bi-plus-lg me-2"></i>Tambah Bank Soal
+    </button>
   </div>
 
-  <!-- Alert Messages -->
   <?php if (session()->getFlashdata('success')): ?>
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-      <i class="fas fa-check-circle me-2"></i><?= session()->getFlashdata('success') ?>
-      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
+    <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm"><i class="bi bi-check-circle-fill me-2"></i><?= session()->getFlashdata('success') ?><button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
   <?php endif; ?>
-
   <?php if (session()->getFlashdata('error')): ?>
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-      <i class="fas fa-exclamation-circle me-2"></i><?= session()->getFlashdata('error') ?>
-      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
+    <div class="alert alert-danger alert-dismissible fade show border-0 shadow-sm"><i class="bi bi-exclamation-triangle-fill me-2"></i><?= session()->getFlashdata('error') ?><button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+  <?php endif; ?>
+  <?php if (session()->getFlashdata('errors')): ?>
+    <div class="alert alert-warning alert-dismissible fade show border-0 shadow-sm"><ul class="mb-0 ps-3"><?php foreach (session()->getFlashdata('errors') as $e): ?><li><?= esc($e) ?></li><?php endforeach; ?></ul><button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
   <?php endif; ?>
 
-  <!-- Kategori Bank Soal -->
-  <div class="row g-4">
-    <?php if (!empty($kategoriList)): ?>
+  <?php if (!empty($kategoriList)): ?>
+    <div class="row g-4">
       <?php foreach ($kategoriList as $kategori): ?>
-        <div class="col-lg-4 col-md-6">
-          <div class="card h-100 shadow-sm hover-shadow">
-            <div class="card-body text-center p-4">
-              <div class="mb-3">
-                <?php if ($kategori['kategori'] === 'umum'): ?>
-                  <div class="bg-primary bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 80px; height: 80px;">
-                    <i class="fas fa-globe fa-2x text-primary"></i>
-                  </div>
-                <?php else: ?>
-                  <div class="bg-success bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 80px; height: 80px;">
-                    <i class="fas fa-chalkboard-teacher fa-2x text-success"></i>
-                  </div>
-                <?php endif; ?>
+        <?php $isUmum = $kategori['kategori'] === 'umum'; ?>
+        <?php $schoolNames = !empty($kategori['sekolah_list']) ? array_filter(explode('||', $kategori['sekolah_list'])) : []; ?>
+        <div class="col-xl-4 col-lg-6">
+          <div class="card border-0 shadow-sm h-100 bs-card">
+            <div class="card-body d-flex flex-column p-4">
+              <div class="d-flex align-items-center mb-3">
+                <div class="bs-icon-wrap me-3 <?= $isUmum ? 'bg-primary bg-opacity-10' : 'bg-success bg-opacity-10' ?>">
+                  <i class="<?= $isUmum ? 'bi bi-globe text-primary' : 'bi bi-building text-success' ?>"></i>
+                </div>
+                <div>
+                  <h5 class="fw-bold mb-1 bs-card-title"><?= $isUmum ? 'Bank Soal Umum' : 'Kelas ' . esc($kategori['kategori']) ?></h5>
+                  <div class="text-muted bs-card-subtitle"><?= $isUmum ? 'Dapat diakses semua guru' : 'Bank soal per kelas' ?></div>
+                </div>
               </div>
-              <h5 class="card-title fw-bold">
-                <?= $kategori['kategori'] === 'umum' ? 'Bank Soal Umum' : 'Kelas ' . esc($kategori['kategori']) ?>
-              </h5>
-              <p class="card-text text-muted mb-3">
-                <?= $kategori['jumlah_bank'] ?> bank ujian tersedia
+
+              <p class="bs-card-desc flex-grow-1 mb-3">
+                <?= $isUmum ? 'Soal umum yang dapat digunakan untuk semua kelas dan mata pelajaran.' : 'Bank soal khusus untuk kelas ini, dikelola oleh guru yang mengampu.' ?>
               </p>
+
+              <div class="bs-meta-box">
+                <div class="bs-meta-label">Sekolah</div>
+                <div class="bs-meta-value">
+                  <?php if ($isUmum): ?>
+                    Semua sekolah
+                  <?php elseif (!empty($schoolNames)): ?>
+                    <?= esc(implode(', ', $schoolNames)) ?>
+                  <?php else: ?>
+                    Belum terdeteksi
+                  <?php endif; ?>
+                </div>
+              </div>
+
+              <div class="stat-box d-flex align-items-center gap-2 mb-3">
+                <i class="bi bi-journal-text text-muted"></i>
+                <span class="fw-semibold text-dark"><?= $kategori['jumlah_bank'] ?></span>
+                <span class="text-muted small">mata pelajaran tersedia</span>
+              </div>
+
               <a href="<?= base_url('admin/bank-soal/kategori/' . urlencode($kategori['kategori'])) ?>"
-                class="btn <?= $kategori['kategori'] === 'umum' ? 'btn-outline-primary' : 'btn-outline-success' ?>">
-                <i class="fas fa-arrow-right me-2"></i>Lihat Bank Soal
+                class="btn <?= $isUmum ? 'btn-outline-primary' : 'btn-outline-success' ?> w-100">
+                <i class="bi bi-arrow-right me-2"></i>Pilih Mata Pelajaran
               </a>
             </div>
           </div>
         </div>
       <?php endforeach; ?>
-    <?php else: ?>
-      <div class="col-12">
-        <div class="card shadow-sm">
-          <div class="card-body text-center p-5">
-            <div class="mb-3">
-              <i class="fas fa-inbox fa-3x text-muted"></i>
-            </div>
-            <h5 class="card-title">Belum Ada Bank Soal</h5>
-            <p class="card-text text-muted">Mulai dengan menambahkan bank soal pertama</p>
-            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalTambahBankSoal">
-              <i class="fas fa-plus me-2"></i>Tambah Bank Soal
-            </button>
-          </div>
-        </div>
+    </div>
+  <?php else: ?>
+    <div class="card border-0 shadow-sm" style="border-radius:0">
+      <div class="card-body empty-state">
+        <i class="bi bi-journal-x"></i>
+        <h5 class="text-muted">Belum ada bank soal</h5>
+        <p class="text-muted mb-3">Mulai dengan menambahkan bank soal pertama</p>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalTambahBankSoal">
+          <i class="bi bi-plus-lg me-2"></i>Tambah Bank Soal
+        </button>
       </div>
-    <?php endif; ?>
-  </div>
+    </div>
+  <?php endif; ?>
+
 </div>
 
 <!-- Modal Tambah Bank Soal -->
 <div class="modal fade" id="modalTambahBankSoal" tabindex="-1">
-  <div class="modal-dialog modal-lg">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title fw-bold">
-          <i class="fas fa-plus-circle text-primary me-2"></i>Tambah Bank Soal Baru
-        </h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header bg-primary text-white px-4 py-3">
+        <h5 class="modal-title fw-semibold"><i class="bi bi-plus-circle me-2"></i>Tambah Bank Soal Baru</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
       <form action="<?= base_url('admin/bank-soal/tambah') ?>" method="post">
         <?= csrf_field() ?>
-        <div class="modal-body">
+        <div class="modal-body px-4 py-4">
           <div class="row g-3">
             <div class="col-12">
-              <label for="kategori" class="form-label fw-semibold">Kategori Bank Soal</label>
-              <input type="text" class="form-control" id="kategori" name="kategori"
-                placeholder="Contoh: umum, Kelas X IPA 1, dll" required>
-              <div class="form-text">Masukkan nama kategori (umum untuk akses semua guru)</div>
+              <label class="form-label small fw-semibold">Kelas / Kategori <span class="text-danger">*</span></label>
+              <div class="row g-2">
+                <div class="col-md-6">
+                  <select class="form-select" id="bankSekolah" onchange="loadBankKelas()">
+                    <option value="">Pilih Sekolah</option>
+                    <option value="umum">Sekolah Umum (semua guru)</option>
+                    <?php if(!empty($sekolah)): foreach($sekolah as $s): ?>
+                    <option value="<?=$s['sekolah_id']?>"><?=esc($s['nama_sekolah'])?></option>
+                    <?php endforeach; endif; ?>
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <select class="form-select" id="bankKelas" name="kategori" disabled required>
+                    <option value="">Pilih Sekolah dulu</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-text">Pilih "Umum" agar semua guru bisa menggunakan, atau pilih sekolah → kelas.</div>
             </div>
-
             <div class="col-12">
-              <label for="jenis_ujian_id" class="form-label fw-semibold">Mata Pelajaran</label>
-              <select class="form-select" id="jenis_ujian_id" name="jenis_ujian_id" required>
-                <option value="">Pilih Mata Pelajaran</option>
-                <?php foreach ($jenisUjianList as $jenis): ?>
-                  <option value="<?= $jenis['jenis_ujian_id'] ?>"><?= esc($jenis['nama_jenis']) ?></option>
-                <?php endforeach; ?>
+              <label class="form-label small fw-semibold">Mata Pelajaran <span class="text-danger">*</span></label>
+              <select class="form-select" id="jenis_ujian_id" name="jenis_ujian_id" required disabled>
+                <option value="">Pilih Sekolah & Kelas dulu</option>
               </select>
+              <div class="form-text">Mata pelajaran disesuaikan dengan kelas yang dipilih.</div>
             </div>
-
             <div class="col-12">
-              <label for="nama_ujian" class="form-label fw-semibold">Nama Bank Ujian</label>
-              <input type="text" class="form-control" id="nama_ujian" name="nama_ujian"
-                placeholder="Contoh: Ujian Tengah Semester Ganjil 2024" required>
+              <label class="form-label small fw-semibold">Nama Bank Soal <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" id="nama_ujian" name="nama_ujian" placeholder="Contoh: Ujian Tengah Semester Ganjil 2024" required>
             </div>
-
             <div class="col-12">
-              <label for="deskripsi" class="form-label fw-semibold">Deskripsi</label>
-              <textarea class="form-control" id="deskripsi" name="deskripsi" rows="3"
-                placeholder="Deskripsi bank soal..." required></textarea>
+              <label class="form-label small fw-semibold">Deskripsi <span class="text-danger">*</span></label>
+              <textarea class="form-control" id="deskripsi" name="deskripsi" rows="3" placeholder="Deskripsi bank soal..." required></textarea>
             </div>
           </div>
         </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-light" data-bs-dismiss="modal">Batal</button>
-          <button type="submit" class="btn btn-primary">
-            <i class="fas fa-save me-2"></i>Simpan
-          </button>
+        <div class="modal-footer border-0 bg-light px-4 py-3">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+          <button type="submit" class="btn btn-primary px-4"><i class="bi bi-check-lg me-1"></i>Simpan</button>
         </div>
       </form>
     </div>
   </div>
 </div>
 
-<style>
-  .hover-shadow:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15) !important;
-    transition: all 0.3s ease;
-  }
-
-  .card {
-    border: none;
-    transition: all 0.3s ease;
-  }
-</style>
-
-
 <script>
-  document.addEventListener('DOMContentLoaded', function() {
-    const form = document.querySelector('#modalTambahBankSoal form');
+  const bankSoalJenisUjianOptions = <?= json_encode(array_map(static function ($jenis) {
+    return [
+      'id' => (string) $jenis['jenis_ujian_id'],
+      'nama' => $jenis['nama_jenis'],
+      'kelas_id' => isset($jenis['kelas_id']) && $jenis['kelas_id'] !== null ? (string) $jenis['kelas_id'] : '0',
+    ];
+  }, $jenisUjianList), JSON_UNESCAPED_UNICODE) ?>;
 
-    form.addEventListener('submit', function(e) {
-      const deskripsi = document.getElementById('deskripsi').value;
+  function renderBankSoalMapelOptions(kelasId) {
+    const mp = document.getElementById('jenis_ujian_id');
+    mp.innerHTML = '<option value="">Pilih Mata Pelajaran</option>';
+    const filtered = bankSoalJenisUjianOptions.filter(item => kelasId === '0' ? item.kelas_id === '0' : item.kelas_id === kelasId || item.kelas_id === '0');
+    if (filtered.length === 0) { mp.innerHTML = '<option value="">Tidak ada Mata Pelajaran tersedia</option>'; mp.disabled = true; return; }
+    filtered.forEach(item => { const o = document.createElement('option'); o.value = item.id; o.textContent = item.nama; mp.appendChild(o); });
+    mp.disabled = false; mp.value = '';
+  }
 
-      if (deskripsi.length < 10) {
-        e.preventDefault(); // Mencegah form submit
+  function resetBankSoalMapelSelect() {
+    const mp = document.getElementById('jenis_ujian_id');
+    mp.innerHTML = '<option value="">Pilih Sekolah & Kelas dulu</option>';
+    mp.disabled = true;
+  }
 
-        // Tampilkan alert
-        alert(`Deskripsi minimal 10 karakter. Saat ini: ${deskripsi.length} karakter`);
-
-        // Fokus ke input deskripsi
-        document.getElementById('deskripsi').focus();
-
-        return false;
-      }
+  function loadBankKelas() {
+    const skl = document.getElementById('bankSekolah').value;
+    const kls = document.getElementById('bankKelas');
+    if (skl === 'umum') { kls.innerHTML = '<option value="umum">Kelas Umum</option>'; kls.value = 'umum'; kls.disabled = false; renderBankSoalMapelOptions('0'); return; }
+    kls.innerHTML = '<option value="">Loading...</option>'; kls.disabled = !skl;
+    if (!skl) { kls.innerHTML = '<option value="">Pilih Sekolah dulu</option>'; resetBankSoalMapelSelect(); return; }
+    fetch('<?=base_url('admin/api/kelas-by-sekolah/')?>' + skl).then(r => r.json()).then(d => {
+      let o = '<option value="">Pilih Kelas</option>';
+      if (d.status === 'success') d.data.forEach(k => { o += '<option value="'+k.nama_kelas+'" data-id="'+k.kelas_id+'">'+k.nama_kelas+' ('+k.tahun_ajaran+')</option>'; });
+      kls.innerHTML = o; kls.disabled = false; resetBankSoalMapelSelect();
     });
+  }
+
+  document.getElementById('bankKelas').addEventListener('change', function () {
+    const selOpt = this.selectedOptions[0];
+    const kelasId = selOpt?.dataset?.id || (this.value === 'umum' ? '0' : null);
+    if (!kelasId && this.value !== 'umum') { resetBankSoalMapelSelect(); return; }
+    renderBankSoalMapelOptions(kelasId);
+  });
+
+  document.addEventListener('DOMContentLoaded', function () {
+    const modal = document.getElementById('modalTambahBankSoal');
+    if (modal) {
+      modal.addEventListener('hidden.bs.modal', function () {
+        const form = modal.querySelector('form'); if (form) form.reset();
+        document.getElementById('bankKelas').innerHTML = '<option value="">Pilih Sekolah dulu</option>';
+        document.getElementById('bankKelas').disabled = true;
+        resetBankSoalMapelSelect();
+      });
+    }
   });
 </script>
 

@@ -19,6 +19,9 @@
               <!-- TAMBAHAN: Tampilkan kode ujian -->
               <div class="mt-1">
                 <span class="badge bg-secondary"><?= esc($ujian['kode_ujian']) ?></span>
+                <?php if (!empty($nomor_attempt)): ?>
+                  <span class="badge bg-primary">Attempt <?= esc($nomor_attempt) ?></span>
+                <?php endif; ?>
               </div>
             </div>
             <div class="text-center">
@@ -29,7 +32,7 @@
             </div>
             <div class="text-end">
               <h5 class="mb-0">Soal</h5>
-              <div class="h4 mb-0"><?= $soal_dijawab + 1  ?></div>
+              <div class="h4 mb-0"><?= $soal_dijawab + 1  ?><?= is_numeric($total_soal) ? ' / ' . $total_soal : '' ?></div>
             </div>
           </div>
         </div>
@@ -56,6 +59,9 @@
 
           <form action="<?= base_url('siswa/ujian/simpan-jawaban') ?>" method="POST">
             <input type="hidden" name="soal_id" value="<?= $soal['soal_id'] ?>">
+            <?php if (!empty($soal['attempt_soal_id'])): ?>
+              <input type="hidden" name="attempt_soal_id" value="<?= $soal['attempt_soal_id'] ?>">
+            <?php endif; ?>
 
             <div class="list-group">
               <?php
@@ -137,6 +143,8 @@
 
 <!-- CSS tambahan untuk styling konten CKEditor -->
 <style>
+  .card { border-radius: 0; }
+
   /* Styling untuk konten yang dibuat dengan CKEditor */
   .lead {
     line-height: 1.6;

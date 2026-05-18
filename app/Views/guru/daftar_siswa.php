@@ -3,6 +3,7 @@
 <?= $this->section('title') ?>Hasil Ujian Siswa<?= $this->endSection() ?>
 
 <?= $this->section('content') ?>
+<?php $isCatExam = !empty($hasilSiswa[0]['is_cat_mode']); ?>
 <br><br><br>
 <div class="container-fluid">
     <div class="row">
@@ -157,7 +158,7 @@
                                     $rataRata = count($skorSelesai) > 0 ? array_sum(array_column($skorSelesai, 'skor')) / count($skorSelesai) : 0;
                                     ?>
                                     <h4><?= round($rataRata, 1) ?></h4>
-                                    <p class="mb-0">Rata-rata Skor</p>
+                                    <p class="mb-0">Rata-rata <?= $isCatExam ? 'Skor' : 'Nilai' ?></p>
                                 </div>
                             </div>
                         </div>
@@ -221,20 +222,31 @@
                                             <?php if ($siswa['status'] === 'selesai'): ?>
                                                 <div class="text-start">
                                                     <small class="text-muted d-block">
-                                                        <strong>Theta Akhir:</strong> <?= number_format($siswa['theta_akhir'], 3) ?>
+                                                        <strong>Percobaan:</strong> <?= (int) ($siswa['jumlah_attempt'] ?? 0) ?>
                                                     </small>
-                                                    <small class="text-muted d-block">
-                                                        <strong>SE Akhir:</strong> <?= number_format($siswa['se_akhir'], 3) ?>
-                                                    </small>
+                                                    <?php if (!empty($siswa['is_cat_mode'])): ?>
+                                                        <small class="text-muted d-block">
+                                                            <strong>Theta Akhir:</strong> <?= number_format((float) $siswa['theta_akhir'], 3) ?>
+                                                        </small>
+                                                        <small class="text-muted d-block">
+                                                            <strong>SE Akhir:</strong> <?= number_format((float) $siswa['se_akhir'], 3) ?>
+                                                        </small>
+                                                    <?php else: ?>
+                                                        <small class="text-muted d-block">
+                                                            <strong>Nilai Akhir:</strong> <?= number_format((float) $siswa['nilai'], 2) ?>
+                                                        </small>
+                                                    <?php endif; ?>
                                                     <small class="text-muted d-block">
                                                         <strong>Soal:</strong> <?= $siswa['jawaban_benar'] ?>/<?= $siswa['total_soal'] ?> benar
                                                     </small>
                                                     <span class="fs-6 fw-bold text-success d-block">
-                                                        <strong>Skor:</strong> <?= number_format($siswa['skor'], 1) ?>
+                                                        <strong><?= !empty($siswa['is_cat_mode']) ? 'Skor' : 'Nilai' ?>:</strong> <?= number_format((float) $siswa['skor'], !empty($siswa['is_cat_mode']) ? 1 : 2) ?>
                                                     </span>
-                                                    <span class="badge <?= $siswa['klasifikasi_kognitif']['bg_class'] ?> mt-1">
-                                                        <?= $siswa['klasifikasi_kognitif']['kategori'] ?>
-                                                    </span>
+                                                    <?php if (!empty($siswa['is_cat_mode'])): ?>
+                                                        <span class="badge <?= $siswa['klasifikasi_kognitif']['bg_class'] ?> mt-1">
+                                                            <?= $siswa['klasifikasi_kognitif']['kategori'] ?>
+                                                        </span>
+                                                    <?php endif; ?>
                                                 </div>
                                             <?php else: ?>
                                                 <span class="text-muted">-</span>
@@ -243,18 +255,9 @@
                                         <td>
                                             <div class="d-grid gap-1">
                                                 <?php if ($siswa['status'] === 'selesai'): ?>
-                                                    <!-- Tombol untuk siswa yang sudah selesai -->
-                                                    <a href="<?= base_url('guru/hasil-ujian/detail/' . $siswa['peserta_ujian_id']) ?>"
+                                                    <a href="<?= base_url('guru/hasil-ujian/percobaan/' . $siswa['peserta_ujian_id']) ?>"
                                                         class="btn btn-info btn-sm">
-                                                        <i class="fas fa-eye me-1"></i>Detail
-                                                    </a>
-                                                    <a href="<?= base_url('guru/hasil-ujian/download-excel-html/' . $siswa['peserta_ujian_id']) ?>"
-                                                        class="btn btn-success btn-sm">
-                                                        <i class="fas fa-file-excel me-1"></i>Excel
-                                                    </a>
-                                                    <a href="<?= base_url('guru/hasil-ujian/download-pdf-html/' . $siswa['peserta_ujian_id']) ?>"
-                                                        class="btn btn-danger btn-sm" target="_blank">
-                                                        <i class="fas fa-file-pdf me-1"></i>PDF
+                                                        <i class="fas fa-layer-group me-1"></i><?= ($siswa['jumlah_attempt'] ?? 0) > 1 ? 'Lihat Percobaan' : 'Lihat Detail' ?>
                                                     </a>
                                                     <button type="button"
                                                         class="btn btn-outline-danger btn-sm"
@@ -401,9 +404,25 @@
     function exportHasil() {
         const namaUjian = '<?= addslashes($ujian['nama_ujian']) ?>';
         const namaKelas = '<?= addslashes($ujian['nama_kelas']) ?>';
+        const isCatExam = <?= $isCatExam ? 'true' : 'false' ?>;
 
         // Buat CSV content
-        let csvContent = "No,Nama Siswa,Jenis Kelamin,No Peserta/NIS,Status,Waktu Mulai,Waktu Selesai,Durasi,Theta Akhir,SE Akhir,Total Soal,Jawaban Benar,Skor,Tingkat Kemampuan\n";
+        const headers = [
+            'No',
+            'Nama Siswa',
+            'Jenis Kelamin',
+            'No Peserta/NIS',
+            'Status',
+            'Waktu Mulai',
+            'Waktu Selesai',
+            'Durasi'
+        ];
+        if (isCatExam) {
+            headers.push('Theta Akhir', 'SE Akhir', 'Total Soal', 'Jawaban Benar', 'Skor', 'Tingkat Kemampuan');
+        } else {
+            headers.push('Nilai Akhir', 'Total Soal', 'Jawaban Benar', 'Nilai');
+        }
+        let csvContent = headers.join(',') + '\n';
 
         const rows = document.querySelectorAll('#tableHasil tbody tr');
         rows.forEach((row, index) => {
@@ -426,12 +445,19 @@
                         rowData.push('"<?= $siswa['waktu_mulai_format'] ?? '-' ?>"');
                         rowData.push('"<?= $siswa['waktu_selesai_format'] ?? '-' ?>"');
                         rowData.push('"<?= $siswa['durasi_format'] ?? '-' ?>"');
-                        rowData.push('"<?= $siswa['theta_akhir'] ? number_format($siswa['theta_akhir'], 3) : '-' ?>"');
-                        rowData.push('"<?= $siswa['se_akhir'] ? number_format($siswa['se_akhir'], 3) : '-' ?>"');
-                        rowData.push('"<?= $siswa['total_soal'] ?>"');
-                        rowData.push('"<?= $siswa['jawaban_benar'] ?>"');
-                        rowData.push('"<?= $siswa['skor'] ? number_format($siswa['skor'], 1) : '-' ?>"');
-                        rowData.push('"<?= $siswa['klasifikasi_kognitif']['kategori'] ?? '-' ?>"');
+                        <?php if (!empty($siswa['is_cat_mode'])): ?>
+                            rowData.push('"<?= isset($siswa['theta_akhir']) ? number_format((float) $siswa['theta_akhir'], 3) : '-' ?>"');
+                            rowData.push('"<?= isset($siswa['se_akhir']) ? number_format((float) $siswa['se_akhir'], 3) : '-' ?>"');
+                            rowData.push('"<?= $siswa['total_soal'] ?>"');
+                            rowData.push('"<?= $siswa['jawaban_benar'] ?>"');
+                            rowData.push('"<?= isset($siswa['skor']) ? number_format((float) $siswa['skor'], 1) : '-' ?>"');
+                            rowData.push('"<?= addslashes($siswa['klasifikasi_kognitif']['kategori'] ?? '-') ?>');
+                        <?php else: ?>
+                            rowData.push('"<?= isset($siswa['nilai']) ? number_format((float) $siswa['nilai'], 2) : '-' ?>"');
+                            rowData.push('"<?= $siswa['total_soal'] ?>"');
+                            rowData.push('"<?= $siswa['jawaban_benar'] ?>"');
+                            rowData.push('"<?= isset($siswa['skor']) ? number_format((float) $siswa['skor'], 2) : '-' ?>"');
+                        <?php endif; ?>
                     }
                 <?php endforeach; ?>
 

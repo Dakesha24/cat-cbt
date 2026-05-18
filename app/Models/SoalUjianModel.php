@@ -22,8 +22,13 @@ class SoalUjianModel extends Model
         'pilihan_e',
         'jawaban_benar',
         'tingkat_kesulitan',
+        'a',
+        'c',
+        'variabel_id',
+        'indikator_id',
+        'materi_id',
         'pembahasan',
-        'foto'
+        'media'
     ];
 
     protected $useTimestamps = true;

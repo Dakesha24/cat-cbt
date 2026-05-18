@@ -1,2399 +1,2620 @@
 <?= $this->extend('templates/admin/admin_template') ?>
 
 <?= $this->section('content') ?>
-<div class="container-fluid py-5">
-  <div class="row mb-4 align-items-center py-5">
-    <div class="col">
-      <h2 class="fw-bold text-primary"><?= $ujian['nama_ujian'] ?></h2>
-      <p class="text-muted">Kelola Soal Ujian</p>
+
+<div class="container-fluid py-4">
+  <!-- Header -->
+  <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+    <div>
+      <nav aria-label="breadcrumb" class="mb-1">
+        <ol class="breadcrumb small mb-0">
+          <li class="breadcrumb-item"><a href="<?= base_url('admin/ujian') ?>">Kelola Ujian</a></li>
+          <li class="breadcrumb-item active"><?= esc($ujian['nama_ujian']) ?></li>
+        </ol>
+      </nav>
+      <div class="d-flex align-items-center gap-3">
+        <h4 class="fw-bold text-dark mb-0"><?= esc($ujian['nama_ujian']) ?></h4>
+        <span class="badge bg-<?= ($ujian['tipe_ujian'] ?? 'CAT') == 'CAT' ? 'primary' : 'success' ?> bg-opacity-10 text-<?= ($ujian['tipe_ujian'] ?? 'CAT') == 'CAT' ? 'primary' : 'success' ?> px-3 py-1">
+          <?= ($ujian['tipe_ujian'] ?? 'CAT') == 'CAT' ? 'CAT Adaptif' : 'CBT Fixed' ?>
+        </span>
+        <?php if (($ujian['tipe_ujian'] ?? 'CAT') == 'CBT'): ?>
+          <small class="text-muted">| Durasi: <?= esc($ujian['durasi']) ?> | Kode: <?= esc($ujian['kode_ujian'] ?? '-') ?></small>
+        <?php endif; ?>
+      </div>
     </div>
-    <div class="col-auto">
-      <button type="button" class="btn btn-outline-primary shadow-sm me-2" data-bs-toggle="modal" data-bs-target="#importBankSoalModal">
-        <i class="fas fa-download me-2"></i>Import dari Bank Soal
-      </button>
-    </div>
-    <div class="col-auto">
-      <button type="button" class="btn btn-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#tambahSoalModal">
-        <i class="fas fa-plus me-2"></i>Tambah Soal
-      </button>
+    <div>
+      <a href="<?= base_url('admin/ujian') ?>" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Kembali
+      </a>
     </div>
   </div>
 
-  <!-- Info Box untuk Panduan Summernote -->
-  <div class="alert alert-info alert-dismissible fade show" role="alert">
-    <h6 class="alert-heading"><i class="fas fa-info-circle me-2"></i>Panduan Menulis Soal</h6>
-    <p class="mb-2">Gunakan editor yang tersedia untuk format teks yang lebih kaya:</p>
-    <ul class="mb-2">
-      <li><strong>Format teks:</strong> Bold, italic, underline, warna, font size</li>
-      <li><strong>Insert gambar:</strong> Klik tombol <i class="fas fa-image"></i> pada toolbar editor untuk upload gambar langsung</li>
-      <li><strong>Rumus matematika:</strong> Gunakan superscript (x²) dan subscript (H₂O)</li>
-      <li><strong>List:</strong> Bullet points dan numbering</li>
-      <li><strong>Tabel:</strong> Untuk data terstruktur</li>
-      <li><strong>Upload gambar file:</strong> Gunakan field "Foto Soal" di bawah editor untuk upload file</li>
-    </ul>
-    <div class="mt-2">
-      <small class="text-muted">
-        <strong>Tips:</strong>
-        Untuk rumus kompleks, gunakan kombinasi superscript/subscript atau jika dibutuhkan, sisipkan sebagai gambar. Contoh: E=mc² bisa dibuat dengan mengetik "E=mc" lalu pilih superscript untuk "2".
-        <br><strong>Upload Gambar:</strong> Anda punya 2 cara - (1) Klik tombol <i class="fas fa-image"></i> di toolbar editor untuk insert langsung, atau (2) Upload via field "Foto Soal" di bawah.
-      </small>
+  <!-- Alerts -->
+  <?php if (session()->getFlashdata('success')): ?>
+    <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm" role="alert">
+      <i class="bi bi-check-circle-fill me-2"></i><?= session()->getFlashdata('success') ?>
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
-    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-  </div>
-
-  <?php if (session()->getFlashdata('success')) : ?>
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-      <?= session()->getFlashdata('success') ?>
+  <?php endif; ?>
+  <?php if (session()->getFlashdata('error')): ?>
+    <div class="alert alert-danger alert-dismissible fade show border-0 shadow-sm" role="alert">
+      <i class="bi bi-exclamation-triangle-fill me-2"></i><?= esc(session()->getFlashdata('error')) ?>
       <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
   <?php endif; ?>
 
-  <?php if (session()->getFlashdata('error')) : ?>
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-      <?= session()->getFlashdata('error') ?>
-      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-  <?php endif; ?>
+  <style>
+    .cbt-step-flow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: .55rem;
+      padding: .65rem 1rem;
+      margin-bottom: .45rem;
+      background: #fff;
+      border: 1px solid #e9ecef;
+      box-shadow: 0 .125rem .5rem rgba(15, 23, 42, .04);
+    }
+    .cbt-step-card,
+    .cbt-step-card .card-header,
+    .cbt-step-card .card-footer,
+    .cbt-summary-strip,
+    .cbt-info-box,
+    .cbt-table-wrap {
+      border-radius: 0 !important;
+    }
+    .cbt-step-card {
+      border: 1px solid #e9ecef;
+      box-shadow: 0 .25rem 1rem rgba(15, 23, 42, .05);
+    }
+    .cbt-step-card .card-header,
+    .cbt-step-card .card-footer {
+      background: #fff;
+    }
+    .cbt-step-card {
+      margin-top: 0 !important;
+    }
+    .cbt-step-card .card-header {
+      padding-top: .8rem !important;
+      padding-bottom: .8rem !important;
+    }
+    .cbt-step-chip {
+      min-width: 84px;
+      text-align: center;
+      letter-spacing: .04em;
+    }
+    .cbt-summary-strip {
+      padding: .85rem 1rem;
+      border: 1px solid #e9ecef;
+      background: #f8f9fa;
+    }
+    .cbt-info-box {
+      border: 1px solid #e9ecef;
+      background: #f8f9fa;
+    }
+    .cbt-table-wrap {
+      border: 1px solid #d7dee8;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .cbt-bank-table {
+      font-size: .84rem;
+    }
+    .cbt-bank-table thead th {
+      background: #fbfcfe !important;
+      border-bottom: 1px solid #d7dee8 !important;
+      color: #596579 !important;
+      font-size: .7rem !important;
+      font-weight: 600 !important;
+      letter-spacing: .055em !important;
+      padding: .62rem .75rem !important;
+    }
+    .cbt-bank-table tbody td {
+      border-color: #edf1f5;
+      padding: .68rem .75rem !important;
+      vertical-align: middle;
+    }
+    .cbt-code-pill {
+      background: #f7f9fc;
+      border: 1px solid #dbe3ed;
+      color: #344054;
+      display: inline-flex;
+      font-size: .74rem;
+      font-weight: 500;
+      letter-spacing: .02em;
+      padding: .18rem .45rem;
+    }
+    .cbt-question-preview {
+      color: #1f2937;
+      font-size: .84rem;
+      line-height: 1.35;
+      max-width: 360px;
+    }
+    .cbt-answer-pill,
+    .cbt-difficulty-pill,
+    .cbt-meta-pill {
+      align-items: center;
+      display: inline-flex;
+      font-size: .74rem;
+      font-weight: 500;
+      justify-content: center;
+      min-width: 34px;
+      padding: .18rem .48rem;
+    }
+    .cbt-answer-pill {
+      background: #edfdf3;
+      border: 1px solid #b7ebc8;
+      color: #137547;
+    }
+    .cbt-difficulty-pill {
+      background: #f8fafc;
+      border: 1px solid #dbe3ed;
+      color: #475467;
+    }
+    .cbt-meta-pill {
+      background: #f8fafc;
+      border: 1px solid #dbe3ed;
+      color: #475467;
+      font-size: .68rem;
+      justify-content: flex-start;
+      font-weight: 500;
+    }
+    .cbt-row-actions {
+      display: inline-flex;
+      gap: .35rem;
+    }
+    .cbt-row-actions .btn {
+      align-items: center;
+      border-radius: 0 !important;
+      display: inline-flex;
+      height: 30px;
+      justify-content: center;
+      padding: 0;
+      width: 32px;
+    }
+    .cbt-count-chip {
+      background: #eef5ff;
+      border: 1px solid #cfe2ff;
+      color: #0b5ed7;
+      font-size: .72rem;
+      font-weight: 600;
+      padding: .2rem .55rem;
+    }
+    .cbt-step-card .card-header h5 {
+      font-size: 1rem;
+      line-height: 1.25;
+    }
+    .cbt-step-card .card-header .small,
+    .cbt-step-card .card-footer .small {
+      font-size: .78rem;
+      line-height: 1.45;
+    }
+    .cbt-step-section {
+      border: 1px solid #dfe5ec;
+      background: #fff;
+      padding: 1rem;
+    }
+    .cbt-step-section + .cbt-step-section {
+      margin-top: 1rem;
+    }
+    .cbt-section-head {
+      align-items: flex-start;
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: .9rem;
+    }
+    .cbt-section-title {
+      color: #1f2937;
+      font-size: .92rem;
+      font-weight: 700;
+      margin-bottom: .12rem;
+    }
+    .cbt-section-subtitle {
+      color: #667085;
+      font-size: .77rem;
+      line-height: 1.4;
+    }
+    .cbt-step-footer {
+      gap: 1rem;
+      padding: .85rem 1.25rem;
+    }
+    .cat-manage-card,
+    .cat-manage-card .card-header,
+    .cat-manage-card .card-footer,
+    .cat-summary-panel,
+    .cat-summary-item,
+    .cat-table-wrap,
+    .cat-empty-state {
+      border-radius: 0 !important;
+    }
+    .cat-manage-card {
+      border: 1px solid #e2e5ea;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    }
+    .cat-header-note {
+      color: #667085;
+      font-size: .78rem;
+      line-height: 1.45;
+      max-width: 720px;
+    }
+    .cat-action-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .55rem;
+    }
+    .cat-summary-panel {
+      display: grid;
+      gap: .85rem;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      margin-bottom: 1.25rem;
+    }
+    .cat-summary-item {
+      background: #f8fafc;
+      border: 1px solid #eaecf0;
+      padding: .9rem 1rem;
+      display: flex;
+      align-items: flex-start;
+      gap: .75rem;
+    }
+    .cat-summary-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-size: 1rem;
+      margin-top: .1rem;
+    }
+    .cat-summary-label {
+      color: #667085;
+      font-size: .67rem;
+      font-weight: 600;
+      letter-spacing: .05em;
+      margin-bottom: .25rem;
+      text-transform: uppercase;
+    }
+    .cat-summary-value {
+      color: #101828;
+      font-size: 1.1rem;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+    .cat-summary-help {
+      color: #98a4b6;
+      font-size: .7rem;
+      margin-top: .2rem;
+      line-height: 1.35;
+    }
+    .cat-table-wrap {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .cat-bank-table {
+      font-size: .84rem;
+    }
+    .cat-bank-table thead th {
+      background: #fbfcfe !important;
+      border-bottom: 1px solid #dbe3ed !important;
+      color: #596579 !important;
+      font-size: .69rem !important;
+      font-weight: 600 !important;
+      letter-spacing: .05em !important;
+      padding: .65rem .72rem !important;
+    }
+    .cat-bank-table tbody td {
+      border-color: #edf1f5;
+      padding: .72rem !important;
+      vertical-align: middle;
+    }
+    .cat-question-text {
+      color: #1f2937;
+      font-size: .84rem;
+      line-height: 1.4;
+      max-width: 360px;
+    }
+    .cat-code-pill,
+    .cat-origin-pill,
+    .cat-value-pill,
+    .cat-meta-pill {
+      align-items: center;
+      display: inline-flex;
+      font-size: .72rem;
+      font-weight: 500;
+      padding: .2rem .48rem;
+    }
+    .cat-code-pill {
+      background: #f8fafc;
+      border: 1px solid #dbe3ed;
+      color: #344054;
+    }
+    .cat-origin-pill.is-bank {
+      background: #eef6ff;
+      border: 1px solid #cfe2ff;
+      color: #0b5ed7;
+    }
+    .cat-origin-pill.is-custom {
+      background: #f4f0ff;
+      border: 1px solid #ddd6fe;
+      color: #6941c6;
+    }
+    .cat-value-pill {
+      background: #f8fafc;
+      border: 1px solid #dbe3ed;
+      color: #475467;
+      justify-content: center;
+      min-width: 42px;
+    }
+    .cat-meta-pill {
+      background: #f8fafc;
+      border: 1px solid #dbe3ed;
+      color: #475467;
+      font-size: .67rem;
+    }
+    .cat-empty-state {
+      background: #fff;
+      border: 1px dashed #d0d7e2;
+      color: #667085;
+      padding: 2.5rem 1rem;
+      text-align: center;
+    }
+    .cat-empty-state .icon {
+      color: #98a2b3;
+      font-size: 2rem;
+      margin-bottom: .55rem;
+    }
+    @media (max-width: 991.98px) {
+      .cat-summary-panel {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+    @media (max-width: 575.98px) {
+      .cat-summary-panel {
+        grid-template-columns: 1fr;
+      }
+    }
+    .cbt-step-footer .btn {
+      border-radius: 0 !important;
+      font-size: .84rem;
+      font-weight: 700;
+      min-width: 150px;
+      padding: .52rem .95rem;
+    }
+    .cbt-empty-state {
+      background: #fbfcfe;
+      border: 1px solid #dfe5ec !important;
+      padding: 2.25rem 1rem !important;
+    }
+    .cbt-empty-state p {
+      font-size: .9rem;
+    }
+    .cbt-empty-state small {
+      font-size: .78rem;
+    }
+    .cbt-empty-state .empty-icon {
+      align-items: center;
+      background: #f1f5f9;
+      border: 1px solid #dfe5ec;
+      color: #94a3b8;
+      display: inline-flex;
+      font-size: 1.45rem;
+      height: 48px;
+      justify-content: center;
+      width: 48px;
+    }
+    .cbt-action-row {
+      align-items: center;
+      display: flex;
+      flex-wrap: wrap;
+      gap: .55rem;
+      justify-content: flex-end;
+    }
+    .cbt-action-row .btn,
+    .cbt-action-secondary,
+    .cbt-draft-submit {
+      border-radius: 0 !important;
+      font-size: .8rem;
+      font-weight: 700;
+      line-height: 1.25;
+      padding: .45rem .8rem;
+    }
+    .cbt-draft-submit {
+      padding: .62rem 1rem;
+    }
+    .cbt-final-actions .btn {
+      min-width: 132px;
+      padding: .42rem .85rem;
+      font-size: .82rem;
+      font-weight: 600;
+      line-height: 1.2;
+      border-radius: 0 !important;
+    }
+    .cbt-final-actions .bi {
+      font-size: .9rem;
+    }
+    .cbt-review-modal .modal-content {
+      border-radius: 0;
+      border: 1px solid #d7dee8;
+    }
+    .cbt-review-modal .modal-header {
+      border-bottom: 1px solid #d7dee8;
+      background: #fbfcfd;
+    }
+    .cbt-soal-modal .modal-dialog {
+      max-width: 980px;
+      margin: 1.75rem auto;
+      height: calc(100% - 3.5rem);
+    }
+    .cbt-soal-modal .modal-content {
+      border: 1px solid #d7dee8 !important;
+      border-radius: 0 !important;
+      display: flex;
+      flex-direction: column;
+      max-height: 100%;
+      overflow: hidden;
+    }
+    .cbt-soal-modal .modal-content > form {
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .cbt-soal-modal .modal-scroll-area {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+    }
+    .cbt-soal-modal .modal-header {
+      background: linear-gradient(135deg, #eef5ff 0%, #f8fbff 58%, #ffffff 100%) !important;
+      border-bottom: 1px solid #bfdbfe;
+      color: #1f2937 !important;
+      flex-shrink: 0;
+      padding: .9rem 1.15rem !important;
+    }
+    .cbt-soal-modal .modal-title {
+      font-size: .98rem;
+      font-weight: 800 !important;
+    }
+    .cbt-soal-modal .modal-body {
+      padding: 1rem 1.15rem !important;
+    }
+    .cbt-soal-modal .note-editor.note-frame {
+      border: 1px solid #d7dee8;
+    }
+    .cbt-soal-modal .modal-footer {
+      background: #fbfcfe !important;
+      border-top: 1px solid #d7dee8 !important;
+      flex-shrink: 0;
+      padding: .8rem 1.15rem !important;
+    }
+    .cbt-soal-modal .form-label {
+      color: #475467;
+      font-size: .74rem !important;
+      font-weight: 800 !important;
+      letter-spacing: .015em;
+      margin-bottom: .35rem;
+    }
+    .cbt-form-section {
+      border: 1px solid #e1e7ef;
+      padding: .9rem;
+      background: #fff;
+    }
+    .cbt-form-section + .cbt-form-section {
+      margin-top: .85rem;
+    }
+    .cbt-form-section-title {
+      color: #344054;
+      font-size: .8rem;
+      font-weight: 800;
+      margin-bottom: .75rem;
+    }
+    .cbt-review-list {
+      display: grid;
+      gap: .65rem;
+    }
+    .cbt-review-item {
+      border: 1px solid #d7dee8;
+      background: #fff;
+      padding: .75rem .85rem;
+    }
+    .cbt-review-number {
+      min-width: 28px;
+      height: 24px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid #d7dee8;
+      background: #fff;
+      color: #495057;
+      font-weight: 700;
+      font-size: .75rem;
+    }
+    .cbt-review-question {
+      color: #212529;
+      font-weight: 600;
+      line-height: 1.4;
+      font-size: .88rem;
+    }
+    .cbt-review-code {
+      display: inline-flex;
+      align-items: center;
+      padding: .16rem .45rem;
+      border: 1px solid #ced4da;
+      background: #f8f9fa;
+      color: #343a40;
+      font-size: .72rem;
+      font-weight: 700;
+    }
+    .cbt-review-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .75rem;
+      margin-bottom: .55rem;
+    }
+    .cbt-review-options {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: .35rem;
+      margin-top: .65rem;
+    }
+    .cbt-review-option {
+      display: grid;
+      grid-template-columns: 24px 1fr;
+      gap: .45rem;
+      padding: .38rem .5rem;
+      border: 1px solid #edf0f3;
+      background: #fbfcfd;
+      font-size: .8rem;
+      line-height: 1.35;
+    }
+    .cbt-review-option.is-correct {
+      border-color: #badbcc;
+      background: #f6fffa;
+    }
+    .cbt-review-option-key {
+      font-weight: 700;
+      color: #495057;
+    }
+    .cbt-review-option.is-correct .cbt-review-option-key {
+      color: #198754;
+    }
+    .cbt-review-explain {
+      margin-top: .65rem;
+      padding: .55rem .65rem;
+      border: 1px solid #dbe7ff;
+      background: #f8fbff;
+      color: #495057;
+      font-size: .8rem;
+      line-height: 1.4;
+    }
+    .cbt-review-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .35rem;
+      margin-top: .55rem;
+      color: #6c757d;
+      font-size: .74rem;
+    }
+    .cbt-review-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: .15rem .42rem;
+      border: 1px solid #dee2e6;
+      background: #fbfcfd;
+      color: #495057;
+      font-weight: 600;
+    }
+    .cbt-final-stats {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: .75rem;
+      border: 0;
+      background: #fff;
+    }
+    .cbt-final-stat {
+      padding: .85rem .95rem;
+      border: 1px solid #cfd8e3;
+      background: #fff;
+    }
+    .cbt-final-stat .label {
+      color: #5f6b7a;
+      font-size: .76rem;
+      font-weight: 600;
+      margin-bottom: .25rem;
+    }
+    .cbt-final-stat .value {
+      color: #212529;
+      font-size: .98rem;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+    .cbt-status-chip {
+      display: inline-flex;
+      align-items: center;
+      padding: .22rem .55rem;
+      border: 1px solid #badbcc;
+      background: #f6fffa;
+      color: #146c43;
+      font-size: .78rem;
+      font-weight: 700;
+    }
+    .cbt-status-chip.locked {
+      border-color: #d3d6da;
+      background: #f8f9fa;
+      color: #495057;
+    }
+    .cbt-final-review {
+      border: 1px solid #cfd8e3;
+      background: #fff;
+    }
+    .cbt-final-review thead th {
+      background: #fff !important;
+      color: #495057;
+      font-size: .74rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      border-bottom: 1px solid #cfd8e3;
+    }
+    .cbt-final-review tbody td {
+      border-color: #dee2e6;
+      vertical-align: middle;
+      font-size: .86rem;
+    }
+    .cbt-final-review tbody tr:last-child td {
+      border-bottom: 0;
+    }
+    .cbt-soft-count {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 38px;
+      padding: .25rem .55rem;
+      border: 1px solid #dbe4ff;
+      color: #0d6efd;
+      background: #f8fbff;
+      font-weight: 700;
+      font-size: .78rem;
+    }
+    @media (max-width: 768px) {
+      .cbt-final-stats {
+        grid-template-columns: 1fr;
+      }
+      .cbt-final-stat {
+        border: 1px solid #cfd8e3;
+      }
+    }
+  </style>
 
-  <div class="card shadow-sm">
-    <div class="card-body p-0">
-      <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-          <thead class="bg-light">
-            <tr>
-              <th class="px-4" width="5%">No</th>
-              <th width="10%">Kode Soal</th>
-              <th width="20%">Pertanyaan</th>
-              <th width="10%">Foto</th>
-              <th width="20%">Pilihan</th>
-              <th width="10%">Jawaban</th>
-              <th width="10%">Kesulitan</th>
-              <th width="10%">Pembahasan</th>
-              <th width="15%" class="text-center">Aksi</th>
-            </tr>
-          </thead>
-          <tbody>
-            <?php $i = 1;
-            foreach ($soal as $s): ?>
-              <tr>
-                <td class="px-4"><?= $i++ ?></td>
-                <td class="fw-bold text-primary"><?= $s['kode_soal'] ?></td>
-                <td><?= $s['pertanyaan'] ?></td>
-                <td>
-                  <?php if (!empty($s['foto'])): ?>
-                    <img src="<?= base_url('uploads/soal/' . $s['foto']) ?>" alt="Foto Soal" class="img-thumbnail" style="max-height: 80px;">
-                  <?php else: ?>
-                    <span class="text-muted small">Tidak ada foto</span>
-                  <?php endif; ?>
-                </td>
-                <td>
-                  <div class="d-flex flex-column gap-1">
-                    <small><span class="fw-bold">A.</span> <?= $s['pilihan_a'] ?></small>
-                    <small><span class="fw-bold">B.</span> <?= $s['pilihan_b'] ?></small>
-                    <small><span class="fw-bold">C.</span> <?= $s['pilihan_c'] ?></small>
-                    <small><span class="fw-bold">D.</span> <?= $s['pilihan_d'] ?></small>
-                    <?php if (!empty($s['pilihan_e'])): ?>
-                      <small><span class="fw-bold">E.</span> <?= $s['pilihan_e'] ?></small>
-                    <?php endif; ?>
+  <?php if (($ujian['tipe_ujian'] ?? 'CAT') == 'CBT'): ?>
+    <!-- ==================== CBT MODE ==================== -->
+    <?php
+      $step1Done = !empty($assignedBanks);
+      $step2Done = !empty($paketList) && empty($draftPaket['packages'] ?? []);
+      $hasDraft = !empty($draftPaket['packages']);
+    ?>
+    <div class="cbt-step-flow flex-wrap">
+      <div class="d-flex align-items-center">
+        <span class="step-badge <?= ($currentStep ?? 1) === 1 ? 'step-active' : ($step1Done ? 'step-done' : '') ?>"><?= $step1Done ? '<i class="bi bi-check-lg"></i>' : '1' ?></span>
+        <span class="ms-2 small fw-semibold <?= $step1Done ? 'text-success' : '' ?>">Pilih Bank & Soal</span>
+      </div>
+      <span class="text-muted mx-1">></span>
+      <div class="d-flex align-items-center">
+        <span class="step-badge <?= ($currentStep ?? 1) === 2 ? 'step-active' : ($step2Done ? 'step-done' : '') ?>"><?= $step2Done ? '<i class="bi bi-check-lg"></i>' : '2' ?></span>
+        <span class="ms-2 small fw-semibold <?= $step2Done ? 'text-success' : '' ?>">Buat Draft Paket</span>
+      </div>
+      <span class="text-muted mx-1">></span>
+      <div class="d-flex align-items-center">
+        <span class="step-badge <?= ($currentStep ?? 1) === 3 ? 'step-active' : ($step2Done ? 'step-done' : '') ?>"><?= $step2Done ? '<i class="bi bi-check-lg"></i>' : '3' ?></span>
+        <span class="ms-2 small fw-semibold <?= $step2Done ? 'text-success' : '' ?>">Paket Final</span>
+      </div>
+    </div>
+    <div class="d-none card border-0 bg-light mb-4">
+      <div class="card-body py-3 px-4">
+        <?php if (($currentStep ?? 1) === 1): ?>
+          <div class="fw-semibold text-dark mb-1">Langkah 1: Pilih bank soal lalu kelola isi bank.</div>
+          <div class="small text-muted">Setelah bank dipilih, Anda bisa menambah, mengedit, dan menghapus soal pada bank tersebut. Jika isi soal sudah siap, lanjut ke langkah berikutnya.</div>
+        <?php elseif (($currentStep ?? 1) === 2): ?>
+          <div class="fw-semibold text-dark mb-1">Langkah 2: Buat draft paket dari bank soal yang sudah dipilih.</div>
+          <div class="small text-muted">Buat draft paket, review hasilnya, lalu simpan jika susunannya sudah final.</div>
+        <?php else: ?>
+          <div class="fw-semibold text-success mb-1">Langkah 3: Paket final berhasil dibuat.</div>
+          <div class="small text-muted">Paket final sudah tersimpan di database dan siap dipakai oleh sistem CBT. Hindari perubahan setelah siswa mulai mengerjakan ujian.</div>
+        <?php endif; ?>
+      </div>
+    </div>
+
+    <!-- Step Indicator -->
+    <div class="d-none d-flex align-items-center justify-content-center mb-4 gap-2">
+      <div class="d-flex align-items-center">
+        <span class="step-badge <?= empty($assignedBanks) ? 'step-active' : 'step-done' ?>"><?= empty($assignedBanks) ? '1' : '<i class="bi bi-check-lg"></i>' ?></span>
+        <span class="ms-2 small fw-semibold <?= empty($assignedBanks) ? '' : 'text-success' ?>">Pilih Bank</span>
+      </div>
+      <span class="text-muted mx-1">→</span>
+      <div class="d-flex align-items-center">
+        <span class="step-badge <?= !empty($assignedBanks) && empty($paketList) ? 'step-active' : (!empty($paketList) ? 'step-done' : '') ?>"><?= !empty($paketList) ? '<i class="bi bi-check-lg"></i>' : '2' ?></span>
+        <span class="ms-2 small fw-semibold <?= !empty($paketList) ? 'text-success' : '' ?>">Buat Draft Paket</span>
+      </div>
+      <span class="text-muted mx-1">→</span>
+      <div class="d-flex align-items-center">
+        <span class="step-badge">3</span>
+        <span class="ms-2 small fw-semibold">Ujian Siap</span>
+      </div>
+    </div>
+
+    <!-- Row 1: Bank Selection + Draft Paket -->
+    <div class="row g-4 mb-4">
+      <!-- Bank Selection -->
+      <div class="d-none">
+      <div class="card cbt-step-card h-100">
+          <?php $bankLocked = !empty($paketList); ?>
+          <div class="card-header d-flex align-items-center">
+            <div class="icon-circle bg-primary bg-opacity-10 text-primary me-3"><i class="bi bi-database fs-5"></i></div>
+            <div>
+              <h6 class="mb-0 fw-bold">Sumber Bank Soal</h6>
+              <small class="text-muted"><?= $bankLocked ? 'Terkunci karena paket sudah terbentuk' : 'Pilih satu bank sebagai sumber soal' ?></small>
+            </div>
+          </div>
+          <div class="card-body p-4">
+            <?php if ($bankLocked): ?>
+              <div class="alert alert-warning small mb-3">
+                <i class="bi bi-lock-fill me-1"></i>Sumber bank soal dikunci setelah paket terbentuk. Hapus semua paket terlebih dahulu jika ingin mengganti bank sumber.
+              </div>
+              <?php $activeBank = $assignedBanks[0] ?? null; ?>
+              <div class="border rounded p-3 bg-light">
+                <div class="small text-muted mb-2">Bank sumber aktif</div>
+                <?php if ($activeBank): ?>
+                  <div class="fw-semibold text-dark"><?= esc($activeBank['nama_ujian'] ?? '-') ?></div>
+                  <div class="small text-muted mt-1"><?= esc($activeBank['kategori'] ?? '-') ?><?php if (!empty($activeBank['nama_jenis'])): ?> • <?= esc($activeBank['nama_jenis']) ?><?php endif; ?></div>
+                  <div class="small text-primary mt-2"><i class="bi bi-check-circle-fill me-1"></i>Tetap dipakai untuk semua paket yang sudah terbentuk</div>
+                <?php else: ?>
+                  <div class="small text-muted">Bank sumber tidak ditemukan.</div>
+                <?php endif; ?>
+              </div>
+            <?php else: ?>
+              <form method="post" action="<?= base_url('admin/ujian/' . $ujian['id_ujian'] . '/bank/sync') ?>">
+                <div class="row g-2 mb-3">
+                  <div class="col-12">
+                    <label class="form-label small fw-semibold">Kategori</label>
+                    <select id="bankKatLegacy" class="form-select form-select-sm"><option value="">Pilih Kategori</option></select>
                   </div>
-                </td>
-                <td class="text-center fw-bold"><?= $s['jawaban_benar'] ?></td>
-                <td><?= $s['tingkat_kesulitan'] ?></td>
-                <td>
-                  <?php if (!empty($s['pembahasan'])): ?>
-                    <button type="button" class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#pembahasanModal<?= $s['soal_id'] ?>">
-                      <i class="fas fa-eye"></i> Lihat
-                    </button>
-                  <?php else: ?>
-                    <span class="text-muted small">Tidak ada</span>
-                  <?php endif; ?>
-                </td>
-                <td>
-                  <div class="d-flex justify-content-center gap-2">
-                    <button class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#editSoalModal<?= $s['soal_id'] ?>">
-                      <i class="fas fa-edit"></i>
-                      Edit
-                    </button>
-                    <a href="<?= base_url('admin/soal/hapus/' . $s['soal_id'] . '/' . $ujian['id_ujian']) ?>"
-                      class="btn btn-danger btn-sm"
-                      onclick="return confirm('Apakah anda yakin?')">
-                      <i class="fas fa-trash"></i>
-                      Hapus
-                    </a>
+                  <div class="col-12">
+                    <label class="form-label small fw-semibold">Mata Pelajaran</label>
+                    <select id="bankMapelLegacy" class="form-select form-select-sm" disabled><option value="">Pilih Kategori dulu</option></select>
                   </div>
-                </td>
-              </tr>
-            <?php endforeach; ?>
-          </tbody>
-        </table>
+                  <div class="col-12">
+                    <label class="form-label small fw-semibold">Bank Soal</label>
+                    <select id="bankIdLegacy" class="form-select form-select-sm" disabled><option value="">Pilih Mapel dulu</option></select>
+                  </div>
+                </div>
+                <div id="bankInfoLegacy" class="d-none mb-3">
+                  <div class="stat-box mb-2">
+                    <div class="stat-icon text-primary"><i class="bi bi-check-circle-fill"></i></div>
+                    <div class="stat-value text-primary" id="bankSoalCountLegacy">-</div>
+                    <div class="stat-label">Soal di Bank Ini</div>
+                  </div>
+                </div>
+                <?php $assignedIds = array_column((array)$assignedBanks, 'bank_ujian_id'); ?>
+                <input type="hidden" name="bank_ids[]" id="bankHiddenLegacy" value="<?= $assignedIds[0] ?? '' ?>">
+                <button type="submit" class="btn btn-primary w-100 fw-semibold" id="bankSimpanBtnLegacy" disabled>
+                  <i class="bi bi-check-lg me-1"></i>Simpan
+                </button>
+              </form>
+            <?php endif; ?>
+          </div>
+        </div>
+      </div>
+
+      <!-- Draft Paket / Review Draft (toggle) -->
+      <div class="<?= ($currentStep ?? 1) === 2 ? 'col-12' : 'd-none' ?>">
+        <div class="card shadow-sm h-100">
+
+          <!-- Panel: Generate -->
+          <div id="panelGenerate" <?= (($panelAktif ?? 'generate') !== 'generate' || ($currentStep ?? 1) !== 2) ? 'class="d-none"' : '' ?>>
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <div class="d-flex align-items-center">
+                <div class="icon-circle bg-warning bg-opacity-10 text-warning me-3"><i class="bi bi-lightning fs-5"></i></div>
+                <div>
+                  <h6 class="mb-0 fw-bold">Buat Draft Paket Soal</h6>
+                  <small class="text-muted">Susun draft paket, review hasilnya, lalu simpan sebagai paket final</small>
+                </div>
+              </div>
+              <?php if ($hasDraft || !empty($paketList)): ?>
+                <button type="button" class="btn btn-sm btn-outline-primary" onclick="cbtShowPanel('paket')">
+                  <i class="bi bi-list-ul me-1"></i><?= $hasDraft ? 'Review Draft' : 'Lihat Draft' ?>
+                </button>
+              <?php endif; ?>
+            </div>
+            <div class="card-body p-4">
+              <?php if (empty($assignedBanks)): ?>
+                <div class="text-center py-5 text-muted">
+                  <div style="font-size:2.5rem;opacity:0.25"><i class="bi bi-bank2"></i></div>
+                  <p class="fw-semibold mt-3 mb-1 text-secondary">Belum ada bank dipilih</p>
+                  <small>Pilih sumber bank di kolom kiri untuk memulai</small>
+                </div>
+              <?php else: ?>
+                <div class="row g-3 mb-4">
+                  <div class="col-6">
+                    <div class="stat-box">
+                      <div class="stat-icon text-success"><i class="bi bi-layers-fill"></i></div>
+                      <div class="stat-value text-success"><?= $totalSoal ?></div>
+                      <div class="stat-label">Soal Tersedia</div>
+                    </div>
+                  </div>
+                  <div class="col-6">
+                    <div class="stat-box">
+                      <div class="stat-icon <?= ($hasDraft || count($paketList) > 0) ? 'text-warning' : 'text-muted' ?>"><i class="bi bi-box-seam-fill"></i></div>
+                      <div class="stat-value <?= ($hasDraft || count($paketList) > 0) ? 'text-warning' : 'text-muted' ?>"><?= $hasDraft ? count($draftPaket['packages']) : count($paketList) ?></div>
+                      <div class="stat-label"><?= $hasDraft ? 'Draft Paket' : 'Paket Final' ?></div>
+                    </div>
+                  </div>
+                </div>
+                <div class="cbt-summary-strip small mb-3">
+                  <div class="fw-semibold text-dark mb-1"><i class="bi bi-info-circle me-1"></i>Alur draft paket</div>
+                  <div class="text-muted">Klik <strong>Buat Draft</strong> untuk menyusun paket acak. Draft belum dipakai siswa dan belum disimpan sebagai paket final.</div>
+                  <div class="text-muted mt-1">Setelah review selesai, klik <strong>Simpan Paket Final</strong> untuk mengunci paket ke database.</div>
+                </div>
+                <form method="post" action="<?= base_url('admin/ujian/' . $ujian['id_ujian'] . '/generate-paket/proses') ?>" onsubmit="return confirm('Buat draft paket baru untuk direview?<?= !empty($paketList) ? ' Paket final lama tidak akan berubah sampai Anda menekan Simpan Paket.' : '' ?>')">
+                  <div class="row g-3 mb-3">
+                    <div class="col-6">
+                      <label class="form-label fw-semibold small text-dark">Jumlah Paket</label>
+                      <div class="input-group">
+                        <span class="input-group-text bg-white"><i class="bi bi-stack"></i></span>
+                        <input type="number" name="jumlah_paket" class="form-control" value="<?= esc($draftPaket['jumlah_paket'] ?? 3) ?>" min="1" max="20" required>
+                      </div>
+                    </div>
+                    <div class="col-6">
+                      <label class="form-label fw-semibold small text-dark">Soal per Paket</label>
+                      <div class="input-group">
+                        <span class="input-group-text bg-white"><i class="bi bi-list-ol"></i></span>
+                        <input type="number" name="soal_per_paket" class="form-control" value="<?= esc($draftPaket['soal_per_paket'] ?? 25) ?>" min="1" max="100" required>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="rule-box mb-3">
+                    <i class="bi bi-info-circle text-primary me-2"></i>
+                    <span>Soal per paket <strong>&lt;</strong> total soal tersedia. Overlap <strong>diperbolehkan</strong>.</span>
+                  </div>
+                  <button type="submit" class="btn btn-outline-dark w-100 cbt-draft-submit">
+                    <i class="bi bi-shuffle me-2"></i>Buat Draft
+                  </button>
+                </form>
+              <?php endif; ?>
+            </div>
+          </div>
+
+          <!-- Panel: Daftar Paket -->
+          <div id="panelPaket" <?= (($panelAktif ?? 'generate') !== 'paket' || ($currentStep ?? 1) !== 2) ? 'class="d-none"' : '' ?>>
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <div class="d-flex align-items-center">
+                <div class="icon-circle bg-secondary bg-opacity-10 text-secondary me-3"><i class="bi bi-collection fs-5"></i></div>
+                <h6 class="mb-0 fw-bold">Review Draft Paket <span class="badge bg-secondary ms-1"><?= count($draftPaket['packages'] ?? []) ?></span></h6>
+              </div>
+              <div class="cbt-action-row">
+                <?php if ($hasDraft): ?>
+                  <button type="button" class="btn btn-sm btn-outline-secondary" onclick="cbtShowPanel('generate')">
+                    <i class="bi bi-arrow-repeat me-1"></i>Atur Ulang Draft
+                  </button>
+                  <form method="post" action="<?= base_url('admin/ujian/' . $ujian['id_ujian'] . '/generate-paket/simpan') ?>" onsubmit="return confirm('Simpan draft ini menjadi paket final? Setelah disimpan, paket akan dipakai sistem CBT.')">
+                    <button type="submit" class="btn btn-sm btn-success">
+                      <i class="bi bi-lock-fill me-1"></i>Simpan Paket Final
+                    </button>
+                  </form>
+                <?php endif; ?>
+              </div>
+            </div>
+            <div class="card-body p-0">
+              <?php if (!$hasDraft): ?>
+                <div class="text-center py-4 text-muted"><small>Belum ada draft paket untuk direview.</small></div>
+              <?php else: ?>
+                <div class="cbt-summary-strip small border-bottom">
+                  <div class="fw-semibold text-dark mb-1">Penjelasan aksi</div>
+                  <div class="text-muted"><strong>Atur Ulang Draft</strong> akan membawa Anda kembali ke form generate. Draft baru akan mengganti draft sebelumnya saat Anda membuat ulang.</div>
+                  <div class="text-muted">Klik <strong>Simpan Paket Final</strong> jika susunan soal sudah final dan siap dikunci.</div>
+                </div>
+                <div class="table-responsive cbt-table-wrap">
+                  <table class="table table-hover mb-0 small">
+                    <thead class="table-light"><tr><th class="ps-4">#</th><th>Nama</th><th class="text-center">Soal</th><th></th></tr></thead>
+                    <tbody>
+                      <?php foreach (($draftPaket['packages'] ?? []) as $idx => $p): ?>
+                        <tr>
+                          <td class="ps-4 fw-bold"><?= $p['nomor_paket'] ?? ($idx + 1) ?></td>
+                          <td><?= esc($p['nama_paket']) ?></td>
+                          <td class="text-center"><span class="badge bg-secondary"><?= $p['jumlah_soal'] ?? count($p['soal_ids'] ?? []) ?></span></td>
+                          <td class="text-end pe-3">
+                            <button class="btn btn-sm btn-light me-1" onclick="lihatDraftPaket(<?= $idx + 1 ?>, '<?= esc($p['nama_paket']) ?>')" title="Review soal"><i class="bi bi-eye"></i></button>
+                          </td>
+                        </tr>
+                      <?php endforeach; ?>
+                    </tbody>
+                  </table>
+                </div>
+              <?php endif; ?>
+            </div>
+          </div>
+          <?php if (($currentStep ?? 1) === 2): ?>
+            <div class="card-footer bg-white d-flex justify-content-between align-items-center flex-wrap cbt-step-footer">
+              <div class="small text-muted">Review draft paket sebelum menyimpannya sebagai paket final.</div>
+              <div class="cbt-action-row">
+                <a href="<?= base_url('admin/soal/' . $ujian['id_ujian'] . '?step=1') ?>" class="btn btn-outline-secondary">
+                  <i class="bi bi-arrow-left me-1"></i>Previous
+                </a>
+                <?php if ($step2Done): ?>
+                  <a href="<?= base_url('admin/soal/' . $ujian['id_ujian'] . '?step=3') ?>" class="btn btn-primary">
+                    Next <i class="bi bi-arrow-right ms-1"></i>
+                  </a>
+                <?php else: ?>
+                  <button type="button" class="btn btn-primary" disabled>Next</button>
+                <?php endif; ?>
+              </div>
+            </div>
+          <?php endif; ?>
+        </div>
+      </div>
+    </div>
+
+    <?php if (($currentStep ?? 1) === 3 && $step2Done): ?>
+      <div class="card cbt-step-card border-success mb-3">
+        <div class="card-body p-4">
+          <div class="d-flex align-items-start">
+            <div class="icon-circle bg-success bg-opacity-10 text-success me-3"><i class="bi bi-check2-circle fs-5"></i></div>
+            <div class="flex-grow-1">
+              <h5 class="mb-1 fw-bold text-dark">Paket Final Siap</h5>
+              <p class="mb-2 text-muted small">Paket final sudah tersimpan dan siap dipakai pada ujian CBT ini.</p>
+              <div class="cbt-final-stats mt-3">
+                <div class="cbt-final-stat">
+                  <div class="label">Total Paket</div>
+                  <div class="value"><?= count($paketList) ?></div>
+                </div>
+                <div class="cbt-final-stat">
+                  <div class="label">Attempt Tercatat</div>
+                  <div class="value"><?= (int)($attemptCount ?? 0) ?></div>
+                </div>
+                <div class="cbt-final-stat">
+                  <div class="label">Status Reset</div>
+                  <div class="value">
+                    <span class="cbt-status-chip <?= empty($paketSudahDipakai) ? '' : 'locked' ?>">
+                      <?= empty($paketSudahDipakai) ? 'Tersedia' : 'Terkunci' ?>
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div class="mt-4">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                  <div>
+                    <div class="fw-semibold text-dark">Review Paket Final</div>
+                    <div class="small text-muted">Periksa isi paket final sebelum ujian digunakan siswa.</div>
+                  </div>
+                </div>
+                <?php if (empty($paketList)): ?>
+                  <div class="text-muted">Belum ada paket final untuk direview.</div>
+                <?php else: ?>
+                  <div class="table-responsive cbt-final-review">
+                    <table class="table table-hover mb-0 align-middle">
+                      <thead>
+                        <tr>
+                          <th class="ps-3">#</th>
+                          <th>Nama Paket</th>
+                          <th class="text-center">Jumlah Soal</th>
+                          <th class="text-end pe-3">Review</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <?php foreach ($paketList as $idx => $paket): ?>
+                          <tr>
+                            <td class="ps-3 fw-semibold"><?= $paket['nomor_paket'] ?? ($idx + 1) ?></td>
+                            <td><?= esc($paket['nama_paket']) ?></td>
+                            <td class="text-center"><span class="cbt-soft-count"><?= esc($paket['jumlah_soal'] ?? 0) ?></span></td>
+                            <td class="text-end pe-3">
+                              <button class="btn btn-sm btn-outline-primary" onclick="lihatPaket(<?= $paket['paket_id'] ?>, '<?= esc($paket['nama_paket']) ?>')">
+                                <i class="bi bi-eye me-1"></i>Review Soal
+                              </button>
+                            </td>
+                          </tr>
+                        <?php endforeach; ?>
+                      </tbody>
+                    </table>
+                  </div>
+                <?php endif; ?>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card-footer bg-white d-flex justify-content-end align-items-center flex-wrap gap-2">
+          <div class="cbt-final-actions d-flex gap-2">
+            <?php if (empty($paketSudahDipakai)): ?>
+              <a href="<?= base_url('admin/ujian/' . $ujian['id_ujian'] . '/paket/hapus-semua') ?>" class="btn btn-outline-danger" onclick="return confirm('Semua paket final akan dihapus dan Anda akan kembali ke langkah awal. Lanjutkan?')">
+                <i class="bi bi-arrow-counterclockwise me-1"></i>Reset Paket
+              </a>
+            <?php else: ?>
+              <button type="button" class="btn btn-outline-secondary" disabled>
+                <i class="bi bi-lock me-1"></i>Paket Sudah Dipakai Siswa
+              </button>
+            <?php endif; ?>
+            <a href="<?= base_url('admin/ujian') ?>" class="btn btn-success">
+              <i class="bi bi-check-lg me-1"></i>Kembali ke Ujian
+            </a>
+          </div>
+        </div>
+      </div>
+    <?php endif; ?>
+
+    <!-- Daftar Soal Bank -->
+    <?php if (false && ($currentStep ?? 1) === 1): ?>
+    <div class="card shadow-sm mb-3">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center">
+              <div class="icon-circle bg-primary bg-opacity-10 text-primary me-2"><i class="bi bi-list-ul"></i></div>
+              <h6 class="mb-0 fw-bold ms-1">Daftar Soal Bank</h6>
+              <?php if (!empty($assignedBanks)): ?>
+                <span class="badge bg-secondary ms-2"><?= $totalSoal ?></span>
+              <?php endif; ?>
+            </div>
+            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalTambahSoalCBT">
+              <i class="bi bi-plus-lg me-1"></i>Tambah Soal
+            </button>
+          </div>
+          <div class="card-body p-0">
+            <?php if (empty($assignedBanks)): ?>
+              <div class="text-center py-5 text-muted">
+                <div style="font-size:2.5rem;opacity:0.25"><i class="bi bi-journals"></i></div>
+                <p class="fw-semibold mt-3 mb-1 text-secondary">Belum ada soal</p>
+                <small>Hubungkan bank soal terlebih dahulu melalui panel di atas</small>
+              </div>
+            <?php else: ?>
+              <?php
+                $bankSoal = [];
+                if (!empty($assignedBanks)) {
+                    $db = \Config\Database::connect();
+                    $bankSoal = $db->table('soal_ujian')
+                        ->where('bank_ujian_id', $assignedBanks[0]['bank_ujian_id'])
+                        ->where('is_bank_soal', 1)
+                        ->orderBy('created_at', 'DESC')
+                        ->get()->getResultArray();
+                }
+              ?>
+              <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                  <thead class="table-light small">
+                    <tr>
+                      <th class="ps-4" width="5%">#</th>
+                      <th width="14%">Kode</th>
+                      <th width="32%">Pertanyaan</th>
+                      <th width="7%" class="text-center">Benar</th>
+                      <th width="8%" class="text-center">Kesulitan</th>
+                      <th width="20%">Metadata</th>
+                      <th width="14%" class="text-center">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <?php if (empty($bankSoal)): ?>
+                      <tr><td colspan="7" class="text-center py-4 text-muted">Belum ada soal. Klik "Tambah Soal".</td></tr>
+                    <?php else: $no = 1; foreach ($bankSoal as $s): ?>
+                      <tr>
+                        <td class="ps-4 text-muted small"><?= $no++ ?></td>
+                        <td><code><?= esc($s['kode_soal']) ?></code></td>
+                        <td><div class="text-truncate" style="max-width:280px" title="<?= esc(strip_tags($s['pertanyaan'])) ?>"><?= esc(strip_tags($s['pertanyaan'])) ?></div></td>
+                        <td class="text-center"><span class="badge bg-success"><?= $s['jawaban_benar'] ?></span></td>
+                        <td class="text-center small"><?= number_format($s['tingkat_kesulitan'], 2) ?></td>
+                        <td>
+                          <div class="d-flex flex-wrap gap-1">
+                            <?php if (!empty($s['variabel_id'])): foreach ($variabel as $v): if ($v['variabel_id'] == $s['variabel_id']): ?>
+                              <span class="badge bg-info bg-opacity-10 text-info" style="font-size:0.65rem"><?= esc($v['nama_variabel']) ?></span>
+                            <?php endif; endforeach; endif; ?>
+                            <?php if (!empty($s['materi_id'])): foreach ($materi as $m): if ($m['materi_id'] == $s['materi_id']): ?>
+                              <span class="badge bg-success bg-opacity-10 text-success" style="font-size:0.65rem"><?= esc($m['nama_materi']) ?></span>
+                            <?php endif; endforeach; endif; ?>
+                          </div>
+                        </td>
+                        <td class="text-center">
+                          <button class="btn btn-sm btn-light me-1" data-bs-toggle="modal" data-bs-target="#modalEditSoal<?= $s['soal_id'] ?>" title="Edit"><i class="bi bi-pencil"></i></button>
+                          <a href="<?= base_url('admin/soal/hapus/' . $s['soal_id'] . '/' . $ujian['id_ujian']) ?>" class="btn btn-sm btn-light text-danger" title="Hapus" onclick="return confirm('Hapus soal ini?')"><i class="bi bi-trash"></i></a>
+                        </td>
+                      </tr>
+                    <?php endforeach; endif; ?>
+                  </tbody>
+                </table>
+              </div>
+            <?php endif; ?>
+          </div>
+        </div>
+        <div class="card-footer bg-white d-flex justify-content-between align-items-center">
+          <div class="small text-muted">Pastikan bank soal dan daftar soalnya sudah benar sebelum membuat draft paket.</div>
+          <a href="<?= $step1Done ? base_url('admin/soal/' . $ujian['id_ujian'] . '?step=2&panel=generate') : '#' ?>" class="btn btn-primary <?= $step1Done ? '' : 'disabled' ?>">
+            Buat Draft Paket <i class="bi bi-arrow-right ms-1"></i>
+          </a>
+        </div>
+      </div>
+    <?php endif; ?>
+
+    <?php if (($currentStep ?? 1) === 1): ?>
+      <div class="card cbt-step-card mb-3">
+        <div class="card-header bg-white px-4 py-3">
+          <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+            <div>
+              <h5 class="mb-1 fw-bold">Langkah 1: Pilih Bank & Kelola Soal</h5>
+              <div class="small text-muted">Pilih satu bank soal sebagai sumber CBT, lalu kelola soal di dalam bank tersebut sebelum lanjut ke penyusunan paket.</div>
+            </div>
+            <span class="badge bg-primary-subtle text-primary px-3 py-2 cbt-step-chip">Step 1</span>
+          </div>
+        </div>
+        <div class="card-body p-4">
+          <div class="cbt-summary-strip small text-muted mb-3">
+            Mulai dari memilih satu bank soal yang benar. Setelah itu, semua soal pada langkah ini bisa ditambah, diedit, atau dihapus sebelum paket dibentuk.
+          </div>
+          <?php $bankLocked = !empty($paketList); ?>
+          <div class="cbt-step-section">
+            <div class="cbt-section-head">
+              <div>
+                <div class="cbt-section-title">Sumber Bank Soal</div>
+                <div class="cbt-section-subtitle">Pilih sumber soal berurutan dari sekolah sampai bank soal.</div>
+              </div>
+            </div>
+            <?php if ($bankLocked): ?>
+              <div class="alert alert-warning small mb-3">
+                <i class="bi bi-lock-fill me-1"></i>Sumber bank soal dikunci setelah paket terbentuk. Hapus semua paket terlebih dahulu jika ingin mengganti bank sumber.
+              </div>
+              <?php $activeBank = $assignedBanks[0] ?? null; ?>
+              <div class="cbt-info-box p-3">
+                <div class="small text-muted mb-2">Bank sumber aktif</div>
+                <?php if ($activeBank): ?>
+                  <div class="fw-semibold text-dark"><?= esc($activeBank['nama_ujian'] ?? '-') ?></div>
+                  <div class="small text-muted mt-1"><?= esc($activeBank['kategori'] ?? '-') ?><?php if (!empty($activeBank['nama_jenis'])): ?> • <?= esc($activeBank['nama_jenis']) ?><?php endif; ?></div>
+                <?php else: ?>
+                  <div class="small text-muted">Bank sumber tidak ditemukan.</div>
+                <?php endif; ?>
+              </div>
+            <?php elseif (!empty($assignedBanks)): ?>
+              <?php $activeBank = $assignedBanks[0] ?? null; ?>
+              <div class="cbt-info-box p-3">
+                <div class="small text-muted mb-2">Bank sumber aktif</div>
+                <?php if ($activeBank): ?>
+                  <div class="fw-semibold text-dark"><?= esc($activeBank['nama_ujian'] ?? '-') ?></div>
+                  <div class="small text-muted mt-1"><?= esc($activeBank['kategori'] ?? '-') ?><?php if (!empty($activeBank['nama_jenis'])): ?> &bull; <?= esc($activeBank['nama_jenis']) ?><?php endif; ?></div>
+                  <div class="small text-muted mt-2">Daftar soal di bawah diambil dari bank sumber ini.</div>
+                <?php else: ?>
+                  <div class="small text-muted">Bank sumber tidak ditemukan.</div>
+                <?php endif; ?>
+                <form method="post" action="<?= base_url('admin/ujian/' . $ujian['id_ujian'] . '/bank/sync') ?>" class="mt-3">
+                  <button type="submit" class="btn btn-outline-secondary btn-sm cbt-action-secondary" onclick="return confirm('Ganti bank sumber? Pilihan bank saat ini akan dikosongkan dan daftar soal tidak akan ditampilkan sampai Anda memilih bank baru.')">
+                    <i class="bi bi-arrow-repeat me-1"></i>Ganti Bank Sumber
+                  </button>
+                </form>
+              </div>
+            <?php else: ?>
+              <form method="post" action="<?= base_url('admin/ujian/' . $ujian['id_ujian'] . '/bank/sync') ?>" class="cbt-bank-picker">
+                <div class="cbt-bank-grid mb-3">
+                  <div class="cbt-bank-field">
+                    <label class="form-label">Pilih Sekolah</label>
+                    <select id="bankSekolah" class="form-select">
+                      <option value="">Pilih Sekolah</option>
+                      <option value="__umum">Umum / Semua Sekolah</option>
+                      <?php foreach (($sekolah ?? []) as $sk): ?>
+                        <option value="<?= esc($sk['sekolah_id']) ?>"><?= esc($sk['nama_sekolah']) ?></option>
+                      <?php endforeach; ?>
+                    </select>
+                  </div>
+                  <div class="cbt-bank-field">
+                    <label class="form-label">Pilih Kelas</label>
+                    <select id="bankKelas" class="form-select" disabled><option value="">Pilih sekolah dulu</option></select>
+                  </div>
+                  <div class="cbt-bank-field">
+                    <label class="form-label">Mata Pelajaran</label>
+                    <select id="bankMapel" class="form-select" disabled><option value="">Pilih kelas dulu</option></select>
+                  </div>
+                  <div class="cbt-bank-field">
+                    <label class="form-label">Bank Soal</label>
+                    <select id="bankId" class="form-select" disabled><option value="">Pilih mata pelajaran dulu</option></select>
+                  </div>
+                </div>
+                <div id="bankInfo" class="d-none mb-3">
+                  <div class="cbt-bank-result">
+                    <div class="cbt-bank-result-icon"><i class="bi bi-check2-circle"></i></div>
+                    <div>
+                      <div class="cbt-bank-result-title">Bank soal siap digunakan</div>
+                      <div class="cbt-bank-result-text"><span id="bankSoalCount">-</span> soal tersedia di bank yang dipilih.</div>
+                    </div>
+                  </div>
+                </div>
+                <?php $assignedIds = array_column((array)$assignedBanks, 'bank_ujian_id'); ?>
+                <input type="hidden" id="bankKat" value="">
+                <input type="hidden" name="bank_ids[]" id="bankHidden" value="<?= $assignedIds[0] ?? '' ?>">
+                <button type="submit" class="btn btn-success cbt-bank-save" id="bankSimpanBtn" disabled>
+                  <i class="bi bi-check-lg me-1"></i>Simpan Bank Sumber
+                </button>
+              </form>
+            <?php endif; ?>
+          </div>
+
+          <div class="cbt-step-section">
+            <div class="cbt-section-head">
+              <div>
+                <div class="cbt-section-title">Daftar Soal Bank</div>
+                <div class="cbt-section-subtitle">Tambahkan, edit, atau hapus soal pada bank yang sudah dipilih.</div>
+              </div>
+              <div class="cbt-action-row">
+                <?php if (!empty($assignedBanks)): ?>
+                  <span class="cbt-count-chip"><?= (int)$totalSoal ?> soal</span>
+                <?php endif; ?>
+                <button class="btn btn-outline-dark btn-sm cbt-action-secondary" data-bs-toggle="modal" data-bs-target="#modalTambahSoalCBT" <?= empty($assignedBanks) ? 'disabled' : '' ?>>
+                  <i class="bi bi-plus-lg me-1"></i>Tambah Soal
+                </button>
+              </div>
+            </div>
+            <?php if (empty($assignedBanks)): ?>
+              <div class="text-center text-muted cbt-empty-state">
+                <div class="empty-icon"><i class="bi bi-journals"></i></div>
+                <p class="fw-semibold mt-3 mb-1 text-secondary">Belum ada soal</p>
+                <small>Pilih bank soal terlebih dahulu agar daftar soal muncul di sini.</small>
+              </div>
+            <?php else: ?>
+              <?php
+                $bankSoal = [];
+                $db = \Config\Database::connect();
+                $bankSoal = $db->table('soal_ujian')
+                    ->where('bank_ujian_id', $assignedBanks[0]['bank_ujian_id'])
+                    ->where('is_bank_soal', 1)
+                    ->orderBy('created_at', 'DESC')
+                    ->get()->getResultArray();
+              ?>
+              <div class="table-responsive cbt-table-wrap">
+                <table class="table table-hover align-middle mb-0 cbt-bank-table">
+                  <thead>
+                    <tr>
+                      <th class="ps-4" width="5%">#</th>
+                      <th width="14%">Kode</th>
+                      <th width="32%">Pertanyaan</th>
+                      <th width="7%" class="text-center">Benar</th>
+                      <th width="8%" class="text-center">Kesulitan</th>
+                      <th width="20%">Metadata</th>
+                      <th width="14%" class="text-center">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <?php if (empty($bankSoal)): ?>
+                      <tr><td colspan="7" class="text-center py-4 text-muted">Belum ada soal di bank ini. Klik "Tambah Soal".</td></tr>
+                    <?php else: $no = 1; foreach ($bankSoal as $s): ?>
+                      <tr>
+                        <td class="ps-4 text-muted small"><?= $no++ ?></td>
+                        <td><span class="cbt-code-pill"><?= esc($s['kode_soal']) ?></span></td>
+                        <td><div class="text-truncate cbt-question-preview" title="<?= esc(strip_tags($s['pertanyaan'])) ?>"><?= esc(strip_tags($s['pertanyaan'])) ?: '-' ?></div></td>
+                        <td class="text-center"><span class="cbt-answer-pill"><?= esc($s['jawaban_benar']) ?></span></td>
+                        <td class="text-center"><span class="cbt-difficulty-pill"><?= number_format((float)$s['tingkat_kesulitan'], 2) ?></span></td>
+                        <td><div class="d-flex flex-wrap gap-1">
+                          <?php if (!empty($s['variabel_id'])): foreach ($variabel as $v): if ($v['variabel_id'] == $s['variabel_id']): ?>
+                            <span class="cbt-meta-pill"><?= esc($v['nama_variabel']) ?></span>
+                          <?php endif; endforeach; endif; ?>
+                          <?php if (!empty($s['materi_id'])): foreach ($materi as $m): if ($m['materi_id'] == $s['materi_id']): ?>
+                            <span class="cbt-meta-pill"><?= esc($m['nama_materi']) ?></span>
+                          <?php endif; endforeach; endif; ?>
+                          <?php if (empty($s['variabel_id']) && empty($s['materi_id'])): ?>
+                            <span class="text-muted small">-</span>
+                          <?php endif; ?>
+                        </div></td>
+                        <td class="text-center">
+                          <div class="cbt-row-actions">
+                            <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modalEditSoal<?= $s['soal_id'] ?>" title="Edit"><i class="bi bi-pencil"></i></button>
+                            <a href="<?= base_url('admin/soal/hapus/' . $s['soal_id'] . '/' . $ujian['id_ujian']) ?>" class="btn btn-sm btn-outline-danger" title="Hapus" onclick="return confirm('Hapus soal ini?')"><i class="bi bi-trash"></i></a>
+                          </div>
+                        </td>
+                      </tr>
+                    <?php endforeach; endif; ?>
+                  </tbody>
+                </table>
+              </div>
+            <?php endif; ?>
+          </div>
+        </div>
+        <div class="card-footer bg-white d-flex justify-content-between align-items-center flex-wrap cbt-step-footer">
+          <div class="small text-muted">Pastikan bank soal dan daftar soalnya sudah benar sebelum membuat draft paket.</div>
+          <a href="<?= $step1Done ? base_url('admin/soal/' . $ujian['id_ujian'] . '?step=2&panel=generate') : '#' ?>" class="btn btn-primary <?= $step1Done ? '' : 'disabled' ?>">
+            Buat Draft Paket <i class="bi bi-arrow-right ms-1"></i>
+          </a>
+        </div>
+      </div>
+    <?php endif; ?>
+
+
+<!-- Modal Lihat Soal Paket -->
+<div class="modal fade cbt-review-modal" id="modalLihatPaket" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header bg-white px-4 py-3 border-bottom">
+        <h5 class="modal-title fw-bold" id="modalLihatPaketTitle">Soal dalam Paket</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body px-4 py-3" id="modalLihatPaketBody">
+        <div class="text-center py-3"><div class="spinner-border text-primary"></div></div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Modal Pembahasan -->
-<?php foreach ($soal as $s):
-  if (!empty($s['pembahasan'])): ?>
-    <div class="modal fade" id="pembahasanModal<?= $s['soal_id'] ?>" tabindex="-1">
-      <div class="modal-dialog">
-        <div class="modal-content">
-          <div class="modal-header border-0">
-            <h5 class="modal-title fw-bold">Pembahasan Soal</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-          </div>
-          <div class="modal-body">
-            <p class="fw-bold mb-2">Kode Soal: <span class="text-primary"><?= $s['kode_soal'] ?></span></p>
+<script>
+function cbtShowPanel(panel) {
+  document.getElementById('panelGenerate').classList.toggle('d-none', panel !== 'generate');
+  document.getElementById('panelPaket').classList.toggle('d-none', panel !== 'paket');
+}
 
-            <p class="fw-bold mb-2">Pertanyaan:</p>
-            <div class="border p-3 mb-3"><?= $s['pertanyaan'] ?></div>
+function stripHtml(text) {
+  return (text || '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+}
 
-            <?php if (!empty($s['foto'])): ?>
-              <div class="text-center mb-3">
-                <img src="<?= base_url('uploads/soal/' . $s['foto']) ?>" alt="Foto Soal" class="img-fluid" style="max-height: 200px;">
-              </div>
-            <?php endif; ?>
+function renderReviewSoal(data, type) {
+  let html = '<div class="cbt-review-list">';
+  data.forEach((s, i) => {
+    const question = stripHtml(s.pertanyaan);
+    const kode = s.kode_soal ? stripHtml(s.kode_soal) : '-';
+    const benar = s.jawaban_benar || '-';
+    const difficulty = s.tingkat_kesulitan !== undefined && s.tingkat_kesulitan !== null && s.tingkat_kesulitan !== ''
+      ? parseFloat(s.tingkat_kesulitan).toFixed(2)
+      : '-';
+    const options = {
+      A: s.pilihan_a || '',
+      B: s.pilihan_b || '',
+      C: s.pilihan_c || '',
+      D: s.pilihan_d || '',
+      E: s.pilihan_e || ''
+    };
+    const pembahasan = stripHtml(s.pembahasan);
+    let item = '<div class="cbt-review-item">';
+    item += '<div class="cbt-review-head">';
+    item += '<div class="cbt-review-code"><i class="bi bi-upc-scan me-1"></i>' + kode + '</div>';
+    item += '<span class="cbt-review-number">#' + (i + 1) + '</span>';
+    item += '</div>';
+    item += '<div class="cbt-review-question">' + (question || 'Pertanyaan tidak tersedia') + '</div>';
+    item += '<div class="cbt-review-options">';
+    Object.keys(options).forEach((key) => {
+      const value = stripHtml(options[key]);
+      if (!value) return;
+      item += '<div class="cbt-review-option ' + (key === benar ? 'is-correct' : '') + '">';
+      item += '<div class="cbt-review-option-key">' + key + '.</div>';
+      item += '<div>' + value + '</div>';
+      item += '</div>';
+    });
+    item += '</div>';
+    item += '<div class="cbt-review-meta">';
+    item += '<span class="cbt-review-pill"><i class="bi bi-check2-circle me-1 text-success"></i>Benar: ' + benar + '</span>';
+    item += '<span class="cbt-review-pill"><i class="bi bi-bar-chart me-1 text-primary"></i>Kesulitan: ' + difficulty + '</span>';
+    if (type === 'draft') item += '<span class="cbt-review-pill"><i class="bi bi-pencil-square me-1 text-secondary"></i>Draft</span>';
+    item += '</div>';
+    if (pembahasan) {
+      item += '<div class="cbt-review-explain"><strong>Pembahasan:</strong> ' + pembahasan + '</div>';
+    }
+    item += '</div>';
+    html += item;
+  });
+  html += '</div>';
+  return html;
+}
 
-            <p class="fw-bold mb-2">Jawaban Benar: <?= $s['jawaban_benar'] ?></p>
+function lihatPaket(paketId, nama) {
+  document.getElementById('modalLihatPaketTitle').textContent = 'Soal dalam ' + nama;
+  document.getElementById('modalLihatPaketBody').innerHTML = '<div class="text-center py-3"><div class="spinner-border text-primary"></div></div>';
+  new bootstrap.Modal(document.getElementById('modalLihatPaket')).show();
+  fetch('<?= base_url('admin/ujian/paket/') ?>' + paketId + '/soal')
+    .then(r => r.json())
+    .then(data => {
+      if (!data.length) {
+        document.getElementById('modalLihatPaketBody').innerHTML = '<p class="text-muted text-center py-4">Tidak ada soal dalam paket ini.</p>';
+        return;
+      }
+      document.getElementById('modalLihatPaketBody').innerHTML = renderReviewSoal(data, 'final');
+    })
+    .catch(() => {
+      document.getElementById('modalLihatPaketBody').innerHTML = '<p class="text-danger text-center py-4">Gagal memuat data.</p>';
+    });
+}
 
-            <div class="card bg-light">
-              <div class="card-header fw-bold">Pembahasan</div>
-              <div class="card-body">
-                <?= $s['pembahasan'] ?>
-              </div>
+function lihatDraftPaket(index, nama) {
+  document.getElementById('modalLihatPaketTitle').textContent = 'Draft ' + nama;
+  document.getElementById('modalLihatPaketBody').innerHTML = '<div class="text-center py-3"><div class="spinner-border text-primary"></div></div>';
+  new bootstrap.Modal(document.getElementById('modalLihatPaket')).show();
+  fetch('<?= base_url('admin/ujian/' . $ujian['id_ujian'] . '/draft-paket/') ?>' + index + '/soal')
+    .then(r => r.json())
+    .then(data => {
+      if (!data.length) {
+        document.getElementById('modalLihatPaketBody').innerHTML = '<p class="text-muted text-center py-4">Tidak ada soal dalam draft ini.</p>';
+        return;
+      }
+      document.getElementById('modalLihatPaketBody').innerHTML = renderReviewSoal(data, 'draft');
+    })
+    .catch(() => {
+      document.getElementById('modalLihatPaketBody').innerHTML = '<p class="text-danger text-center py-4">Gagal memuat draft paket.</p>';
+    });
+}
+</script>
+
+  <?php else: ?>
+    <!-- ==================== CAT MODE ==================== -->
+    <?php
+      $catTotal = count($soal ?? []);
+      $catBankCount = 0;
+      $catCustomCount = 0;
+      foreach (($soal ?? []) as $catRow) {
+        if (!empty($catRow['is_bank_soal'])) {
+          $catBankCount++;
+        } else {
+          $catCustomCount++;
+        }
+      }
+    ?>
+    <div class="card cat-manage-card mb-3">
+      <div class="card-header px-4 py-3">
+        <div class="d-flex justify-content-between align-items-center gap-3 flex-wrap">
+          <div class="d-flex align-items-center gap-3">
+            <div class="cat-summary-icon bg-primary bg-opacity-10 text-primary"><i class="bi bi-diagram-3 fs-5"></i></div>
+            <div>
+              <h6 class="mb-0 fw-bold">Pool Soal Ujian CAT</h6>
+              <small class="text-muted">Kelola pool soal adaptif — tambah dari bank atau buat soal custom</small>
             </div>
           </div>
-          <div class="modal-footer border-0">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
+          <div class="cat-action-group">
+            <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalPilihDariBank">
+              <i class="bi bi-collection me-1"></i>Pilih dari Bank
+            </button>
+            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#tambahSoalModal">
+              <i class="bi bi-plus-lg me-1"></i>Tambah Custom
+            </button>
           </div>
         </div>
       </div>
+      <div class="card-body p-4 pb-3">
+        <div class="cat-summary-panel">
+          <div class="cat-summary-item">
+            <div class="cat-summary-icon bg-primary bg-opacity-10 text-primary"><i class="bi bi-layers-fill"></i></div>
+            <div>
+              <div class="cat-summary-label">Total Pool</div>
+              <div class="cat-summary-value"><?= $catTotal ?> soal</div>
+              <div class="cat-summary-help">Semua soal yang akan digunakan ujian CAT.</div>
+            </div>
+          </div>
+          <div class="cat-summary-item">
+            <div class="cat-summary-icon bg-success bg-opacity-10 text-success"><i class="bi bi-collection-fill"></i></div>
+            <div>
+              <div class="cat-summary-label">Dari Bank</div>
+              <div class="cat-summary-value"><?= $catBankCount ?> soal</div>
+              <div class="cat-summary-help">Tetap tersimpan di bank soal asal.</div>
+            </div>
+          </div>
+          <div class="cat-summary-item">
+            <div class="cat-summary-icon bg-warning bg-opacity-10 text-warning"><i class="bi bi-pencil-square"></i></div>
+            <div>
+              <div class="cat-summary-label">Soal Custom</div>
+              <div class="cat-summary-value"><?= $catCustomCount ?> soal</div>
+              <div class="cat-summary-help">Dibuat khusus dari halaman ujian CAT.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <?php if (empty($soal)): ?>
+        <div class="px-4 pb-4">
+          <div class="cat-empty-state">
+            <div class="icon"><i class="bi bi-diagram-3"></i></div>
+            <div class="fw-semibold text-dark mb-1">Pool soal CAT masih kosong</div>
+            <div class="small">Tambahkan soal custom atau pilih soal dari bank untuk mulai membentuk pool ujian.</div>
+          </div>
+        </div>
+      <?php else: ?>
+        <div class="cat-table-wrap border-top">
+          <table class="table table-hover align-middle mb-0 cat-bank-table">
+            <thead>
+              <tr>
+                <th class="ps-4" width="5%">#</th>
+                <th width="11%">Kode</th>
+                <th width="9%">Sumber</th>
+                <th width="28%">Pertanyaan</th>
+                <th width="6%" class="text-center">Benar</th>
+                <th width="7%" class="text-center"><span title="Tingkat Kesulitan">b</span></th>
+                <th width="6%" class="text-center"><span title="Daya Diskriminasi">a</span></th>
+                <th width="6%" class="text-center"><span title="Faktor Tebakan">c</span></th>
+                <th width="13%">Metadata</th>
+                <th width="9%" class="text-center">Aksi</th>
+              </tr>
+            </thead>
+              <tbody>
+                <?php $no = 1; foreach ($soal as $s): ?>
+                  <tr>
+                    <td class="ps-4 text-muted small"><?= $no++ ?></td>
+                    <td><span class="cat-code-pill"><?= esc($s['kode_soal']) ?></span></td>
+                    <td>
+                      <?php if (!empty($s['is_bank_soal'])): ?>
+                        <span class="cat-origin-pill is-bank" title="<?= esc($s['nama_bank_ujian'] ?? 'Bank tidak tersedia') ?>">
+                          <?= !empty($s['nama_bank_ujian']) ? esc($s['nama_bank_ujian']) : 'Bank tidak tersedia' ?>
+                        </span>
+                      <?php else: ?>
+                        <span class="cat-origin-pill is-custom">Soal Custom</span>
+                      <?php endif; ?>
+                    </td>
+                    <td><div class="text-truncate cat-question-text" title="<?= esc(strip_tags($s['pertanyaan'])) ?>"><?= esc(strip_tags($s['pertanyaan'])) ?: '-' ?></div></td>
+                    <td class="text-center"><span class="cat-value-pill"><?= esc($s['jawaban_benar']) ?></span></td>
+                    <td class="text-center"><span class="cat-value-pill"><?= number_format((float) ($s['tingkat_kesulitan'] ?? 0), 3) ?></span></td>
+                    <td class="text-center"><span class="cat-value-pill"><?= number_format((float) ($s['a'] ?? 1), 3) ?></span></td>
+                    <td class="text-center"><span class="cat-value-pill"><?= number_format((float) ($s['c'] ?? 0), 3) ?></span></td>
+                    <td>
+                      <div class="d-flex flex-wrap gap-1">
+                        <?php if (!empty($s['variabel_id'])): foreach ($variabel as $v): if ($v['variabel_id'] == $s['variabel_id']): ?>
+                          <span class="cat-meta-pill"><?= esc($v['nama_variabel']) ?></span>
+                        <?php endif; endforeach; endif; ?>
+                        <?php if (!empty($s['materi_id'])): foreach ($materi as $m): if ($m['materi_id'] == $s['materi_id']): ?>
+                          <span class="cat-meta-pill"><?= esc($m['nama_materi']) ?></span>
+                        <?php endif; endforeach; endif; ?>
+                        <?php if (empty($s['variabel_id']) && empty($s['materi_id'])): ?>
+                          <span class="text-muted small">-</span>
+                        <?php endif; ?>
+                      </div>
+                    </td>
+                    <td class="text-center">
+                      <div class="cbt-row-actions">
+                        <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#editSoalCatModal<?= $s['soal_id'] ?>" title="Edit"><i class="bi bi-pencil"></i></button>
+                        <?php if (!empty($s['is_bank_soal'])): ?>
+                          <a href="<?= base_url('admin/soal/unassign/' . $s['soal_id'] . '/' . $ujian['id_ujian']) ?>" class="btn btn-sm btn-outline-secondary" title="Lepas dari ujian" onclick="return confirm('Lepas soal ini dari pool ujian CAT? Soal tetap aman di bank soal.')"><i class="bi bi-link-45deg"></i></a>
+                        <?php else: ?>
+                          <a href="<?= base_url('admin/soal/hapus/' . $s['soal_id'] . '/' . $ujian['id_ujian']) ?>" class="btn btn-sm btn-outline-danger" title="Hapus soal custom" onclick="return confirm('Hapus soal custom ini dari pool ujian CAT?')"><i class="bi bi-trash"></i></a>
+                        <?php endif; ?>
+                      </div>
+                    </td>
+                  </tr>
+                <?php endforeach; ?>
+              </tbody>
+            </table>
+          </div>
+        <?php endif; ?>
     </div>
-<?php endif;
-endforeach; ?>
+  <?php endif; ?>
+</div>
 
-<!-- Modal Tambah Soal -->
-<div class="modal fade" id="tambahSoalModal" tabindex="-1" data-bs-focus="false">
-  <div class="modal-dialog modal-xl">
-    <div class="modal-content">
-      <div class="modal-header bg-primary text-white border-0">
-        <h5 class="modal-title fw-bold"><i class="fas fa-plus-circle me-2"></i>Tambah Soal Baru</h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+<!-- ==================== MODAL: Pilih Soal dari Bank (CAT) ==================== -->
+<div class="modal fade" id="modalPilihDariBank" tabindex="-1">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header bg-primary text-white px-4 py-3">
+        <h5 class="modal-title fw-semibold"><i class="bi bi-collection me-2"></i>Pilih Soal dari Bank</h5>
+        <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
-      <form action="<?= base_url('admin/soal/tambah') ?>" method="post" enctype="multipart/form-data">
+      <form id="formPilihBank" method="post" action="<?= base_url('admin/soal/assign-bank') ?>">
         <input type="hidden" name="ujian_id" value="<?= $ujian['id_ujian'] ?>">
-        <div class="modal-body">
-          <!-- Kode Soal Section -->
-          <div class="card mb-3 shadow-sm">
-            <div class="card-header bg-light">
-              <h6 class="mb-0"><i class="fas fa-code text-warning me-2"></i>Kode Soal</h6>
-            </div>
-            <div class="card-body">
-              <div class="row">
-                <div class="col-md-6">
-                  <label class="form-label fw-semibold">Kode Soal <span class="text-danger">*</span></label>
-                  <input type="text" name="kode_soal" class="form-control form-control-lg" placeholder="Contoh: MAT001, FIS002" required>
-                  <small class="text-muted">Masukkan kode unik untuk soal ini</small>
-                </div>
-                <div class="col-md-6">
-                  <div class="mt-4">
-                    <div class="alert alert-warning py-2 mb-0">
-                      <small>
-                        <strong>Format Kode:</strong><br>
-                        • 3-50 karakter<br>
-                        • Boleh huruf, angka, dan simbol<br>
-                        • Harus unik (tidak boleh sama)
-                      </small>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+        <div class="modal-body px-4 py-4">
+          <p class="text-muted small mb-3"><i class="bi bi-info-circle me-1"></i>Soal yang dipilih akan <strong>ditautkan</strong> ke ujian ini (tanpa duplikasi). Soal tetap tersimpan di bank.</p>
+          <div class="row g-3 mb-3">
+            <div class="col-md-3"><label class="form-label small fw-semibold">Sekolah</label><select id="pilihSekolah" class="form-select"><option value="">Pilih Sekolah</option><option value="__umum">Umum / Semua Sekolah</option><?php foreach (($sekolah ?? []) as $sk): ?><option value="<?= esc($sk['sekolah_id']) ?>"><?= esc($sk['nama_sekolah']) ?></option><?php endforeach; ?></select></div>
+            <div class="col-md-3"><label class="form-label small fw-semibold">Kelas</label><select id="pilihKelas" class="form-select" disabled><option value="">Pilih sekolah dulu</option></select></div>
+            <div class="col-md-3"><label class="form-label small fw-semibold">Mata Pelajaran</label><select id="pilihMapel" class="form-select" disabled><option value="">Pilih kelas dulu</option></select></div>
+            <div class="col-md-3"><label class="form-label small fw-semibold">Bank Soal</label><select id="pilihBank" class="form-select" disabled><option value="">Pilih mapel dulu</option></select></div>
+            <input type="hidden" id="pilihKat" value="">
+            <div class="col-12"><label class="form-label small fw-semibold">Cari</label><input type="text" id="pilihCari" class="form-control" placeholder="Cari soal..." disabled></div>
           </div>
-
-          <!-- Pertanyaan Section -->
-          <div class="card mb-3 shadow-sm">
-            <div class="card-header bg-light">
-              <h6 class="mb-0"><i class="fas fa-question-circle text-primary me-2"></i>Pertanyaan Soal</h6>
-            </div>
-            <div class="card-body">
-              <textarea name="pertanyaan" id="pertanyaan_tambah" class="form-control summernote" required placeholder="Masukkan pertanyaan soal..."></textarea>
-
-              <div class="mt-3">
-                <label class="form-label"><i class="fas fa-image text-secondary me-1"></i>Foto Soal (Opsional)</label>
-                <input type="file" name="foto" class="form-control" accept=".jpg,.jpeg,.png,.gif">
-                <small class="text-muted">
-                  Upload gambar dengan format JPG, JPEG, PNG, atau GIF (maks. 2MB).
-                  <br><strong>Tips:</strong> Anda juga bisa langsung insert gambar di editor dengan klik tombol <i class="fas fa-image"></i> pada toolbar.
-                </small>
-              </div>
-            </div>
+          <div id="pilihLoading" class="text-center py-3 d-none"><div class="spinner-border text-primary"></div></div>
+          <div id="pilihContainer" class="d-none">
+            <div class="table-responsive"><table class="table table-sm table-hover align-middle"><thead class="table-light"><tr><th><input type="checkbox" id="pilihAll"></th><th>#</th><th>Kode</th><th>Pertanyaan</th><th>Jawaban</th><th>Kesulitan</th></tr></thead><tbody id="pilihBody"></tbody></table></div>
           </div>
-
-          <!-- Pilihan Jawaban Section -->
-          <div class="card mb-3 shadow-sm">
-            <div class="card-header bg-light">
-              <h6 class="mb-0"><i class="fas fa-list text-success me-2"></i>Pilihan Jawaban</h6>
-            </div>
-            <div class="card-body">
-              <div class="row g-3">
-                <div class="col-md-6">
-                  <label class="form-label fw-semibold text-primary">A.</label>
-                  <textarea name="pilihan_a" id="pilihan_a_tambah" class="form-control summernote-small" required></textarea>
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label fw-semibold text-primary">B.</label>
-                  <textarea name="pilihan_b" id="pilihan_b_tambah" class="form-control summernote-small" required></textarea>
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label fw-semibold text-primary">C.</label>
-                  <textarea name="pilihan_c" id="pilihan_c_tambah" class="form-control summernote-small" required></textarea>
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label fw-semibold text-primary">D.</label>
-                  <textarea name="pilihan_d" id="pilihan_d_tambah" class="form-control summernote-small" required></textarea>
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label fw-semibold text-warning">E. (Opsional)</label>
-                  <textarea name="pilihan_e" id="pilihan_e_tambah" class="form-control summernote-small"></textarea>
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label fw-semibold"><i class="fas fa-check-circle text-success me-1"></i>Jawaban Benar</label>
-                  <select name="jawaban_benar" class="form-select form-select-lg" required>
-                    <option value="">Pilih Jawaban Benar</option>
-                    <option value="A">A</option>
-                    <option value="B">B</option>
-                    <option value="C">C</option>
-                    <option value="D">D</option>
-                    <option value="E">E</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Pengaturan Soal Section -->
-          <div class="card mb-3 shadow-sm">
-            <div class="card-header bg-light">
-              <h6 class="mb-0"><i class="fas fa-cogs text-warning me-2"></i>Pengaturan Soal</h6>
-            </div>
-            <div class="card-body">
-              <div class="row g-3">
-                <div class="col-md-6">
-                  <label class="form-label fw-semibold"><i class="fas fa-balance-scale text-info me-1"></i>Tingkat Kesulitan</label>
-                  <div class="input-group">
-                    <input type="number" name="tingkat_kesulitan" class="form-control form-control-lg" step="0.001" value="0.000" min="-3" max="3" required>
-                    <span class="input-group-text">(-3 hingga +3)</span>
-                  </div>
-                  <small class="text-muted">Negatif = mudah, Positif = sulit, 0 = sedang</small>
-                </div>
-                <div class="col-md-6">
-                  <div class="mt-4">
-                    <div class="alert alert-info py-2 mb-0">
-                      <small>
-                        <strong>Panduan Tingkat Kesulitan:</strong><br>
-                        -3.000 hingga -1.000 = Mudah<br>
-                        -0.999 hingga +0.999 = Sedang<br>
-                        +1.000 hingga +3.000 = Sulit
-                      </small>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Pembahasan Section -->
-          <div class="card shadow-sm">
-            <div class="card-header bg-light">
-              <h6 class="mb-0"><i class="fas fa-lightbulb text-info me-2"></i>Pembahasan (Opsional)</h6>
-            </div>
-            <div class="card-body">
-              <textarea name="pembahasan" id="pembahasan_tambah" class="form-control summernote" placeholder="Masukkan pembahasan soal..."></textarea>
-              <small class="text-muted mt-2 d-block">Pembahasan akan ditampilkan kepada siswa setelah menyelesaikan ujian</small>
-            </div>
-          </div>
+          <div id="pilihKosong" class="text-center py-4 text-muted">Pilih sekolah, kelas, mata pelajaran, dan bank untuk melihat soal.</div>
         </div>
-        <div class="modal-footer border-0 bg-light">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-            <i class="fas fa-times me-1"></i>Batal
-          </button>
-          <button type="submit" class="btn btn-primary btn-lg">
-            <i class="fas fa-save me-1"></i>Simpan Soal
-          </button>
+        <div class="modal-footer border-0 bg-light px-4 py-3">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+          <button type="submit" id="btnPilih" class="btn btn-primary" disabled><i class="bi bi-link me-1"></i>Tautkan Terpilih</button>
         </div>
       </form>
     </div>
   </div>
 </div>
 
-<!-- Modal Edit Soal -->
-<?php foreach ($soal as $s): ?>
-  <div class="modal fade" id="editSoalModal<?= $s['soal_id'] ?>" tabindex="-1" data-bs-focus="false" data-bs-keyboard="false">
-    <div class="modal-dialog modal-xl">
-      <div class="modal-content">
-        <div class="modal-header border-0">
-          <h5 class="modal-title fw-bold">Edit Soal</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+<script>
+// === Pilih dari Bank (CAT) ===
+document.getElementById('modalPilihDariBank')?.addEventListener('shown.bs.modal',function(){
+  const sekolah=document.getElementById('pilihSekolah');
+  const kelas=document.getElementById('pilihKelas');
+  const mapel=document.getElementById('pilihMapel');
+  const bank=document.getElementById('pilihBank');
+  document.getElementById('pilihKat').value='';
+  if(sekolah) sekolah.value='';
+  if(kelas){kelas.innerHTML='<option value="">Pilih sekolah dulu</option>';kelas.disabled=true;}
+  if(mapel){mapel.innerHTML='<option value="">Pilih kelas dulu</option>';mapel.disabled=true;}
+  if(bank){bank.innerHTML='<option value="">Pilih mata pelajaran dulu</option>';bank.disabled=true;}
+  document.getElementById('pilihCari').disabled=true;
+});
+document.getElementById('pilihSekolah')?.addEventListener('change',function(){
+  const kelas=document.getElementById('pilihKelas');
+  const mapel=document.getElementById('pilihMapel');
+  const bank=document.getElementById('pilihBank');
+  document.getElementById('pilihKat').value='';
+  kelas.innerHTML='<option value="">Loading...</option>';kelas.disabled=!this.value;
+  mapel.innerHTML='<option value="">Pilih kelas dulu</option>';mapel.disabled=true;
+  bank.innerHTML='<option value="">Pilih mata pelajaran dulu</option>';bank.disabled=true;
+  document.getElementById('pilihCari').disabled=true;
+  if(!this.value){kelas.innerHTML='<option value="">Pilih sekolah dulu</option>';kelas.disabled=true;return;}
+  if(this.value==='__umum'){
+    kelas.innerHTML='<option value="umum" data-kategori="umum">Kelas Umum</option>';
+    kelas.value='umum';
+    kelas.disabled=true;
+    document.getElementById('pilihKat').value='umum';
+    fetch('<?=base_url('admin/bank-soal/api/jenis-ujian')?>?kategori=umum').then(r=>r.json()).then(d=>{
+      mapel.innerHTML='<option value="">Pilih Mata Pelajaran</option>';
+      if(d.status==='success')d.data.forEach(j=>{mapel.innerHTML+='<option value="'+j.jenis_ujian_id+'">'+j.nama_jenis+'</option>';});
+      mapel.disabled=false;
+    }).catch(()=>{mapel.innerHTML='<option value="">Gagal memuat</option>';mapel.disabled=true;});
+    return;
+  }
+  fetch('<?=base_url('admin/api/kelas-by-sekolah/')?>'+encodeURIComponent(this.value)).then(r=>r.json()).then(d=>{
+    kelas.innerHTML='<option value="">Pilih Kelas</option><option value="umum" data-kategori="umum">Umum / Tanpa Kelas</option>';
+    if(d.status==='success' && Array.isArray(d.data)){d.data.forEach(k=>{kelas.innerHTML+='<option value="'+k.kelas_id+'" data-kategori="'+String(k.nama_kelas).replace(/"/g,'&quot;')+'">'+k.nama_kelas+(k.tahun_ajaran?' - '+k.tahun_ajaran:'')+'</option>';});}
+    kelas.disabled=false;
+  }).catch(()=>{kelas.innerHTML='<option value="">Gagal memuat kelas</option>';kelas.disabled=true;});
+});
+document.getElementById('pilihKelas')?.addEventListener('change',function(){
+  const mp=document.getElementById('pilihMapel');
+  const bank=document.getElementById('pilihBank');
+  const kategori=this.options[this.selectedIndex]?.dataset.kategori||'';
+  document.getElementById('pilihKat').value=kategori;
+  mp.innerHTML='<option value="">Loading...</option>';mp.disabled=!kategori;
+  bank.innerHTML='<option value="">Pilih mata pelajaran dulu</option>';bank.disabled=true;
+  document.getElementById('pilihCari').disabled=true;
+  if(!kategori){mp.innerHTML='<option value="">Pilih kelas dulu</option>';mp.disabled=true;return;}
+  fetch('<?=base_url('admin/bank-soal/api/jenis-ujian')?>?kategori='+encodeURIComponent(kategori)).then(r=>r.json()).then(d=>{
+    mp.innerHTML='<option value="">Pilih Mata Pelajaran</option>';
+    if(d.status==='success')d.data.forEach(j=>{mp.innerHTML+='<option value="'+j.jenis_ujian_id+'">'+j.nama_jenis+'</option>';});
+    mp.disabled=false;
+  });
+});
+document.getElementById('pilihMapel')?.addEventListener('change',function(){
+  const b=document.getElementById('pilihBank');b.innerHTML='<option value="">Loading...</option>';b.disabled=!this.value;
+  if(!this.value){b.innerHTML='<option value="">Pilih mata pelajaran dulu</option>';b.disabled=true;return;}
+  fetch('<?=base_url('admin/bank-soal/api/bank-ujian')?>?kategori='+encodeURIComponent(document.getElementById('pilihKat').value)+'&jenis_ujian_id='+this.value).then(r=>r.json()).then(d=>{
+    b.innerHTML='<option value="">Pilih Bank</option>';
+    if(d.status==='success')d.data.forEach(bk=>{b.innerHTML+='<option value="'+bk.bank_ujian_id+'">'+bk.nama_ujian+' ('+bk.jumlah_soal+' soal)</option>';});
+    b.disabled=false;
+  });
+});
+document.getElementById('pilihBank')?.addEventListener('change',function(){
+  document.getElementById('pilihCari').disabled=!this.value;
+  if(!this.value){document.getElementById('pilihContainer').classList.add('d-none');document.getElementById('pilihKosong').classList.remove('d-none');return;}
+  document.getElementById('pilihLoading').classList.remove('d-none');document.getElementById('pilihContainer').classList.add('d-none');
+  fetch('<?=base_url('admin/bank-soal/api/soal')?>?bank_ujian_id='+this.value).then(r=>r.json()).then(d=>{
+    document.getElementById('pilihLoading').classList.add('d-none');
+    if(d.status==='success'){
+      const tbody=document.getElementById('pilihBody');
+      tbody.innerHTML=d.data.map((s,i)=>'<tr><td><input type="checkbox" name="soal_ids[]" value="'+s.soal_id+'" class="check-pilih"></td><td>'+(i+1)+'</td><td>'+s.kode_soal+'</td><td class="text-truncate" style="max-width:220px">'+(s.pertanyaan||'').replace(/<[^>]*>/g,'').substring(0,80)+'</td><td class="text-center fw-bold">'+s.jawaban_benar+'</td><td class="text-center">'+s.tingkat_kesulitan+'</td></tr>').join('');
+      document.getElementById('pilihContainer').classList.remove('d-none');document.getElementById('pilihKosong').classList.add('d-none');
+      document.querySelectorAll('.check-pilih').forEach(cb=>cb.addEventListener('change',updatePilihBtn));updatePilihBtn();
+    }
+  });
+});
+document.getElementById('pilihCari')?.addEventListener('input',function(){const q=this.value.toLowerCase();document.querySelectorAll('#pilihBody tr').forEach(tr=>tr.style.display=tr.textContent.toLowerCase().includes(q)?'':'none');});
+document.getElementById('pilihAll')?.addEventListener('change',function(){document.querySelectorAll('.check-pilih').forEach(cb=>cb.checked=this.checked);updatePilihBtn();});
+function updatePilihBtn(){const cnt=document.querySelectorAll('.check-pilih:checked').length;const btn=document.getElementById('btnPilih');if(btn){btn.disabled=cnt===0;btn.innerHTML='<i class="bi bi-link me-1"></i>Tautkan '+(cnt>0?cnt+' Terpilih':'Terpilih');}}
+</script>
+
+<!-- ==================== MODAL: Tambah Soal CBT (ke Bank) ==================== -->
+<div class="modal fade cbt-soal-modal" id="modalTambahSoalCBT" tabindex="-1" data-bs-focus="false">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header bg-primary text-white px-4 py-3">
+        <div>
+          <h5 class="modal-title fw-semibold">Tambah Soal ke Bank</h5>
+          <div class="small text-white-50 mt-1">Isi pertanyaan, pilihan jawaban, dan metadata soal.</div>
         </div>
-        <form action="<?= base_url('admin/soal/edit/' . $s['soal_id']) ?>" method="post" enctype="multipart/form-data">
-          <input type="hidden" name="ujian_id" value="<?= $ujian['id_ujian'] ?>">
-          <input type="hidden" name="old_foto" value="<?= esc($s['foto']) ?>">
-          <div class="modal-body">
-            <div class="row g-3">
-              <div class="col-12">
-                <label class="form-label fw-semibold">Kode Soal <span class="text-danger">*</span></label>
-                <input type="text" name="kode_soal" class="form-control" value="<?= esc($s['kode_soal']) ?>" required>
-                <small class="text-muted">Kode unik untuk soal ini</small>
+        <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="formTambahSoalCBT" method="post">
+        <div class="modal-scroll-area">
+          <div class="modal-body px-4 py-4">
+            <input type="hidden" name="bank_ujian_id" value="<?= esc($assignedBanks[0]['bank_ujian_id'] ?? '') ?>">
+            <div id="ajaxMsgCBT" class="mb-3"></div>
+            <div class="cbt-form-section">
+              <div class="cbt-form-section-title">Informasi Soal</div>
+              <div class="row g-3">
+              <div class="col-md-4">
+                <label class="form-label small fw-semibold">Kode Soal <span class="text-danger">*</span></label>
+                <input type="text" name="kode_soal" class="form-control" required>
               </div>
-
-              <div class="col-12">
-                <label class="form-label fw-semibold">Pertanyaan</label>
-                <textarea name="pertanyaan" id="pertanyaan_edit_<?= $s['soal_id'] ?>" class="form-control summernote" required><?= esc($s['pertanyaan']) ?></textarea>
-              </div>
-
-              <div class="col-12">
-                <label class="form-label">Foto Soal (Opsional)</label>
-                <?php if (!empty($s['foto'])): ?>
-                  <div class="mb-2">
-                    <img src="<?= base_url('uploads/soal/' . $s['foto']) ?>" alt="Foto Soal" class="img-thumbnail" style="max-height: 200px;">
-                  </div>
-                  <div class="form-check mb-2">
-                    <input class="form-check-input" type="checkbox" name="hapus_foto" id="hapusFoto<?= $s['soal_id'] ?>" value="1">
-                    <label class="form-check-label" for="hapusFoto<?= $s['soal_id'] ?>">
-                      Hapus foto
-                    </label>
-                  </div>
-                <?php endif; ?>
-                <input type="file" name="foto" class="form-control" accept=".jpg,.jpeg,.png,.gif">
-                <small class="text-muted">
-                  Upload gambar baru dengan format JPG, JPEG, PNG, atau GIF (maks. 2MB).
-                  <br><strong>Tips:</strong> Anda juga bisa langsung insert gambar di editor dengan klik tombol <i class="fas fa-image"></i> pada toolbar.
-                </small>
-              </div>
-
-              <div class="col-md-6">
-                <label class="form-label">Pilihan A</label>
-                <textarea name="pilihan_a" id="pilihan_a_edit_<?= $s['soal_id'] ?>" class="form-control summernote-small" required><?= esc($s['pilihan_a']) ?></textarea>
-              </div>
-              <div class="col-md-6">
-                <label class="form-label">Pilihan B</label>
-                <textarea name="pilihan_b" id="pilihan_b_edit_<?= $s['soal_id'] ?>" class="form-control summernote-small" required><?= esc($s['pilihan_b']) ?></textarea>
-              </div>
-              <div class="col-md-6">
-                <label class="form-label">Pilihan C</label>
-                <textarea name="pilihan_c" id="pilihan_c_edit_<?= $s['soal_id'] ?>" class="form-control summernote-small" required><?= esc($s['pilihan_c']) ?></textarea>
-              </div>
-              <div class="col-md-6">
-                <label class="form-label">Pilihan D</label>
-                <textarea name="pilihan_d" id="pilihan_d_edit_<?= $s['soal_id'] ?>" class="form-control summernote-small" required><?= esc($s['pilihan_d']) ?></textarea>
-              </div>
-              <div class="col-md-6">
-                <label class="form-label">Pilihan E (Opsional)</label>
-                <textarea name="pilihan_e" id="pilihan_e_edit_<?= $s['soal_id'] ?>" class="form-control summernote-small"><?= isset($s['pilihan_e']) ? esc($s['pilihan_e']) : '' ?></textarea>
-              </div>
-              <div class="col-md-6">
-                <label class="form-label">Jawaban Benar</label>
+              <div class="col-md-4">
+                <label class="form-label small fw-semibold">Jawaban Benar <span class="text-danger">*</span></label>
                 <select name="jawaban_benar" class="form-select" required>
-                  <option value="">Pilih Jawaban Benar</option>
-                  <option value="A" <?= $s['jawaban_benar'] == 'A' ? 'selected' : '' ?>>A</option>
-                  <option value="B" <?= $s['jawaban_benar'] == 'B' ? 'selected' : '' ?>>B</option>
-                  <option value="C" <?= $s['jawaban_benar'] == 'C' ? 'selected' : '' ?>>C</option>
-                  <option value="D" <?= $s['jawaban_benar'] == 'D' ? 'selected' : '' ?>>D</option>
-                  <option value="E" <?= $s['jawaban_benar'] == 'E' ? 'selected' : '' ?>>E</option>
+                  <option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option><option value="E">E</option>
                 </select>
               </div>
-              <div class="col-md-6">
-                <label class="form-label fw-semibold"><i class="fas fa-balance-scale text-info me-1"></i>Tingkat Kesulitan</label>
-                <div class="input-group">
-                  <input type="number" name="tingkat_kesulitan" class="form-control" step="0.001" value="<?= $s['tingkat_kesulitan'] ?>" min="-3" max="3" required>
-                  <span class="input-group-text">(-3 hingga +3)</span>
-                </div>
-                <small class="text-muted">Negatif = mudah, Positif = sulit, 0 = sedang</small>
+              <div class="col-md-4">
+                <label class="form-label small fw-semibold">Tingkat Kesulitan</label>
+                <input type="number" name="tingkat_kesulitan" class="form-control" step="0.001" value="0.000" required>
               </div>
-
               <div class="col-12">
-                <label class="form-label">Pembahasan (Opsional)</label>
-                <textarea name="pembahasan" id="pembahasan_edit_<?= $s['soal_id'] ?>" class="form-control summernote"><?= isset($s['pembahasan']) ? esc($s['pembahasan']) : '' ?></textarea>
-                <small class="text-muted">Pembahasan akan ditampilkan kepada siswa setelah menyelesaikan ujian</small>
+                <label class="form-label small fw-semibold">Pertanyaan <span class="text-danger">*</span></label>
+                <textarea id="pertanyaan_tambah_cbt" name="pertanyaan" class="form-control summernote" rows="3" required placeholder="Tulis pertanyaan..."></textarea>
+              </div>
+              </div>
+            </div>
+            <div class="cbt-form-section">
+              <div class="cbt-form-section-title">Pilihan Jawaban</div>
+              <div class="row g-3">
+              <?php foreach (['a'=>'A','b'=>'B','c'=>'C','d'=>'D','e'=>'E (opsional)'] as $k => $l): ?>
+                <div class="col-md-6">
+                  <label class="form-label small fw-semibold">Pilihan <?= $l ?></label>
+                  <textarea id="pilihan_<?= $k ?>_tambah_cbt" name="pilihan_<?= $k ?>" class="form-control summernote-sm" rows="2" <?= $k!=='e'?'required':'' ?> placeholder="Pilihan <?= $l ?>"></textarea>
+                </div>
+              <?php endforeach; ?>
+              </div>
+            </div>
+            <div class="cbt-form-section">
+              <div class="cbt-form-section-title">Metadata & Pembahasan</div>
+              <div class="row g-3">
+              <div class="col-md-4">
+                <label class="form-label small fw-semibold">Variabel</label>
+                <select name="variabel_id" class="form-select" onchange="loadIndikatorCBT(this.value)">
+                  <option value="">-- Tidak ada --</option>
+                  <?php foreach ($variabel as $v): ?><option value="<?= $v['variabel_id'] ?>"><?= esc($v['nama_variabel']) ?></option><?php endforeach; ?>
+                </select>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label small fw-semibold">Indikator</label>
+                <select name="indikator_id" id="indikatorCBT" class="form-select"><option value="">-- Pilih Variabel dulu --</option></select>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label small fw-semibold">Materi</label>
+                <select name="materi_id" class="form-select">
+                  <option value="">-- Tidak ada --</option>
+                  <?php foreach ($materi as $m): ?><option value="<?= $m['materi_id'] ?>"><?= esc($m['nama_materi']) ?></option><?php endforeach; ?>
+                </select>
+              </div>
+              <div class="col-12">
+                <label class="form-label small fw-semibold">Pembahasan</label>
+                <textarea id="pembahasan_tambah_cbt" name="pembahasan" class="form-control summernote" rows="2" placeholder="Opsional..."></textarea>
+              </div>
               </div>
             </div>
           </div>
-          <div class="modal-footer border-0">
-            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Batal</button>
-            <button type="submit" class="btn btn-primary">Simpan Perubahan</button>
-          </div>
-        </form>
-      </div>
+        </div>
+        <div class="modal-footer border-0 bg-light px-4 py-3">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Batal</button>
+          <button type="submit" class="btn btn-primary px-4"><i class="bi bi-check-lg me-1"></i>Simpan Soal</button>
+        </div>
+      </form>
     </div>
   </div>
-<?php endforeach; ?>
+</div>
 
-<!-- Modal Import Bank Soal -->
-<div class="modal fade" id="importBankSoalModal" tabindex="-1">
-  <div class="modal-dialog modal-xl">
-    <div class="modal-content">
-      <div class="modal-header border-0">
-        <h5 class="modal-title fw-bold">Import Soal dari Bank Soal</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+<!-- ==================== MODAL: Import Bank Soal ==================== -->
+<div class="modal fade" id="modalImportBankSoal" tabindex="-1">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header bg-white px-4 py-3 border-bottom">
+        <h5 class="modal-title fw-semibold"><i class="bi bi-download me-2"></i>Import Soal dari Bank</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-      <div class="modal-body">
-        <!-- Filter bertingkat untuk Bank Soal -->
-        <div class="row mb-4">
-          <div class="col-md-3">
-            <label class="form-label">1. Pilih Kategori:</label>
-            <select id="filterKategoriImport" class="form-select">
-              <option value="">Pilih Kategori</option>
-            </select>
-          </div>
-          <div class="col-md-3">
-            <label class="form-label">2. Pilih Mata Pelajaran:</label>
-            <select id="filterJenisUjianImport" class="form-select" disabled>
-              <option value="">Pilih Mata Pelajaran</option>
-            </select>
-          </div>
-          <div class="col-md-3">
-            <label class="form-label">3. Pilih Bank Ujian:</label>
-            <select id="filterBankUjianImport" class="form-select" disabled>
-              <option value="">Pilih Bank Ujian</option>
-            </select>
-          </div>
-          <div class="col-md-3">
-            <label class="form-label">4. Cari Soal:</label>
-            <input type="text" id="searchBankSoal" class="form-control" placeholder="Cari dalam pertanyaan..." disabled>
-          </div>
-        </div>
-
-        <!-- Info Bank Ujian yang dipilih -->
-        <div id="bankUjianInfo" class="alert alert-info" style="display: none;">
-          <h6 class="alert-heading">Informasi Bank Ujian</h6>
-          <div class="row">
-            <div class="col-md-6">
-              <strong>Nama:</strong> <span id="infoBankNama"></span><br>
-              <strong>Kategori:</strong> <span id="infoBankKategori"></span><br>
+      <div class="modal-body px-4 py-4">
+        <form id="formImport" method="post" action="<?= base_url('admin/soal/import-bank') ?>">
+          <input type="hidden" name="ujian_id" value="<?= $ujian['id_ujian'] ?>">
+          <div class="row g-3 mb-4">
+            <div class="col-md-3">
+              <label class="form-label small fw-semibold">Kategori</label>
+              <select id="filterKat" class="form-select"><option value="">Pilih Kategori</option></select>
             </div>
-            <div class="col-md-6">
-              <strong>Pembuat:</strong> <span id="infoBankPembuat"></span><br>
-              <strong>Jumlah Soal:</strong> <span id="infoBankJumlahSoal"></span> soal<br>
+            <div class="col-md-3">
+              <label class="form-label small fw-semibold">Mata Pelajaran</label>
+              <select id="filterMapel" class="form-select" disabled><option value="">Pilih dulu</option></select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small fw-semibold">Bank Soal</label>
+              <select id="filterBank" class="form-select" disabled><option value="">Pilih dulu</option></select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small fw-semibold">Cari</label>
+              <input type="text" id="searchBank" class="form-control" placeholder="Cari soal..." disabled>
             </div>
           </div>
-          <div class="mt-2">
-            <strong>Deskripsi:</strong> <span id="infoBankDeskripsi"></span>
-          </div>
-        </div>
-
-        <!-- Loading indicator -->
-        <div id="loadingBankSoal" class="text-center p-4" style="display: none;">
-          <div class="spinner-border text-primary" role="status">
-            <span class="visually-hidden">Loading...</span>
-          </div>
-          <p class="mt-2">Memuat soal...</p>
-        </div>
-
-        <!-- Tabel Bank Soal -->
-        <div id="bankSoalContainer" style="display: none;">
-          <form id="formImportSoal" action="<?= base_url('admin/soal/import-bank') ?>" method="post">
-            <input type="hidden" name="ujian_id" value="<?= $ujian['id_ujian'] ?>">
-
+          <div id="loadingBank" class="text-center py-3 d-none"><div class="spinner-border text-primary"></div></div>
+          <div id="bankContainer" class="d-none">
             <div class="table-responsive">
-              <table class="table table-hover align-middle" id="tableBankSoalImport">
-                <thead class="bg-light">
-                  <tr>
-                    <th width="5%">
-                      <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="selectAllSoal">
-                        <label class="form-check-label" for="selectAllSoal">Semua</label>
-                      </div>
-                    </th>
-                    <th width="5%">No</th>
-                    <th width="12%">Kode Soal</th>
-                    <th width="25%">Pertanyaan</th>
-                    <th width="8%">Foto</th>
-                    <th width="20%">Pilihan</th>
-                    <th width="8%">Jawaban</th>
-                    <th width="8%">Kesulitan</th>
-                    <th width="9%">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody id="bankSoalTableBody">
-                  <!-- Data akan diload via AJAX -->
-                </tbody>
+              <table class="table table-sm table-hover align-middle">
+                <thead class="table-light"><tr><th><input type="checkbox" id="selectAllBank"></th><th>#</th><th>Kode</th><th>Pertanyaan</th><th>Jawaban</th><th>Kesulitan</th></tr></thead>
+                <tbody id="bankBody"></tbody>
               </table>
             </div>
-
-            <div class="text-center mt-3" id="noBankSoalMessage" style="display: none;">
-              <p class="text-muted">Pilih kategori, Mata Pelajaran, dan bank ujian untuk melihat soal yang tersedia</p>
-            </div>
-          </form>
-        </div>
+          </div>
+          <div id="noBankMsg" class="text-center py-4 text-muted">Pilih kategori, mapel, dan bank untuk melihat soal.</div>
+        </form>
       </div>
-      <div class="modal-footer border-0">
-        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Batal</button>
-        <button type="button" class="btn btn-primary" id="btnImportSoal" disabled>
-          <i class="fas fa-download me-2"></i>Import Soal Terpilih
-        </button>
+      <div class="modal-footer border-0 bg-light px-4 py-3">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+        <button id="btnImport" class="btn btn-primary" disabled><i class="bi bi-download me-1"></i>Import Terpilih</button>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Load jQuery, Bootstrap 5, dan Summernote BS5 -->
-<script src="//code.jquery.com/jquery-3.6.0.min.js"></script>
-<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" />
-<script src="//cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script>
-
-<!-- Include Summernote BS5 -->
-<link href="//cdnjs.cloudflare.com/ajax/libs/summernote/0.8.20/summernote-bs5.min.css" rel="stylesheet">
-<script src="//cdnjs.cloudflare.com/ajax/libs/summernote/0.8.20/summernote-bs5.min.js"></script>
-
-<script>
-  // Variabel global untuk data bank soal
-  let bankSoalData = [];
-  let selectedBankUjian = null;
-
-  // Konfigurasi Summernote UMUM yang sudah diperbaiki
-  const summernoteConfig = {
-    height: 200,
-    toolbar: [
-      ['style', ['bold', 'italic', 'underline', 'clear']],
-      ['font', ['strikethrough', 'superscript', 'subscript']],
-      ['fontsize', ['fontsize']],
-      ['color', ['color']],
-      ['para', ['ul', 'ol', 'paragraph']],
-      ['table', ['table']],
-      ['insert', ['link', 'picture']],
-      ['view', ['fullscreen', 'codeview']]
-    ],
-    placeholder: 'Masukkan teks di sini...',
-    dialogsInBody: true,
-    dialogsFade: true,
-    disableDragAndDrop: false,
-    container: 'body',
-    callbacks: {
-      onImageUpload: function(files) {
-        console.log('onImageUpload triggered with files:', files);
-        // Pastikan hanya file pertama yang diproses dan tidak ada multiple upload
-        if (files && files.length > 0 && !$(this).data('uploading')) {
-          uploadImageSimple(files[0], this);
-        }
-      },
-      onInit: function() {
-        const $editor = $(this);
-        const editorId = $editor.attr('id');
-        console.log('Summernote initialized for:', editorId);
-
-        // Reset upload flag
-        $editor.data('uploading', false);
-
-        // HANYA handle event fullscreen yang benar
-        $editor.on('summernote.fullscreen', function(e, isFullscreen) {
-          if (isFullscreen) {
-            console.log('Entering fullscreen for:', editorId);
-            handleEnterFullscreen($editor);
-          } else {
-            console.log('Exiting fullscreen for:', editorId);
-            handleExitFullscreen($editor);
-          }
-        });
-
-        // Fix dropdown events dengan delay
-        setTimeout(() => {
-          fixDropdownEvents($editor);
-        }, 500);
-      },
-      onBlur: function() {
-        const $editor = $(this);
-        const $toolbar = $editor.siblings('.note-toolbar');
-        setTimeout(() => {
-          $toolbar.find('.dropdown-menu').removeClass('show').hide();
-        }, 150);
-      }
-    }
-  };
-
-  // Konfigurasi Summernote untuk pilihan (lebih kecil)
-  const summernoteConfigSmall = {
-    height: 120,
-    toolbar: [
-      ['style', ['bold', 'italic', 'underline']],
-      ['font', ['superscript', 'subscript']],
-      ['color', ['color']],
-      ['insert', ['picture']]
-    ],
-    placeholder: 'Masukkan pilihan...',
-    dialogsInBody: true,
-    dialogsFade: true,
-    container: 'body',
-    callbacks: {
-      onImageUpload: function(files) {
-        console.log('onImageUpload triggered (small editor) with files:', files);
-        // Pastikan hanya file pertama yang diproses dan tidak ada multiple upload
-        if (files && files.length > 0 && !$(this).data('uploading')) {
-          uploadImageSimple(files[0], this);
-        }
-      },
-      onInit: function() {
-        const $editor = $(this);
-        const editorId = $editor.attr('id');
-        console.log('Summernote (small) initialized for:', editorId);
-
-        // Reset upload flag
-        $editor.data('uploading', false);
-
-        // Fix dropdown events dengan delay
-        setTimeout(() => {
-          fixDropdownEvents($editor);
-        }, 500);
-      },
-      onBlur: function() {
-        setTimeout(cleanupModalBackdrop, 10);
-      }
-    }
-  };
-
-  // Fungsi untuk handle masuk fullscreen
-  function handleEnterFullscreen($editor) {
-    // Hide semua elemen yang bisa mengganggu
-    $('.modal').not('.note-modal').addClass('summernote-hidden');
-    $('.note-editor').not($editor.siblings('.note-editor')).addClass('summernote-hidden');
-    $('body').addClass('summernote-fullscreen-active');
-
-    // Set z-index yang sangat tinggi
-    $editor.siblings('.note-editor').css({
-      'position': 'fixed',
-      'top': '0',
-      'left': '0',
-      'right': '0',
-      'bottom': '0',
-      'z-index': '99999',
-      'background': '#fff'
-    });
-  }
-
-  // Fungsi untuk handle keluar fullscreen
-  function handleExitFullscreen($editor) {
-    // Restore semua elemen
-    $('.summernote-hidden').removeClass('summernote-hidden');
-    $('body').removeClass('summernote-fullscreen-active');
-
-    // Reset styling
-    $editor.siblings('.note-editor').css({
-      'position': 'relative',
-      'top': 'auto',
-      'left': 'auto',
-      'right': 'auto',
-      'bottom': 'auto',
-      'z-index': 'auto',
-      'background': 'transparent'
-    });
-
-    // Clean up any remaining backdrops
-    setTimeout(() => {
-      cleanupModalBackdrop();
-    }, 100);
-  }
-
-  // Fungsi untuk fix dropdown events
-  function fixDropdownEvents($editor) {
-    const $toolbar = $editor.siblings('.note-toolbar');
-
-    // Re-attach dropdown events
-    $toolbar.find('.dropdown-toggle').off('click.bs.dropdown').on('click.bs.dropdown', function(e) {
-      e.preventDefault();
-      e.stopPropagation();
-
-      const $this = $(this);
-      const $menu = $this.siblings('.dropdown-menu');
-
-      // Close other dropdowns
-      $toolbar.find('.dropdown-menu').not($menu).removeClass('show').hide();
-
-      // Toggle current dropdown
-      if ($menu.hasClass('show')) {
-        $menu.removeClass('show').hide();
-      } else {
-        $menu.addClass('show').show();
-
-        // Ensure proper positioning
-        const buttonOffset = $this.offset();
-        const buttonHeight = $this.outerHeight();
-
-        $menu.css({
-          'position': 'absolute',
-          'top': buttonHeight + 'px',
-          'left': '0px',
-          'z-index': '99999',
-          'display': 'block'
-        });
-      }
-    });
-
-    // Close dropdowns when clicking outside
-    $(document).off('click.summernote-dropdown').on('click.summernote-dropdown', function(e) {
-      if (!$(e.target).closest('.note-toolbar').length) {
-        $toolbar.find('.dropdown-menu').removeClass('show').hide();
-      }
-    });
-
-    // Special handling untuk berbagai jenis dropdown
-    handleSpecialDropdowns($toolbar);
-  }
-
-  // Handle dropdown khusus (color, table, paragraph)
-  function handleSpecialDropdowns($toolbar) {
-    // Color picker
-    $toolbar.find('.note-color').each(function() {
-      const $colorBtn = $(this);
-      $colorBtn.off('click').on('click', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-
-        const $menu = $colorBtn.find('.dropdown-menu');
-        $('.note-toolbar .dropdown-menu').not($menu).removeClass('show').hide();
-
-        if ($menu.hasClass('show')) {
-          $menu.removeClass('show').hide();
-        } else {
-          $menu.addClass('show').show().css({
-            'position': 'absolute',
-            'z-index': '99999',
-            'display': 'block'
-          });
-        }
-      });
-    });
-
-    // Table
-    $toolbar.find('.note-table').each(function() {
-      const $tableBtn = $(this);
-      $tableBtn.find('button').off('click').on('click', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-
-        const $menu = $tableBtn.find('.dropdown-menu');
-        $('.note-toolbar .dropdown-menu').not($menu).removeClass('show').hide();
-
-        if ($menu.hasClass('show')) {
-          $menu.removeClass('show').hide();
-        } else {
-          $menu.addClass('show').show().css({
-            'position': 'absolute',
-            'z-index': '99999',
-            'display': 'block'
-          });
-        }
-      });
-    });
-
-    // Paragraph/style
-    $toolbar.find('.note-para').each(function() {
-      const $paraBtn = $(this);
-      $paraBtn.find('button').off('click').on('click', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-
-        const $menu = $paraBtn.find('.dropdown-menu');
-        $('.note-toolbar .dropdown-menu').not($menu).removeClass('show').hide();
-
-        if ($menu.hasClass('show')) {
-          $menu.removeClass('show').hide();
-        } else {
-          $menu.addClass('show').show().css({
-            'position': 'absolute',
-            'z-index': '99999',
-            'display': 'block'
-          });
-        }
-      });
-    });
-  }
-
-  // Fungsi untuk membersihkan semua modal backdrop yang mungkin tertinggal
-  function cleanupModalBackdrop() {
-    // Remove semua modal backdrop yang tertinggal
-    $('.modal-backdrop').remove();
-    $('.note-modal-backdrop').remove();
-
-    // Reset body classes dan styles
-    if ($('.modal.show').length === 0) {
-      $('body').removeClass('modal-open summernote-fullscreen-active');
-      $('body').css({
-        'padding-right': '',
-        'overflow': ''
-      });
-    }
-  }
-
-  // Function upload gambar sederhana untuk Summernote
-  // Function upload gambar yang robust dan sederhana
-  function uploadImageSimple(file, editor) {
-    if (!file.type.startsWith('image/')) {
-      if (typeof Swal !== 'undefined') {
-        Swal.fire({
-          icon: 'error',
-          title: 'Gagal Upload',
-          text: 'File yang dipilih bukan gambar!',
-          toast: true,
-          position: 'top-end',
-          showConfirmButton: false,
-          timer: 3000
-        });
-      } else {
-        alert('Pilih file gambar!');
-      }
-      return;
-    }
-
-    if (file.size > 2 * 1024 * 1024) { // 2MB
-      if (typeof Swal !== 'undefined') {
-        Swal.fire({
-          icon: 'error',
-          title: 'Gagal Upload',
-          text: 'Ukuran file terlalu besar! Maksimal 2MB.',
-          toast: true,
-          position: 'top-end',
-          showConfirmButton: false,
-          timer: 3000
-        });
-      } else {
-        alert('File terlalu besar! Maksimal 2MB.');
-      }
-      return;
-    }
-
-    const formData = new FormData();
-    formData.append('upload', file);
-
-    const $editor = $(editor);
-
-    // Pastikan editor masih ada dan aktif
-    if (!$editor.length || !$editor.data('summernote')) {
-      console.error('Editor tidak tersedia untuk upload gambar');
-      return;
-    }
-
-    // Cegah multiple upload
-    if ($editor.data('uploading')) {
-      return;
-    }
-
-    $editor.data('uploading', true);
-
-    // Show loading indicator sederhana
-    if (typeof Swal !== 'undefined') {
-      Swal.fire({
-        title: 'Uploading...',
-        text: 'Sedang mengupload gambar',
-        allowOutsideClick: false,
-        allowEscapeKey: false,
-        showConfirmButton: false,
-        didOpen: () => {
-          Swal.showLoading();
-        }
-      });
-    }
-
-    $.ajax({
-      url: '<?= base_url('admin/upload-summernote-image') ?>',
-      type: 'POST',
-      data: formData,
-      processData: false,
-      contentType: false,
-      timeout: 30000,
-      success: function(response) {
-        // Reset flag
-        $editor.data('uploading', false);
-
-        // Close loading
-        if (typeof Swal !== 'undefined') {
-          Swal.close();
-        }
-
-        if (response.success && response.url) {
-          // Metode sederhana: insert gambar di akhir content
-          insertImageToEditor($editor, response.url);
-
-          // Show success notification
-          if (typeof Swal !== 'undefined') {
-            const Toast = Swal.mixin({
-              toast: true,
-              position: 'top-end',
-              showConfirmButton: false,
-              timer: 2000,
-              timerProgressBar: true
-            });
-            Toast.fire({
-              icon: 'success',
-              title: 'Gambar berhasil diupload!'
-            });
-          }
-
-        } else {
-          console.error('Upload response error:', response);
-
-          if (typeof Swal !== 'undefined') {
-            Swal.fire({
-              icon: 'error',
-              title: 'Upload Gagal',
-              text: response.error || 'Response tidak valid dari server'
-            });
-          } else {
-            alert('Upload gagal: ' + (response.error || 'Response tidak valid'));
-          }
-        }
-      },
-      error: function(xhr, status, error) {
-        // Reset flag
-        $editor.data('uploading', false);
-
-        // Close loading
-        if (typeof Swal !== 'undefined') {
-          Swal.close();
-        }
-
-        console.error('Upload error:', {
-          xhr,
-          status,
-          error
-        });
-
-        let errorMessage = 'Terjadi kesalahan saat upload gambar.';
-        if (status === 'timeout') {
-          errorMessage = 'Upload timeout. Silakan coba gambar yang lebih kecil.';
-        } else if (xhr.status === 413) {
-          errorMessage = 'File terlalu besar. Maksimal 2MB.';
-        } else if (xhr.status === 0) {
-          errorMessage = 'Koneksi terputus. Periksa koneksi internet Anda.';
-        }
-
-        if (typeof Swal !== 'undefined') {
-          Swal.fire({
-            icon: 'error',
-            title: 'Upload Gagal',
-            text: errorMessage
-          });
-        } else {
-          alert('Gagal upload gambar: ' + errorMessage);
-        }
-      }
-    });
-  }
-
-  // Fungsi helper untuk insert gambar ke editor dengan berbagai fallback
-  function insertImageToEditor($editor, imageUrl) {
-    try {
-      // Method 1: Coba insert menggunakan insertImage API
-      $editor.summernote('focus');
-      $editor.summernote('insertImage', imageUrl, function($img) {
-        $img.css({
-          'max-width': '100%',
-          'height': 'auto',
-          'display': 'block',
-          'margin': '10px 0'
-        });
-        $img.addClass('img-fluid');
-      });
-
-      console.log('Gambar berhasil diinsert dengan method 1');
-      return;
-
-    } catch (e1) {
-      console.warn('Method 1 gagal, coba method 2:', e1);
-
-      try {
-        // Method 2: Insert HTML langsung
-        const imageHtml = `<div style="margin: 10px 0;"><img src="${imageUrl}" class="img-fluid" style="max-width: 100%; height: auto; display: block;"></div>`;
-        $editor.summernote('pasteHTML', imageHtml);
-
-        console.log('Gambar berhasil diinsert dengan method 2');
-        return;
-
-      } catch (e2) {
-        console.warn('Method 2 gagal, coba method 3:', e2);
-
-        try {
-          // Method 3: Append ke existing content
-          const currentContent = $editor.summernote('code') || '';
-          const imageHtml = `<div style="margin: 10px 0;"><img src="${imageUrl}" class="img-fluid" style="max-width: 100%; height: auto; display: block;"></div>`;
-          const newContent = currentContent + imageHtml;
-          $editor.summernote('code', newContent);
-
-          console.log('Gambar berhasil diinsert dengan method 3');
-          return;
-
-        } catch (e3) {
-          console.warn('Method 3 gagal, coba method 4:', e3);
-
-          try {
-            // Method 4: Direct manipulation textarea value
-            const $textarea = $editor;
-            const currentValue = $textarea.val() || '';
-            const imageHtml = `<div style="margin: 10px 0;"><img src="${imageUrl}" class="img-fluid" style="max-width: 100%; height: auto; display: block;"></div>`;
-            $textarea.val(currentValue + imageHtml);
-
-            // Trigger summernote to refresh
-            if ($editor.data('summernote')) {
-              $editor.summernote('code', $textarea.val());
-            }
-
-            console.log('Gambar berhasil diinsert dengan method 4');
-            return;
-
-          } catch (e4) {
-            console.error('Semua method gagal:', e4);
-
-            // Method 5: Show URL untuk copy manual
-            if (typeof Swal !== 'undefined') {
-              Swal.fire({
-                title: 'Upload Berhasil',
-                html: `Gambar berhasil diupload. Silakan copy URL ini dan paste manual ke editor:<br><br><strong>${imageUrl}</strong>`,
-                icon: 'info',
-                confirmButtonText: 'OK'
-              });
-            } else {
-              alert('Gambar berhasil diupload. URL: ' + imageUrl + '\n\nSilakan copy dan paste manual ke editor.');
-            }
-          }
-        }
-      }
-    }
-  }
-
-  // Initialize Summernote untuk modal tambah
-  function initializeSummernoteAdd() {
-    // Destroy existing instances terlebih dahulu
-    destroySummernoteInstances([
-      '#pertanyaan_tambah',
-      '#pilihan_a_tambah',
-      '#pilihan_b_tambah',
-      '#pilihan_c_tambah',
-      '#pilihan_d_tambah',
-      '#pilihan_e_tambah',
-      '#pembahasan_tambah'
-    ]);
-
-    // Delay untuk memastikan modal sudah fully rendered
-    setTimeout(() => {
-      // Initialize dengan config yang sudah diperbaiki
-      $('#pertanyaan_tambah').summernote(summernoteConfig);
-      $('#pilihan_a_tambah').summernote(summernoteConfigSmall);
-      $('#pilihan_b_tambah').summernote(summernoteConfigSmall);
-      $('#pilihan_c_tambah').summernote(summernoteConfigSmall);
-      $('#pilihan_d_tambah').summernote(summernoteConfigSmall);
-      $('#pilihan_e_tambah').summernote(summernoteConfigSmall);
-      $('#pembahasan_tambah').summernote(summernoteConfig);
-
-    }, 200);
-  }
-
-  // Initialize Summernote untuk modal edit
-  function initializeSummernoteEdit(soalId) {
-    const editorIds = [
-      '#pertanyaan_edit_' + soalId,
-      '#pilihan_a_edit_' + soalId,
-      '#pilihan_b_edit_' + soalId,
-      '#pilihan_c_edit_' + soalId,
-      '#pilihan_d_edit_' + soalId,
-      '#pilihan_e_edit_' + soalId,
-      '#pembahasan_edit_' + soalId
-    ];
-
-    destroySummernoteInstances(editorIds);
-
-    setTimeout(() => {
-      $('#pertanyaan_edit_' + soalId).summernote(summernoteConfig);
-      $('#pilihan_a_edit_' + soalId).summernote(summernoteConfigSmall);
-      $('#pilihan_b_edit_' + soalId).summernote(summernoteConfigSmall);
-      $('#pilihan_c_edit_' + soalId).summernote(summernoteConfigSmall);
-      $('#pilihan_d_edit_' + soalId).summernote(summernoteConfigSmall);
-      $('#pilihan_e_edit_' + soalId).summernote(summernoteConfigSmall);
-      $('#pembahasan_edit_' + soalId).summernote(summernoteConfig);
-
-    }, 200);
-  }
-
-  // Destroy Summernote instances
-  function destroySummernoteInstances(editorIds) {
-    editorIds.forEach(id => {
-      const $editor = $(id);
-      if ($editor.length && $editor.data('summernote')) {
-        try {
-          // Close any open dropdowns first
-          $editor.siblings('.note-toolbar').find('.dropdown-menu').removeClass('show').hide();
-
-          // Destroy summernote
-          $editor.summernote('destroy');
-
-          // Clean up any remaining summernote elements
-          $editor.siblings('.note-editor').remove();
-          $editor.show(); // Make sure original textarea is visible
-
-        } catch (e) {
-          console.warn('Error destroying summernote instance:', id, e);
-          // Force cleanup
-          $editor.siblings('.note-editor').remove();
-          $editor.show();
-        }
-      }
-    });
-
-    // Final cleanup
-    cleanupModalBackdrop();
-  }
-
-  // === FUNGSI-FUNGSI UNTUK IMPORT BANK SOAL ===
-
-  function resetImportModal() {
-    console.log('Reset import modal');
-    $('#filterJenisUjianImport').prop('disabled', true).html('<option value="">Pilih Mata Pelajaran</option>');
-    $('#filterBankUjianImport').prop('disabled', true).html('<option value="">Pilih Bank Ujian</option>');
-    $('#searchBankSoal').prop('disabled', true).val('');
-    $('#bankUjianInfo').hide();
-    $('#bankSoalContainer').hide();
-    $('#noBankSoalMessage').show().html('<p class="text-muted">Pilih kategori, Mata Pelajaran, dan bank ujian untuk melihat soal yang tersedia</p>');
-    bankSoalData = [];
-    selectedBankUjian = null;
-    updateImportButton();
-    $('#selectAllSoal').prop('checked', false);
-  }
-
-  function loadKategori() {
-    console.log('Loading kategori...');
-
-    $.ajax({
-      url: '<?= base_url('admin/bank-soal/api/kategori') ?>',
-      type: 'GET',
-      dataType: 'json',
-      timeout: 10000,
-      success: function(data) {
-        console.log('Kategori loaded:', data);
-        const select = $('#filterKategoriImport');
-        select.html('<option value="">Pilih Kategori</option>');
-
-        if (data && data.status === 'success' && data.data) {
-          data.data.forEach(kategori => {
-            const option = $('<option></option>');
-            option.val(kategori);
-            option.text(kategori.charAt(0).toUpperCase() + kategori.slice(1));
-            select.append(option);
-          });
-          console.log('Kategori berhasil dimuat:', data.data.length, 'kategori');
-        } else {
-          console.warn('Data kategori tidak valid:', data);
-          select.append('<option value="" disabled>Tidak ada kategori</option>');
-        }
-      },
-      error: function(xhr, status, error) {
-        console.error('Error loading kategori:', error, xhr.responseText);
-        const select = $('#filterKategoriImport');
-        select.html('<option value="" disabled>Error loading kategori</option>');
-
-        if (typeof Swal !== 'undefined') {
-          Swal.fire({
-            icon: 'error',
-            title: 'Kesalahan',
-            text: 'Gagal memuat kategori. Silakan refresh halaman.',
-            toast: true,
-            position: 'top-end',
-            showConfirmButton: false,
-            timer: 3000
-          });
-        }
-      }
-    });
-  }
-
-  function onKategoriChange() {
-    const kategori = $(this).val();
-    console.log('Kategori changed:', kategori);
-
-    const jenisUjianSelect = $('#filterJenisUjianImport');
-    const bankUjianSelect = $('#filterBankUjianImport');
-
-    // Reset dependent dropdowns
-    jenisUjianSelect.html('<option value="">Pilih Mata Pelajaran</option>');
-    bankUjianSelect.html('<option value="">Pilih Bank Ujian</option>');
-    jenisUjianSelect.prop('disabled', !kategori);
-    bankUjianSelect.prop('disabled', true);
-    $('#searchBankSoal').prop('disabled', true);
-
-    // Hide info and containers
-    $('#bankUjianInfo').hide();
-    $('#bankSoalContainer').hide();
-    $('#noBankSoalMessage').show().html('<p class="text-muted">Pilih kategori, Mata Pelajaran, dan bank ujian untuk melihat soal yang tersedia</p>');
-
-    // Reset data
-    bankSoalData = [];
-    selectedBankUjian = null;
-    updateImportButton();
-    $('#selectAllSoal').prop('checked', false);
-
-    if (!kategori) return;
-
-    // Load mata pelajaran
-    console.log('Loading mata pelajaran untuk kategori:', kategori);
-
-    $.ajax({
-      url: `<?= base_url('admin/bank-soal/api/jenis-ujian') ?>?kategori=${encodeURIComponent(kategori)}`,
-      type: 'GET',
-      dataType: 'json',
-      timeout: 10000,
-      success: function(data) {
-        console.log('Mata pelajaran loaded:', data);
-
-        if (data && data.status === 'success' && data.data) {
-          data.data.forEach(jenisUjian => {
-            const option = $('<option></option>');
-            option.val(jenisUjian.jenis_ujian_id);
-            option.text(`${jenisUjian.nama_jenis} (${jenisUjian.jumlah_bank} bank ujian)`);
-            jenisUjianSelect.append(option);
-          });
-          console.log('Mata pelajaran berhasil dimuat:', data.data.length, 'mata pelajaran');
-        } else {
-          console.warn('Data mata pelajaran tidak valid:', data);
-          jenisUjianSelect.append('<option value="" disabled>Tidak ada mata pelajaran</option>');
-        }
-      },
-      error: function(xhr, status, error) {
-        console.error('Error loading mata pelajaran:', error, xhr.responseText);
-        jenisUjianSelect.html('<option value="" disabled>Error loading mata pelajaran</option>');
-
-        if (typeof Swal !== 'undefined') {
-          Swal.fire({
-            icon: 'error',
-            title: 'Kesalahan',
-            text: 'Gagal memuat mata pelajaran.',
-            toast: true,
-            position: 'top-end',
-            showConfirmButton: false,
-            timer: 3000
-          });
-        }
-      }
-    });
-  }
-
-  function onJenisUjianChange() {
-    const kategori = $('#filterKategoriImport').val();
-    const jenisUjianId = $(this).val();
-    console.log('Jenis ujian changed:', jenisUjianId);
-
-    const bankUjianSelect = $('#filterBankUjianImport');
-
-    // Reset dependent dropdown
-    bankUjianSelect.html('<option value="">Pilih Bank Ujian</option>');
-    bankUjianSelect.prop('disabled', !jenisUjianId);
-    $('#searchBankSoal').prop('disabled', true);
-
-    // Hide info and containers
-    $('#bankUjianInfo').hide();
-    $('#bankSoalContainer').hide();
-    $('#noBankSoalMessage').show().html('<p class="text-muted">Pilih kategori, Mata Pelajaran, dan bank ujian untuk melihat soal yang tersedia</p>');
-
-    // Reset data
-    bankSoalData = [];
-    selectedBankUjian = null;
-    updateImportButton();
-    $('#selectAllSoal').prop('checked', false);
-
-    if (!jenisUjianId) return;
-
-    // Load bank ujian
-    console.log('Loading bank ujian untuk kategori:', kategori, 'jenis ujian:', jenisUjianId);
-
-    $.ajax({
-      url: `<?= base_url('admin/bank-soal/api/bank-ujian') ?>?kategori=${encodeURIComponent(kategori)}&jenis_ujian_id=${jenisUjianId}`,
-      type: 'GET',
-      dataType: 'json',
-      timeout: 10000,
-      success: function(data) {
-        console.log('Bank ujian loaded:', data);
-
-        if (data && data.status === 'success' && data.data) {
-          data.data.forEach(bankUjian => {
-            const option = $('<option></option>');
-            option.val(bankUjian.bank_ujian_id);
-            option.text(`${bankUjian.nama_ujian} (${bankUjian.jumlah_soal} soal) - ${bankUjian.creator_name}`);
-            bankUjianSelect.append(option);
-          });
-          console.log('Bank ujian berhasil dimuat:', data.data.length, 'bank ujian');
-        } else {
-          console.warn('Data bank ujian tidak valid:', data);
-          bankUjianSelect.append('<option value="" disabled>Tidak ada bank ujian</option>');
-        }
-      },
-      error: function(xhr, status, error) {
-        console.error('Error loading bank ujian:', error, xhr.responseText);
-        bankUjianSelect.html('<option value="" disabled>Error loading bank ujian</option>');
-
-        if (typeof Swal !== 'undefined') {
-          Swal.fire({
-            icon: 'error',
-            title: 'Kesalahan',
-            text: 'Gagal memuat bank ujian.',
-            toast: true,
-            position: 'top-end',
-            showConfirmButton: false,
-            timer: 3000
-          });
-        }
-      }
-    });
-  }
-
-  function onBankUjianChange() {
-    const bankUjianId = $(this).val();
-    console.log('Bank ujian changed:', bankUjianId);
-
-    $('#searchBankSoal').prop('disabled', !bankUjianId);
-    $('#selectAllSoal').prop('checked', false);
-    updateImportButton();
-
-    if (!bankUjianId) {
-      $('#bankUjianInfo').hide();
-      $('#bankSoalContainer').hide();
-      $('#noBankSoalMessage').show().html('<p class="text-muted">Pilih kategori, Mata Pelajaran, dan bank ujian untuk melihat soal yang tersedia</p>');
-      bankSoalData = [];
-      selectedBankUjian = null;
-      return;
-    }
-
-    // Show loading
-    $('#loadingBankSoal').show();
-    $('#bankSoalContainer').hide();
-    $('#noBankSoalMessage').hide();
-
-    console.log('Loading soal untuk bank ujian:', bankUjianId);
-
-    $.ajax({
-      url: `<?= base_url('admin/bank-soal/api/soal') ?>?bank_ujian_id=${bankUjianId}`,
-      type: 'GET',
-      dataType: 'json',
-      timeout: 15000,
-      success: function(data) {
-        console.log('Soal loaded:', data);
-
-        if (data && data.status === 'success') {
-          bankSoalData = data.data || [];
-          selectedBankUjian = data.bank_ujian;
-
-          if (selectedBankUjian) {
-            showBankUjianInfo(selectedBankUjian, bankSoalData.length);
-          }
-
-          renderBankSoal(bankSoalData);
-          $('#bankSoalContainer').show();
-
-          console.log('Soal berhasil dimuat:', bankSoalData.length, 'soal');
-        } else {
-          console.warn('Data soal tidak valid:', data);
-          $('#noBankSoalMessage').show().html('<p class="text-danger">Gagal memuat soal: ' + (data.message || 'Data tidak valid') + '</p>');
-          $('#bankSoalTableBody').empty();
-        }
-      },
-      error: function(xhr, status, error) {
-        console.error('Error loading soal:', error, xhr.responseText);
-        $('#noBankSoalMessage').show().html('<p class="text-danger">Terjadi kesalahan saat memuat soal.</p>');
-        $('#bankSoalTableBody').empty();
-
-        if (typeof Swal !== 'undefined') {
-          Swal.fire({
-            icon: 'error',
-            title: 'Kesalahan Jaringan',
-            text: 'Terjadi kesalahan jaringan saat memuat soal. Silakan coba lagi.',
-            toast: true,
-            position: 'top-end',
-            showConfirmButton: false,
-            timer: 3000
-          });
-        }
-      },
-      complete: function() {
-        $('#loadingBankSoal').hide();
-      }
-    });
-  }
-
-  function showBankUjianInfo(bankUjian, jumlahSoal) {
-    $('#infoBankNama').text(bankUjian.nama_ujian || 'N/A');
-    $('#infoBankKategori').text(bankUjian.kategori ? bankUjian.kategori.charAt(0).toUpperCase() + bankUjian.kategori.slice(1) : 'N/A');
-    $('#infoBankPembuat').text(bankUjian.creator_name || 'System');
-    $('#infoBankJumlahSoal').text(jumlahSoal);
-    $('#infoBankDeskripsi').text(bankUjian.deskripsi || 'Tidak ada deskripsi');
-
-    $('#bankUjianInfo').show();
-  }
-
-  function renderBankSoal(soalList) {
-    const tbody = $('#bankSoalTableBody');
-    const noDataMessage = $('#noBankSoalMessage');
-
-    tbody.empty(); // Clear existing rows
-
-    if (soalList.length === 0) {
-      noDataMessage.show().html('<p class="text-muted">Tidak ada soal yang ditemukan dalam bank ujian ini.</p>');
-      return;
-    }
-
-    noDataMessage.hide();
-
-    const rows = soalList.map((soal, index) => `
-        <tr data-soal-id="${soal.soal_id}">
-            <td>
-                <div class="form-check">
-                    <input class="form-check-input check-soal-import" type="checkbox" name="soal_ids[]"
-                            value="${soal.soal_id}">
-                </div>
-            </td>
-            <td>${index + 1}</td>
-            <td class="fw-bold text-primary">${soal.kode_soal}</td>
-            <td>${truncateText(stripHtml(soal.pertanyaan), 100)}</td>
-            <td>
-                ${soal.foto ?
-                    `<img src="<?= base_url('uploads/soal/') ?>${soal.foto}" class="img-thumbnail" style="max-height: 40px;">` :
-                    '<span class="text-muted small">-</span>'
-                }
-            </td>
-            <td>
-                <div class="d-flex flex-column gap-1">
-                    <small><strong>A.</strong> ${truncateText(stripHtml(soal.pilihan_a), 30)}</small>
-                    <small><strong>B.</strong> ${truncateText(stripHtml(soal.pilihan_b), 30)}</small>
-                    <small><strong>C.</strong> ${truncateText(stripHtml(soal.pilihan_c), 30)}</small>
-                    <small><strong>D.</strong> ${truncateText(stripHtml(soal.pilihan_d), 30)}</small>
-                    ${soal.pilihan_e ? `<small><strong>E.</strong> ${truncateText(stripHtml(soal.pilihan_e), 30)}</small>` : ''}
-                </div>
-            </td>
-            <td class="text-center fw-bold">${soal.jawaban_benar}</td>
-            <td class="text-center">${soal.tingkat_kesulitan}</td>
-            <td>
-                <button type="button" class="btn btn-sm btn-outline-info preview-soal-btn"
-                         data-soal-id="${soal.soal_id}" title="Preview">
-                    <i class="fas fa-eye"></i>
-                </button>
-            </td>
-        </tr>
-    `).join('');
-
-    tbody.html(rows);
-
-    // Attach event listener for individual checkboxes using delegation
-    tbody.off('change', '.check-soal-import').on('change', '.check-soal-import', updateImportButton);
-    // Attach event listener for preview buttons using delegation
-    tbody.off('click', '.preview-soal-btn').on('click', '.preview-soal-btn', function() {
-      previewSoal($(this).data('soal-id'));
-    });
-
-    $('#selectAllSoal').prop('checked', false);
-    updateImportButton(); // Initial update
-  }
-
-  function filterSoalBySearch() {
-    const search = $(this).val().toLowerCase();
-
-    if (!bankSoalData || bankSoalData.length === 0) {
-      renderBankSoal([]); // Clear table if no data to search
-      return;
-    }
-
-    const filteredData = bankSoalData.filter(soal => {
-      return stripHtml(soal.pertanyaan).toLowerCase().includes(search) ||
-        stripHtml(soal.pilihan_a).toLowerCase().includes(search) ||
-        stripHtml(soal.pilihan_b).toLowerCase().includes(search) ||
-        stripHtml(soal.pilihan_c).toLowerCase().includes(search) ||
-        stripHtml(soal.pilihan_d).toLowerCase().includes(search) ||
-        (soal.pilihan_e && stripHtml(soal.pilihan_e).toLowerCase().includes(search));
-    });
-
-    renderBankSoal(filteredData);
-  }
-
-  function updateImportButton() {
-    const checkedCount = $('input[name="soal_ids[]"]:checked').length;
-    const btn = $('#btnImportSoal');
-
-    btn.prop('disabled', checkedCount === 0);
-    btn.html(checkedCount > 0 ?
-      `<i class="fas fa-download me-2"></i>Import ${checkedCount} Soal Terpilih` :
-      '<i class="fas fa-download me-2"></i>Import Soal Terpilih');
-
-    // Update master checkbox if all or none are checked
-    const allCheckboxes = $('input[name="soal_ids[]"]');
-    if (allCheckboxes.length === checkedCount && allCheckboxes.length > 0) {
-      $('#selectAllSoal').prop('checked', true);
-    } else {
-      $('#selectAllSoal').prop('checked', false);
-    }
-  }
-
-  // Making previewSoal globally accessible
-  window.previewSoal = function(soalId) {
-    const soal = bankSoalData.find(s => s.soal_id == soalId);
-    if (!soal) return;
-
-    const modalHtml = `
-        <div class="modal fade" id="previewSoalModal" tabindex="-1">
-            <div class="modal-dialog modal-lg">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Preview Soal</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <p class="fw-bold">Kode Soal: <span class="text-primary">${soal.kode_soal}</span></p>
-                        <p class="fw-bold">Pertanyaan:</p>
-                        <div class="border p-3 mb-3">${soal.pertanyaan}</div>
-                        ${soal.foto ? `<div class="text-center mb-3"><img src="<?= base_url('uploads/soal/') ?>${soal.foto}" class="img-fluid" style="max-height: 300px;"></div>` : ''}
-                        <p class="fw-bold">Pilihan:</p>
-                        <div>
-                            <p><strong>A.</strong> ${soal.pilihan_a}</p>
-                            <p><strong>B.</strong> ${soal.pilihan_b}</p>
-                            <p><strong>C.</strong> ${soal.pilihan_c}</p>
-                            <p><strong>D.</strong> ${soal.pilihan_d}</p>
-                            ${soal.pilihan_e ? `<p><strong>E.</strong> ${soal.pilihan_e}</p>` : ''}
-                        </div>
-                        <div class="row mt-3">
-                            <div class="col-md-6">
-                                <p class="fw-bold">Jawaban Benar: <span class="text-success">${soal.jawaban_benar}</span></p>
-                            </div>
-                            <div class="col-md-6">
-                                <p class="fw-bold">Tingkat Kesulitan: ${soal.tingkat_kesulitan}</p>
-                            </div>
-                        </div>
-                        ${soal.pembahasan ? `
-                            <div class="mt-3">
-                                <p class="fw-bold">Pembahasan:</p>
-                                <div class="card bg-light">
-                                    <div class="card-body">${soal.pembahasan}</div>
-                                </div>
-                            </div>
-                        ` : ''}
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
-                    </div>
-                </div>
-            </div>
+<!-- Existing modals: kept for CAT mode -->
+<?php if (($ujian['tipe_ujian'] ?? 'CAT') != 'CBT'): ?>
+  <?php include_once __DIR__ . '/kelola_soal_cat_modals.php'; ?>
+<?php endif; ?>
+
+<!-- Edit Soal Modals for CBT mode (inline, simple) -->
+<?php if (($ujian['tipe_ujian'] ?? 'CAT') == 'CBT' && !empty($bankSoal)): foreach ($bankSoal as $s): ?>
+<div class="modal fade cbt-soal-modal" id="modalEditSoal<?= $s['soal_id'] ?>" tabindex="-1" data-bs-focus="false">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header bg-warning px-4 py-3">
+        <div>
+          <h5 class="modal-title fw-semibold">Edit Soal</h5>
+          <div class="small text-dark mt-1"><?= esc($s['kode_soal']) ?></div>
         </div>
-    `;
-
-    $('#previewSoalModal').remove(); // Ensure no duplicate modal
-    $('body').append(modalHtml);
-    const modal = new bootstrap.Modal(document.getElementById('previewSoalModal'));
-    modal.show();
-  }
-
-  function truncateText(text, maxLength) {
-    if (!text) return '';
-    if (text.length <= maxLength) return text;
-    return text.substring(0, maxLength) + '...';
-  }
-
-  function stripHtml(html) {
-    const tmp = $('<div>');
-    tmp.html(html);
-    return tmp.text() || '';
-  }
-
-  // Document ready
-  $(document).ready(function() {
-    // Tambahkan CSS untuk fix fullscreen
-    $('<style>')
-      .prop('type', 'text/css')
-      .html(`
-            .summernote-hidden {
-                display: none !important;
-            }
-            
-            body.summernote-fullscreen-active {
-                overflow: hidden !important;
-            }
-            
-            body.summernote-fullscreen-active .main-sidebar,
-            body.summernote-fullscreen-active .main-header,
-            body.summernote-fullscreen-active .main-footer {
-                display: none !important;
-            }
-            
-            .note-toolbar .dropdown-menu {
-                z-index: 99999 !important;
-                position: absolute !important;
-            }
-            
-            .note-toolbar .dropdown-menu.show {
-                display: block !important;
-            }
-            
-            .note-color .dropdown-menu,
-            .note-table .dropdown-menu,
-            .note-para .dropdown-menu,
-            .note-fontsize .dropdown-menu {
-                min-width: 200px;
-                max-height: 300px;
-                overflow-y: auto;
-            }
-            
-            /* Fix untuk table dimension picker */
-            .note-table .note-dimension-picker {
-                position: relative !important;
-                z-index: 99999 !important;
-            }
-            
-            .note-table .note-dimension-picker .note-dimension-picker-mousecatcher {
-                position: absolute !important;
-                z-index: 99999 !important;
-                cursor: pointer !important;
-            }
-        `)
-      .appendTo('head');
-
-    // === EVENT HANDLERS UNTUK SUMMERNOTE ===
-
-    // Event listener untuk modal tambah soal
-    $('#tambahSoalModal').on('shown.bs.modal', function() {
-      console.log('Modal tambah soal dibuka');
-      initializeSummernoteAdd();
-    });
-
-    $('#tambahSoalModal').on('hidden.bs.modal', function() {
-      console.log('Modal tambah soal ditutup');
-      destroySummernoteInstances([
-        '#pertanyaan_tambah',
-        '#pilihan_a_tambah',
-        '#pilihan_b_tambah',
-        '#pilihan_c_tambah',
-        '#pilihan_d_tambah',
-        '#pilihan_e_tambah',
-        '#pembahasan_tambah'
-      ]);
-      cleanupModalBackdrop();
-    });
-
-    // Event listener untuk modal edit (gunakan loop seperti di kode asli)
-    <?php foreach ($soal as $s): ?>
-      $('#editSoalModal<?= $s['soal_id'] ?>').on('shown.bs.modal', function() {
-        initializeSummernoteEdit(<?= $s['soal_id'] ?>);
-      });
-
-      $('#editSoalModal<?= $s['soal_id'] ?>').on('hidden.bs.modal', function() {
-        destroySummernoteInstances([
-          '#pertanyaan_edit_<?= $s['soal_id'] ?>',
-          '#pilihan_a_edit_<?= $s['soal_id'] ?>',
-          '#pilihan_b_edit_<?= $s['soal_id'] ?>',
-          '#pilihan_c_edit_<?= $s['soal_id'] ?>',
-          '#pilihan_d_edit_<?= $s['soal_id'] ?>',
-          '#pilihan_e_edit_<?= $s['soal_id'] ?>',
-          '#pembahasan_edit_<?= $s['soal_id'] ?>'
-        ]);
-        cleanupModalBackdrop();
-      });
-    <?php endforeach; ?>
-
-    // === EVENT HANDLERS UNTUK IMPORT BANK SOAL ===
-
-    // Event listener untuk import bank soal modal
-    $('#importBankSoalModal').on('shown.bs.modal', function() {
-      console.log('Import Bank Soal modal dibuka');
-      loadKategori();
-      resetImportModal();
-    });
-
-    // Event listeners untuk filter dropdown
-    $('#filterKategoriImport').on('change', onKategoriChange);
-    $('#filterJenisUjianImport').on('change', onJenisUjianChange);
-    $('#filterBankUjianImport').on('change', onBankUjianChange);
-    $('#searchBankSoal').on('input', filterSoalBySearch);
-
-    // Event listener untuk select all checkbox
-    $('#selectAllSoal').on('change', function() {
-      const checkboxes = $('.check-soal-import:not(:disabled)');
-      checkboxes.prop('checked', this.checked);
-      updateImportButton();
-    });
-
-    // Event listener untuk import button
-    $('#btnImportSoal').on('click', function() {
-      const checkedCount = $('input[name="soal_ids[]"]:checked').length;
-
-      if (checkedCount === 0) {
-        if (typeof Swal !== 'undefined') {
-          Swal.fire({
-            icon: 'warning',
-            title: 'Tidak Ada Soal',
-            text: 'Pilih soal yang ingin diimpor terlebih dahulu!'
-          });
-        } else {
-          alert('Pilih soal yang ingin diimpor terlebih dahulu!');
-        }
-        return;
-      }
-
-      // Konfirmasi impor
-      if (typeof Swal !== 'undefined') {
-        Swal.fire({
-          title: 'Konfirmasi Impor',
-          text: `Apakah Anda yakin ingin mengimport ${checkedCount} soal yang dipilih?`,
-          icon: 'warning',
-          showCancelButton: true,
-          confirmButtonColor: '#3085d6',
-          cancelButtonColor: '#d33',
-          confirmButtonText: 'Ya, Impor!',
-          cancelButtonText: 'Batal'
-        }).then((result) => {
-          if (result.isConfirmed) {
-            $('#formImportSoal').submit();
-          }
-        });
-      } else {
-        if (confirm(`Apakah Anda yakin ingin mengimport ${checkedCount} soal yang dipilih?`)) {
-          $('#formImportSoal').submit();
-        }
-      }
-    });
-
-    // Event listener untuk memastikan Summernote menyimpan data terbaru ke textarea
-    $('form').on('submit', function(e) {
-      $('.summernote, .summernote-small').each(function() {
-        if ($(this).data('summernote')) {
-          const content = $(this).summernote('code');
-          $(this).val(content);
-        }
-      });
-    });
-
-    // Prevent modal from auto-focusing yang bisa mengganggu Summernote
-    $('.modal').on('shown.bs.modal', function() {
-      $(this).removeAttr('tabindex');
-    });
-
-    $('#tambahSoalModal').on('hidden.bs.modal', function() {
-      // Hanya cleanup jika modal ditutup tanpa submit form
-      if (!$(this).data('form-submitted')) {
-        $.ajax({
-          url: '<?= base_url('admin/cleanup-temp-images') ?>',
-          type: 'POST',
-          silent: true,
-          error: function() {
-            // Silent failure - tidak perlu tampilkan error
-          }
-        });
-      }
-      // Reset flag
-      $(this).data('form-submitted', false);
-    });
-
-    // Handle cleanup untuk modal edit
-    <?php foreach ($soal as $s): ?>
-      $('#editSoalModal<?= $s['soal_id'] ?>').on('hidden.bs.modal', function() {
-        if (!$(this).data('form-submitted')) {
-          $.ajax({
-            url: '<?= base_url('admin/cleanup-temp-images') ?>',
-            type: 'POST',
-            silent: true,
-            error: function() {
-              // Silent failure
-            }
-          });
-        }
-        $(this).data('form-submitted', false);
-      });
-    <?php endforeach; ?>
-  });
-
-  // Track gambar yang ada saat editor pertama kali load
-  $('.summernote').each(function() {
-    const editor = $(this);
-    setTimeout(() => {
-      if (editor.data('summernote')) {
-        const originalContent = editor.summernote('code');
-        editor.data('original-images', extractImagesFromContent(originalContent));
-      }
-    }, 1000); // Delay untuk memastikan editor sudah fully initialized
-  });
-
-  // Set flag ketika form di-submit (supaya tidak cleanup)
-  $('form').on('submit', function() {
-    const modalId = $(this).closest('.modal').attr('id');
-    if (modalId) {
-      $('#' + modalId).data('form-submitted', true);
-    }
-  });
-
-  // Function helper untuk extract images dari HTML content
-  function extractImagesFromContent(htmlContent) {
-    const images = [];
-    if (!htmlContent) return images;
-
-    const tempDiv = $('<div>').html(htmlContent);
-    tempDiv.find('img').each(function() {
-      const src = $(this).attr('src');
-      if (src && src.includes('uploads/editor-images/')) {
-        const filename = src.split('/').pop();
-        if (filename) {
-          images.push(filename);
-        }
-      }
-    });
-    return images;
-  }
-
-  // Function untuk detect perubahan gambar di editor
-  function detectImageChanges(editorId) {
-    const editor = $('#' + editorId);
-    if (!editor.data('summernote')) return;
-
-    const currentContent = editor.summernote('code');
-    const currentImages = extractImagesFromContent(currentContent);
-    const originalImages = editor.data('original-images') || [];
-
-    // Update original images untuk tracking selanjutnya
-    editor.data('original-images', currentImages);
-
-    // Kirim info gambar yang dihapus ke server (opsional - untuk advanced tracking)
-    const removedImages = originalImages.filter(img => !currentImages.includes(img));
-    if (removedImages.length > 0) {
-      console.log('Detected removed images:', removedImages);
-      // Bisa kirim AJAX request untuk track removed images jika perlu
-    }
-  }
-</script>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form action="<?= base_url('admin/soal/edit/' . $s['soal_id']) ?>" method="post">
+        <input type="hidden" name="ujian_id" value="<?= $ujian['id_ujian'] ?>">
+        <div class="modal-scroll-area">
+          <div class="modal-body px-4 py-4">
+            <div class="row g-3">
+              <div class="col-md-4"><label class="form-label small fw-semibold">Kode Soal</label><input type="text" name="kode_soal" class="form-control" value="<?= esc($s['kode_soal']) ?>" required></div>
+              <div class="col-md-4"><label class="form-label small fw-semibold">Jawaban Benar</label><select name="jawaban_benar" class="form-select" required>
+                <?php foreach(['A','B','C','D','E'] as $j): ?><option value="<?= $j ?>" <?= $s['jawaban_benar']==$j?'selected':'' ?>><?= $j ?></option><?php endforeach; ?>
+              </select></div>
+              <div class="col-md-4"><label class="form-label small fw-semibold">Kesulitan</label><input type="number" name="tingkat_kesulitan" class="form-control" step="0.001" value="<?= $s['tingkat_kesulitan'] ?>" required></div>
+              <div class="col-12"><label class="form-label small fw-semibold">Pertanyaan</label><textarea id="pertanyaan_edit_cbt_<?= $s['soal_id'] ?>" name="pertanyaan" class="form-control summernote" rows="3" required><?= esc($s['pertanyaan']) ?></textarea></div>
+              <?php foreach(['a'=>'A','b'=>'B','c'=>'C','d'=>'D','e'=>'E'] as $k=>$l): ?>
+              <div class="col-md-6"><label class="form-label small fw-semibold">Pilihan <?= $l ?></label><textarea id="pilihan_<?= $k ?>_edit_cbt_<?= $s['soal_id'] ?>" name="pilihan_<?= $k ?>" class="form-control summernote-sm" rows="2" <?= $k!=='e'?'required':'' ?>><?= esc($s['pilihan_'.$k] ?? '') ?></textarea></div>
+              <?php endforeach; ?>
+              <div class="col-md-4">
+                <label class="form-label small fw-semibold">Variabel</label>
+                <select name="variabel_id" class="form-select" onchange="loadIndikatorCBT(this.value, 'indikatorEdit<?= $s['soal_id'] ?>')">
+                  <option value="">-- Tidak ada --</option>
+                  <?php foreach ($variabel as $v): ?><option value="<?= $v['variabel_id'] ?>" <?= (string)($s['variabel_id'] ?? '') === (string)$v['variabel_id'] ? 'selected' : '' ?>><?= esc($v['nama_variabel']) ?></option><?php endforeach; ?>
+                </select>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label small fw-semibold">Indikator</label>
+                <select name="indikator_id" id="indikatorEdit<?= $s['soal_id'] ?>" class="form-select">
+                  <option value="">-- Tidak ada --</option>
+                  <?php foreach ($indikator as $i): if ((string)($i['variabel_id'] ?? '') !== (string)($s['variabel_id'] ?? '')) continue; ?><option value="<?= $i['indikator_id'] ?>" <?= (string)($s['indikator_id'] ?? '') === (string)$i['indikator_id'] ? 'selected' : '' ?>><?= esc($i['nama_indikator']) ?></option><?php endforeach; ?>
+                </select>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label small fw-semibold">Materi</label>
+                <select name="materi_id" class="form-select">
+                  <option value="">-- Tidak ada --</option>
+                  <?php foreach ($materi as $m): ?><option value="<?= $m['materi_id'] ?>" <?= (string)($s['materi_id'] ?? '') === (string)$m['materi_id'] ? 'selected' : '' ?>><?= esc($m['nama_materi']) ?></option><?php endforeach; ?>
+                </select>
+              </div>
+              <div class="col-12"><label class="form-label small fw-semibold">Pembahasan</label><textarea id="pembahasan_edit_cbt_<?= $s['soal_id'] ?>" name="pembahasan" class="form-control summernote" rows="2"><?= esc($s['pembahasan'] ?? '') ?></textarea></div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer border-0 bg-light px-4 py-3">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Batal</button>
+          <button type="submit" class="btn btn-primary px-4">Simpan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<?php endforeach; endif; ?>
 
 <style>
-  /* CSS FIX UNTUK MASALAH SUMMERNOTE - VERSI OPTIMIZED */
-
-  /* Basic z-index for Bootstrap modals and their backdrops */
-  .modal-backdrop {
-    z-index: 1040;
-  }
-
-  .modal {
-    z-index: 1050;
-  }
-
-
-  .note-popover {
-    z-index: 2060;
-    /* Popovers (like image/table tools) above Summernote modals */
-  }
-
-  .note-toolbar {
-    z-index: 1050;
-    /* Toolbar can be at modal level or slightly above if needed */
-    position: relative;
-    /* Ensure z-index works */
-  }
-
-  /* Ensure dropdown menus open correctly by giving them a very high z-index */
-  .note-dropdown-menu {
-    z-index: 2080;
-    /* Dropdowns should be highest */
-    position: absolute;
-    /* Ensures z-index works */
-  }
-
-  /* Fix for fullscreen: Make the entire Summernote editor cover everything */
-  .note-editor.fullscreen {
-    position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    bottom: 0 !important;
-    z-index: 99999 !important;
-    background-color: #fff !important;
-    overflow-y: auto !important;
-  }
-
-  /* When Summernote is in fullscreen, hide main layout elements to avoid overlap */
-  body.summernote-fullscreen-active {
-    overflow: hidden !important;
-  }
-
-
-  /* Forcing display only when 'show' class is present is handled by Bootstrap/Summernote JS,
-       so removing the !important rules here which might conflict with their internal logic.
-       The z-index should be sufficient. */
-  /* .note-dropdown-menu:not(.show),
-    .note-table .dropdown-menu:not(.show) {
-        display: none;
-    }
-
-    .note-dropdown-menu.show,
-    .note-table .dropdown-menu.show {
-        display: block;
-    } */
-
-  /* Fix for button pointer events and hover */
-  .note-btn {
-    pointer-events: auto;
-    /* Ensure buttons are clickable */
-    cursor: pointer;
-    border: 1px solid transparent;
-    background-color: transparent;
-    padding: 0.375rem 0.75rem;
-    margin: 0;
-    line-height: 1.5;
-    border-radius: 0.25rem;
-    transition: all 0.15s ease-in-out;
-  }
-
-  .note-btn:hover,
-  .note-btn:focus {
-    background-color: #e9ecef;
-    border-color: #adb5bd;
-    outline: 0;
-    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
-  }
-
-  /* Specific fixes for table buttons in Summernote */
-  /* These specific styles are often for the grid picker inside the table dropdown */
-  .note-table .note-dimension-picker .note-dimension-picker-mousecatcher {
-    position: absolute;
-    z-index: 3;
-    width: 10em;
-    /* default is 5em, extend to give more clickable area */
-    height: 10em;
-    cursor: pointer;
-  }
-
-  .note-table .note-dimension-picker .note-dimension-picker-unhighlighted {
-    position: absolute;
-    z-index: 1;
-    width: 5em;
-    height: 5em;
-    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgAw/AKAHlFae4AAAAASUVORK5CYII=') repeat;
-  }
-
-  .note-table .note-dimension-picker .note-dimension-picker-highlighted {
-    position: absolute;
-    z-index: 2;
-    width: 1em;
-    height: 1em;
-    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAAABlBMVEUAAABBQUE6faMoAAAADklEQVQI12P4AIX8EAgAw/AKAHlFae4AAAAASUVORK5CYII=') repeat;
-  }
-
-  /* General Summernote Editor Styling */
-  .note-editor {
-    z-index: 1055 !important;
-    position: relative;
-    margin-bottom: 10px;
-    border-radius: 4px;
-  }
-
-  .note-popover {
-    z-index: 99998 !important;
-  }
-
-  .note-modal {
-    z-index: 99997 !important;
-  }
-
-  .note-toolbar {
-    border-radius: 4px 4px 0 0;
-  }
-
-  .note-editing-area {
-    border-radius: 0 0 4px 4px;
-  }
-
-  /* Image styling in editor */
-  .note-editable img {
-    max-width: 100%;
-    height: auto;
-    border-radius: 4px;
-    margin: 5px 0;
-  }
-
-  /* Image upload progress */
-  .note-editable .uploading {
-    background-color: #f8f9fa;
-    border: 2px dashed #dee2e6;
-    padding: 20px;
-    text-align: center;
-    color: #6c757d;
-    border-radius: 8px;
-    margin: 10px 0;
-  }
-
-  /* Enhanced Modal Styling */
-  .modal-header.bg-primary {
-    background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
-  }
-
-  .modal-footer.bg-light {
-    background: linear-gradient(to right, #f8f9fa 0%, #e9ecef 100%);
-  }
-
-  /* Card Styling for Modal Sections */
-  .modal-body .card {
-    border: 1px solid #dee2e6;
-    transition: all 0.2s ease;
-  }
-
-  .modal-body .card:hover {
-    border-color: #adb5bd;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-  }
-
-  .modal-body .card-header {
-    background: linear-gradient(to right, #f8f9fa 0%, #e9ecef 100%);
-    border-bottom: 1px solid #dee2e6;
-  }
-
-  .modal-body .card-header h6 {
-    color: #495057;
-    font-weight: 600;
-  }
-
-  /* Input Group Styling */
-  .input-group-text {
-    background-color: #e9ecef;
-    border-color: #ced4da;
-    color: #6c757d;
-    font-size: 0.875rem;
-    font-weight: 500;
-  }
-
-  /* Form Control Enhancement */
-  .form-control-lg,
-  .form-select-lg {
-    padding: 0.75rem 1rem;
-    font-size: 1.1rem;
-    border-radius: 0.5rem;
-  }
-
-  /* Alert in Modal */
-  .modal-body .alert-info {
-    background-color: #d1ecf1;
-    border-color: #bee5eb;
-    color: #0c5460;
-    border-radius: 0.5rem;
-  }
-
-  /* Label with Icons */
-  .form-label i {
-    width: 16px;
-    text-align: center;
-  }
-
-  /* Button Enhancement */
-  .modal-footer .btn {
-    padding: 0.75rem 1.5rem;
-    font-weight: 500;
-    border-radius: 0.5rem;
-    transition: all 0.2s ease;
-  }
-
-  .modal-footer .btn-primary {
-    background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
-    border: none;
-  }
-
-  .modal-footer .btn-primary:hover {
-    background: linear-gradient(135deg, #0056b3 0%, #003d82 100%);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(0, 123, 255, 0.3);
-  }
-
-  /* Responsive adjustments */
-  @media (max-width: 768px) {
-    .table-responsive {
-      font-size: 0.8rem;
-    }
-
-    .modal-xl {
-      max-width: 95%;
-    }
-
-    .note-toolbar {
-      white-space: normal;
-    }
-  }
-
-
-  /* Hide elements saat fullscreen */
-  body.summernote-fullscreen-active {
-    overflow: hidden !important;
-  }
-
-  body.summernote-fullscreen-active .main-sidebar,
-  body.summernote-fullscreen-active .main-header,
-  body.summernote-fullscreen-active .main-footer,
-  body.summernote-fullscreen-active .navbar,
-  body.summernote-fullscreen-active .breadcrumb {
-    display: none !important;
-  }
-
-  .summernote-hidden {
-    display: none !important;
-  }
-
-  /* 3. Fix Dropdown Display Issues */
-  .note-toolbar .dropdown-menu {
-    display: none;
-    min-width: 200px;
-    max-height: 300px;
-    overflow-y: auto;
-    border: 1px solid #dee2e6;
-    border-radius: 0.375rem;
-    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.175);
-    background-color: #fff;
-    background-clip: padding-box;
-  }
-
-  .note-toolbar .dropdown-menu.show {
-    display: block !important;
-    animation: dropdownFadeIn 0.15s ease-in-out;
-  }
-
-  @keyframes dropdownFadeIn {
-    from {
-      opacity: 0;
-      transform: translateY(-10px);
-    }
-
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  /* 4. Fix Color Picker */
-  .note-color .dropdown-menu {
-    padding: 0.5rem;
-  }
-
-  .note-color-palette {
-    line-height: 1;
-  }
-
-  .note-color-palette .note-color-btn {
-    width: 20px;
-    height: 20px;
-    border: 1px solid #dee2e6;
-    margin: 1px;
-    cursor: pointer;
-    border-radius: 2px;
-  }
-
-  .note-color-palette .note-color-btn:hover {
-    border-color: #007bff;
-    transform: scale(1.1);
-  }
-
-  /* 5. Fix Table Dimension Picker */
-  .note-table .dropdown-menu {
-    padding: 1rem;
-  }
-
-  .note-table .note-dimension-picker {
-    position: relative !important;
-    z-index: 99999 !important;
-  }
-
-  .note-table .note-dimension-picker .note-dimension-picker-mousecatcher {
-    position: absolute !important;
-    z-index: 99999 !important;
-    width: 10em !important;
-    height: 10em !important;
-    cursor: pointer !important;
-    top: 0;
-    left: 0;
-  }
-
-  .note-table .note-dimension-picker .note-dimension-picker-unhighlighted {
-    position: absolute;
-    z-index: 99998;
-    width: 5em;
-    height: 5em;
-    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgAw/AKAHlFae4AAAAASUVORK5CYII=') repeat;
-    border: 1px solid #dee2e6;
-  }
-
-  .note-table .note-dimension-picker .note-dimension-picker-highlighted {
-    position: absolute;
-    z-index: 99999;
-    width: 1em;
-    height: 1em;
-    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAAABlBMVEUAAABBQUE6faMoAAAADklEQVQI12P4AIX8EAgAw/AKAHlFae4AAAAASUVORK5CYII=') repeat;
-    background-color: #007bff;
-    border: 1px solid #0056b3;
-  }
-
-  /* 6. Fix Paragraph/Style Dropdown */
-  .note-para .dropdown-menu {
-    min-width: 180px;
-  }
-
-  .note-para .dropdown-menu .dropdown-item {
-    padding: 0.375rem 1rem;
-    transition: all 0.15s ease-in-out;
-  }
-
-  .note-para .dropdown-menu .dropdown-item:hover {
-    background-color: #f8f9fa;
-    color: #007bff;
-  }
-
-  /* 7. Fix Font Size Dropdown */
-  .note-fontsize .dropdown-menu {
-    min-width: 120px;
-    max-height: 200px;
-  }
-
-  .note-fontsize .dropdown-menu .dropdown-item {
-    text-align: center;
-    padding: 0.25rem 0.5rem;
-  }
-
-  /* 8. Enhanced Button Styling */
-  .note-btn {
-    pointer-events: auto !important;
-    cursor: pointer;
-    border: 1px solid transparent;
-    background-color: transparent;
-    padding: 0.375rem 0.75rem;
-    margin: 0;
-    line-height: 1.5;
-    border-radius: 0.25rem;
-    transition: all 0.15s ease-in-out;
-    position: relative;
-  }
-
-  .note-btn:hover,
-  .note-btn:focus {
-    background-color: #e9ecef;
-    border-color: #adb5bd;
-    outline: 0;
-    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
-  }
-
-  .note-btn:active,
-  .note-btn.active {
-    background-color: #007bff;
-    border-color: #007bff;
-    color: #fff;
-  }
-
-  /* 9. Fix Dropdown Toggle Indicators */
-  .note-toolbar .dropdown-toggle::after {
-    content: "";
-    border-top: 0.3em solid;
-    border-right: 0.3em solid transparent;
-    border-bottom: 0;
-    border-left: 0.3em solid transparent;
-    margin-left: 0.5em;
-    vertical-align: 0.1em;
-  }
-
-  .note-toolbar .dropdown-toggle:empty::after {
-    margin-left: 0;
-  }
-
-  /* 10. Modal Content Adjustments */
-  .modal-xl .note-editor {
-    margin-bottom: 1rem;
-  }
-
-  .modal-body .note-toolbar {
-    border-radius: 0.25rem 0.25rem 0 0;
-    border-bottom: 1px solid #dee2e6;
-  }
-
-  .modal-body .note-editing-area {
-    border-radius: 0 0 0.25rem 0.25rem;
-  }
-
-  /* 11. Responsive Fixes */
-  @media (max-width: 768px) {
-    .note-toolbar {
-      flex-wrap: wrap;
-      white-space: normal;
-    }
-
-    .note-toolbar .note-btn {
-      padding: 0.25rem 0.5rem;
-      font-size: 0.875rem;
-    }
-
-    .note-dropdown-menu {
-      max-width: 90vw;
-      left: 0 !important;
-      right: auto !important;
-    }
-
-    .modal-xl {
-      max-width: 95%;
-      margin: 0.5rem;
-    }
-  }
-
-  /* 12. Fix untuk Image dalam Editor */
-  .note-editable img {
-    max-width: 100%;
-    height: auto;
-    border-radius: 0.25rem;
-    margin: 0.25rem 0;
-  }
-
-  .note-editable img.img-fluid {
-    max-width: 100%;
-    height: auto;
-  }
-
-  /* 13. Link Dialog Fix */
-  .note-link-dialog .modal-content,
-  .note-image-dialog .modal-content {
-    z-index: 99999 !important;
-  }
-
-  /* 14. Code View Fix */
-  .note-codable {
-    border: 1px solid #dee2e6;
-    border-radius: 0 0 0.25rem 0.25rem;
-    background-color: #f8f9fa;
-    font-family: 'Courier New', monospace;
-    font-size: 0.875rem;
-  }
-
-  /* 15. Additional Utility Classes */
-  .note-toolbar-wrapper {
-    position: relative;
-    z-index: 1056;
-  }
-
-  .note-statusbar {
-    border-top: 1px solid #dee2e6;
-    background-color: #f8f9fa;
-    padding: 0.25rem 0.5rem;
-    font-size: 0.75rem;
-    color: #6c757d;
-  }
-
-  /* 16. Loading States */
-  .note-editor.loading {
-    opacity: 0.6;
-    pointer-events: none;
-  }
-
-  .note-editor.loading::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(255, 255, 255, 0.8);
-    z-index: 9999;
-  }
-
-  .note-editor.loading::after {
-    content: 'Loading...';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    z-index: 10000;
-    font-weight: bold;
-    color: #007bff;
-  }
+.modal { overflow-y: auto !important; }
+/* Fix <form> wrapper yang memutus flex chain di modal-dialog-scrollable */
+.modal-dialog-scrollable .modal-content > form {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+.modal-dialog-scrollable .modal-content > form > .modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+/* === Step Indicator === */
+.step-badge {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #868e96;
+  background: #e9ecef;
+  transition: all 0.3s;
+}
+.step-badge.step-active {
+  background: #0d6efd;
+  color: #fff;
+  box-shadow: 0 0 0 3px rgba(13,110,253,0.2);
+}
+.step-badge.step-done {
+  background: #157347;
+  color: #fff;
+}
+
+/* === Icon Circle === */
+.icon-circle {
+  width: 36px; height: 36px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* === Stat Box === */
+.stat-box {
+  background: #f8fafc;
+  border: 1px solid #eaecf0;
+  border-radius: 0;
+  padding: 1.25rem 1rem;
+  text-align: center;
+}
+.stat-icon {
+  font-size: 1.25rem;
+  line-height: 1;
+  margin-bottom: 0.5rem;
+}
+.stat-value {
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+.stat-label {
+  font-size: 0.68rem;
+  color: #adb5bd;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-top: 4px;
+}
+
+/* === Rule Box === */
+.rule-box {
+  background: #e7f1ff;
+  border: 1px solid #b6d4fe;
+  border-radius: 0;
+  padding: 8px 14px;
+  font-size: 0.78rem;
+  color: #052c65;
+}
+
+/* === Bank Card === */
+.bank-card {
+  border: 1px solid #dee2e6;
+  border-radius: 0;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.bank-card:hover {
+  border-color: #86b7fe;
+  background: #f8f9ff;
+}
+.bank-card.selected {
+  border-color: #0d6efd;
+  background: rgba(13,110,253,0.03);
+}
+
+/* === Global card tweaks === */
+.card {
+  border-radius: 0;
+  border: 1px solid #e2e5ea;
+}
+.card.shadow-sm {
+  box-shadow: 0 2px 12px rgba(0,0,0,0.08) !important;
+}
+.card-header {
+  background: #fff;
+  border-bottom: 1px solid #edf0f3;
+  padding: 1rem 1.5rem;
+  border-radius: 0 !important;
+}
+
+/* === Table (hanya untuk tabel data, bukan summernote) === */
+.card .table > :not(caption) > * > * {
+  padding: 0.55rem 0.75rem;
+}
+.card .table thead th {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6c757d;
+  background: #f8f9fa;
+  border-bottom: 2px solid #dee2e6;
+}
+
+/* === Buttons === */
+.btn {
+  border-radius: 4px;
+  font-weight: 500;
+}
+.btn-sm {
+  border-radius: 4px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+}
+
+.cbt-bank-picker {
+  background: #fbfcfe;
+  border: 1px solid #e1e7ef;
+  padding: 1.1rem;
+}
+.cbt-bank-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem 1.15rem;
+}
+.cbt-bank-field .form-label {
+  color: #475467;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.025em;
+  margin-bottom: 0.35rem;
+}
+.cbt-bank-field .form-select {
+  background-color: #fff;
+  min-height: 42px;
+}
+.cbt-bank-field .form-select:disabled {
+  background-color: #eef2f6;
+  border-color: #d7dee8;
+  color: #8a94a3;
+  cursor: not-allowed;
+  opacity: 1;
+}
+.cbt-bank-result {
+  align-items: center;
+  background: #f0f7ff;
+  border: 1px solid #bfdcff;
+  color: #123a63;
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.75rem 0.9rem;
+}
+.cbt-bank-result-icon {
+  align-items: center;
+  background: #fff;
+  border: 1px solid #c9e2ff;
+  color: #0d6efd;
+  display: inline-flex;
+  height: 34px;
+  justify-content: center;
+  width: 34px;
+}
+.cbt-bank-result-title {
+  color: #1f2937;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+.cbt-bank-result-text {
+  color: #667085;
+  font-size: 0.78rem;
+}
+.cbt-bank-save {
+  border-radius: 0 !important;
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 0.52rem 0.9rem;
+}
+@media (max-width: 991.98px) {
+  .cbt-bank-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 575.98px) {
+  .cbt-bank-grid { grid-template-columns: 1fr; }
+}
+
+/* === Form === */
+.form-control, .form-select {
+  border-radius: 0;
+  border-color: #dee2e6;
+  font-size: 0.85rem;
+}
+.form-control:focus, .form-select:focus {
+  border-color: #86b7fe;
+  box-shadow: 0 0 0 0.2rem rgba(13,110,253,0.15);
+}
+
+/* === Alert === */
+.alert {
+  border-radius: 0;
+  font-size: 0.85rem;
+}
+
+/* === Badge === */
+.badge {
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+/* === Modal === */
+.modal-content {
+  border-radius: 0 !important;
+  border: none;
+}
 </style>
+
+<script>
+// Cascade Bank: Sekolah -> Kelas -> Mapel -> Bank
+(function(){
+  const sekolah=document.getElementById('bankSekolah');
+  const kelas=document.getElementById('bankKelas');
+  const kategori=document.getElementById('bankKat');
+  const mapel=document.getElementById('bankMapel');
+  const bank=document.getElementById('bankId');
+  const info=document.getElementById('bankInfo');
+  const save=document.getElementById('bankSimpanBtn');
+  const hidden=document.getElementById('bankHidden');
+  const count=document.getElementById('bankSoalCount');
+  if(!sekolah||!kelas||!kategori||!mapel||!bank)return;
+
+  function addOption(select,value,text,dataset){
+    const option=document.createElement('option');
+    option.value=value;
+    option.textContent=text;
+    if(dataset)Object.keys(dataset).forEach(key=>{option.dataset[key]=dataset[key];});
+    select.appendChild(option);
+  }
+
+  function setEmpty(select,message){
+    select.innerHTML='<option value="">'+message+'</option>';
+    select.disabled=true;
+  }
+
+  function resetMapel(message){
+    setEmpty(mapel,message);
+    resetBank('Pilih mata pelajaran dulu');
+  }
+
+  function resetBank(message){
+    setEmpty(bank,message);
+    info?.classList.add('d-none');
+    if(save)save.disabled=true;
+    if(hidden)hidden.value='';
+  }
+
+  function loadMapelByKategori(category){
+    mapel.innerHTML='<option value="">Loading...</option>';
+    mapel.disabled=false;
+    resetBank('Pilih mata pelajaran dulu');
+    fetch('<?=base_url('admin/bank-soal/api/jenis-ujian')?>?kategori='+encodeURIComponent(category))
+      .then(r=>r.json()).then(d=>{
+        mapel.innerHTML='<option value="">Pilih Mata Pelajaran</option>';
+        if(d.status==='success'&&d.data.length){
+          d.data.forEach(j=>addOption(mapel,j.jenis_ujian_id,j.nama_jenis));
+          mapel.disabled=false;
+        }else{
+          setEmpty(mapel,category==='umum'?'Belum ada mata pelajaran umum':'Belum ada mata pelajaran');
+        }
+      }).catch(()=>{mapel.innerHTML='<option value="">Gagal memuat mata pelajaran</option>';mapel.disabled=true;});
+  }
+
+  if(sekolah.options.length <= 2){
+    setEmpty(sekolah,'Belum ada sekolah');
+    resetMapel('Belum ada kelas');
+  }
+
+  sekolah.addEventListener('change',function(){
+    kategori.value='';
+    kelas.innerHTML='<option value="">Loading...</option>';
+    kelas.disabled=!this.value;
+    resetMapel('Pilih kelas dulu');
+    if(!this.value){kelas.innerHTML='<option value="">Pilih sekolah dulu</option>';kelas.disabled=true;return;}
+    if(this.value==='__umum'){
+      kategori.value='umum';
+      kelas.innerHTML='<option value="umum">Umum / Tanpa Kelas</option>';
+      kelas.disabled=true;
+      loadMapelByKategori('umum');
+      return;
+    }
+    fetch('<?=base_url('admin/api/kelas-by-sekolah/')?>'+encodeURIComponent(this.value))
+      .then(r=>r.json()).then(d=>{
+        kelas.innerHTML='<option value="">Pilih Kelas</option>';
+        if(d.status==='success'&&d.data.length){
+          d.data.forEach(k=>addOption(kelas,k.kelas_id,k.nama_kelas+(k.tahun_ajaran?' - '+k.tahun_ajaran:''),{kategori:k.nama_kelas}));
+          kelas.disabled=false;
+        }else{
+          setEmpty(kelas,'Belum ada kelas');
+        }
+      }).catch(()=>{kelas.innerHTML='<option value="">Gagal memuat kelas</option>';kelas.disabled=true;});
+  });
+
+  kelas.addEventListener('change',function(){
+    const mp=document.getElementById('bankMapel');
+    const selected=this.selectedOptions[0];
+    kategori.value=selected?.dataset.kategori||'';
+    mp.innerHTML='<option value="">Loading...</option>';mp.disabled=!kategori.value;
+    resetBank('Pilih mata pelajaran dulu');
+    if(!kategori.value){resetMapel('Pilih kelas dulu');return;}
+    loadMapelByKategori(kategori.value);
+  });
+
+  document.getElementById('bankMapel')?.addEventListener('change',function(){
+    const b=document.getElementById('bankId');
+    b.innerHTML='<option value="">Loading...</option>';b.disabled=!this.value;
+    info?.classList.add('d-none');if(save)save.disabled=true;
+    if(!this.value){resetBank('Pilih mata pelajaran dulu');return;}
+    fetch('<?=base_url('admin/bank-soal/api/bank-ujian')?>?kategori='+encodeURIComponent(kategori.value)+'&jenis_ujian_id='+this.value)
+      .then(r=>r.json()).then(d=>{
+        b.innerHTML='<option value="">Pilih Bank Soal</option>';
+        if(d.status==='success'&&d.data.length){
+          d.data.forEach(bk=>addOption(b,bk.bank_ujian_id,bk.nama_ujian,{soal:bk.jumlah_soal}));
+          b.disabled=false;
+        }else{
+          setEmpty(b,'Belum ada bank soal');
+        }
+      }).catch(()=>{b.innerHTML='<option value="">Gagal memuat bank soal</option>';b.disabled=true;});
+  });
+
+  document.getElementById('bankId')?.addEventListener('change',function(){
+    const opt=this.selectedOptions[0];
+    if(hidden)hidden.value=this.value||'';
+    if(save)save.disabled=!this.value;
+    if(this.value){
+      info?.classList.remove('d-none');
+      if(count)count.textContent=opt?.dataset.soal||'0';
+    }else{
+      info?.classList.add('d-none');
+    }
+  });
+})();
+
+function loadIndikatorCBT(variabelId, targetId = 'indikatorCBT') {
+  const sel = document.getElementById(targetId);
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Loading...</option>';
+  if (!variabelId) { sel.innerHTML = '<option value="">-- Pilih Variabel dulu --</option>'; return; }
+  fetch('<?= base_url('admin/api/indikator-by-variabel/') ?>' + variabelId)
+    .then(r => r.json())
+    .then(d => {
+      let opts = '<option value="">-- Tidak ada --</option>';
+      d.forEach(i => { opts += '<option value="'+i.indikator_id+'">'+i.nama_indikator+'</option>'; });
+      sel.innerHTML = opts;
+    })
+    .catch(() => sel.innerHTML = '<option value="">Gagal</option>');
+}
+
+// === Summernote Init / Destroy ===
+function hardenSummernoteButtons(scope) {
+  (scope || document).querySelectorAll('.note-editor button, .note-modal button').forEach(function(btn) {
+    if (!btn.getAttribute('type') || btn.getAttribute('type').toLowerCase() === 'submit') {
+      btn.setAttribute('type', 'button');
+    }
+  });
+}
+
+function uploadImageSimple(file, editor) {
+  if (!file || !file.type || !file.type.startsWith('image/')) {
+    alert('Pilih file gambar.');
+    return;
+  }
+  if (file.size > 2 * 1024 * 1024) {
+    alert('File terlalu besar. Maksimal 2MB.');
+    return;
+  }
+
+  const $editor = $(editor);
+  if ($editor.data('uploading')) return;
+  $editor.data('uploading', true);
+
+  const formData = new FormData();
+  formData.append('upload', file);
+
+  $.ajax({
+    url: '<?= base_url('admin/upload-summernote-image') ?>',
+    type: 'POST',
+    data: formData,
+    processData: false,
+    contentType: false,
+    timeout: 30000,
+    success: function(resp) {
+      $editor.data('uploading', false);
+      if (resp.success && resp.url) {
+        $editor.summernote('focus');
+        $editor.summernote('insertImage', resp.url, function($img) {
+          $img.css({'max-width': '100%', 'height': 'auto'}).addClass('img-fluid');
+        });
+      } else {
+        alert(resp.error || 'Gagal upload gambar');
+      }
+    },
+    error: function() {
+      $editor.data('uploading', false);
+      alert('Gagal upload gambar');
+    }
+  });
+}
+
+const summernoteCfg = {
+  height: 200,
+  dialogsInBody: true,
+  dialogsFade: false,
+  container: 'body',
+  toolbar: [
+    ['style', ['bold','italic','underline','clear']],
+    ['fontsize', ['fontsize']],
+    ['color', ['color']],
+    ['para', ['ul','ol','paragraph']],
+    ['table', ['table']],
+    ['insert', ['link','picture']]
+  ],
+  callbacks: {
+    onInit: function() {
+      const modal = this.closest('.modal');
+      setTimeout(function() { hardenSummernoteButtons(modal || document); }, 0);
+    },
+    onImageUpload: function(files) {
+      if (files && files.length > 0) uploadImageSimple(files[0], this);
+    }
+  }
+};
+const summernoteCfgSm = {
+  height: 100,
+  dialogsInBody: true,
+  dialogsFade: false,
+  container: 'body',
+  toolbar: [
+    ['style',['bold','italic','underline']],
+    ['font',['superscript','subscript']],
+    ['color',['color']],
+    ['insert',['picture']]
+  ],
+  callbacks: summernoteCfg.callbacks
+};
+
+// === Init Summernote pada modal spesifik ===
+function snInit(m) { m.querySelectorAll('.summernote').forEach(e => { if(!$(e).data('summernote')) $(e).summernote(summernoteCfg); }); m.querySelectorAll('.summernote-sm').forEach(e => { if(!$(e).data('summernote')) $(e).summernote(summernoteCfgSm); }); hardenSummernoteButtons(m); }
+function restoreScrollableTables() {
+  document.querySelectorAll('.cat-table-wrap, .table-responsive').forEach(function(el) {
+    el.style.overflowX = 'auto';
+    el.style.webkitOverflowScrolling = 'touch';
+    if (el.classList.contains('cat-table-wrap')) {
+      el.style.overflowY = 'hidden';
+      el.style.pointerEvents = 'auto';
+      el.style.position = 'relative';
+      el.style.zIndex = '1';
+    }
+  });
+}
+function normalizeHiddenModals() {
+  if (document.querySelector('.modal.show, .note-modal.show')) return;
+  document.querySelectorAll('.modal, .note-modal').forEach(function(modal) {
+    modal.classList.remove('show');
+    modal.setAttribute('aria-hidden', 'true');
+    modal.removeAttribute('aria-modal');
+    modal.style.removeProperty('display');
+    modal.style.removeProperty('padding-right');
+  });
+  document.querySelectorAll('.modal-dialog, .modal-content').forEach(function(el) {
+    el.style.removeProperty('transform');
+    el.style.removeProperty('padding-right');
+  });
+}
+var _pageScrollObserver = null;
+function resetPageScrollState(force) {
+  if (_pageScrollObserver) { _pageScrollObserver.disconnect(); _pageScrollObserver = null; }
+  var cleanup = function() {
+    if (!force && document.querySelector('.modal.show')) return;
+    document.body.classList.remove('modal-open');
+    document.documentElement.classList.remove('modal-open');
+    ['overflow', 'overflow-y', 'padding-right', 'position', 'top', 'width'].forEach(function(p) {
+      document.body.style.removeProperty(p);
+      document.documentElement.style.removeProperty(p);
+    });
+    document.body.style.overflow = 'auto';
+    document.documentElement.style.overflow = 'auto';
+    document.body.style.pointerEvents = '';
+    document.documentElement.style.pointerEvents = '';
+    document.querySelectorAll('.modal-backdrop, .note-modal-backdrop').forEach(function(el) { el.remove(); });
+    normalizeHiddenModals();
+    restoreScrollableTables();
+  };
+  cleanup();
+  _pageScrollObserver = new MutationObserver(function() { cleanup(); });
+  _pageScrollObserver.observe(document.body, { attributes: true, attributeFilter: ['style', 'class'] });
+  setTimeout(function() {
+    cleanup();
+    if (_pageScrollObserver) { _pageScrollObserver.disconnect(); _pageScrollObserver = null; }
+  }, 1500);
+}
+function destroySummernote(ids) {
+  ids.forEach(function(id) {
+    const $el = $(id);
+    if ($el.length && $el.data('summernote')) {
+      try { $el.summernote('destroy'); } catch (e) {}
+      $el.siblings('.note-editor').remove();
+      $el.show();
+    }
+  });
+  resetPageScrollState(false);
+}
+function snDestroy(m) {
+  m.querySelectorAll('.summernote,.summernote-sm').forEach(e => {
+    if ($(e).data('summernote')) $(e).summernote('destroy');
+  });
+  resetPageScrollState(false);
+}
+function initSummernoteAddCBT() {
+  destroySummernote(['#pertanyaan_tambah_cbt','#pilihan_a_tambah_cbt','#pilihan_b_tambah_cbt','#pilihan_c_tambah_cbt','#pilihan_d_tambah_cbt','#pilihan_e_tambah_cbt','#pembahasan_tambah_cbt']);
+  setTimeout(function() {
+    $('#pertanyaan_tambah_cbt').summernote(summernoteCfg);
+    $('#pilihan_a_tambah_cbt,#pilihan_b_tambah_cbt,#pilihan_c_tambah_cbt,#pilihan_d_tambah_cbt,#pilihan_e_tambah_cbt').summernote(summernoteCfgSm);
+    $('#pembahasan_tambah_cbt').summernote(summernoteCfg);
+  }, 150);
+}
+function initSummernoteEditCBT(soalId) {
+  const ids = ['#pertanyaan_edit_cbt_' + soalId,'#pilihan_a_edit_cbt_' + soalId,'#pilihan_b_edit_cbt_' + soalId,'#pilihan_c_edit_cbt_' + soalId,'#pilihan_d_edit_cbt_' + soalId,'#pilihan_e_edit_cbt_' + soalId,'#pembahasan_edit_cbt_' + soalId];
+  destroySummernote(ids);
+  setTimeout(function() {
+    $('#pertanyaan_edit_cbt_' + soalId).summernote(summernoteCfg);
+    $('#pilihan_a_edit_cbt_' + soalId + ',#pilihan_b_edit_cbt_' + soalId + ',#pilihan_c_edit_cbt_' + soalId + ',#pilihan_d_edit_cbt_' + soalId + ',#pilihan_e_edit_cbt_' + soalId).summernote(summernoteCfgSm);
+    $('#pembahasan_edit_cbt_' + soalId).summernote(summernoteCfg);
+  }, 150);
+}
+function initSummernoteAddCAT() {
+  destroySummernote(['#pertanyaan_cat_add','#pilihan_a_cat_add','#pilihan_b_cat_add','#pilihan_c_cat_add','#pilihan_d_cat_add','#pilihan_e_cat_add','#pembahasan_cat_add']);
+  setTimeout(function() {
+    $('#pertanyaan_cat_add').summernote(summernoteCfg);
+    $('#pilihan_a_cat_add,#pilihan_b_cat_add,#pilihan_c_cat_add,#pilihan_d_cat_add,#pilihan_e_cat_add').summernote(summernoteCfgSm);
+    $('#pembahasan_cat_add').summernote(summernoteCfg);
+  }, 150);
+}
+function initSummernoteEditCAT(soalId) {
+  const ids = ['#pertanyaan_cat_edit_' + soalId,'#pilihan_a_cat_edit_' + soalId,'#pilihan_b_cat_edit_' + soalId,'#pilihan_c_cat_edit_' + soalId,'#pilihan_d_cat_edit_' + soalId,'#pilihan_e_cat_edit_' + soalId,'#pembahasan_cat_edit_' + soalId];
+  destroySummernote(ids);
+  setTimeout(function() {
+    $('#pertanyaan_cat_edit_' + soalId).summernote(summernoteCfg);
+    $('#pilihan_a_cat_edit_' + soalId + ',#pilihan_b_cat_edit_' + soalId + ',#pilihan_c_cat_edit_' + soalId + ',#pilihan_d_cat_edit_' + soalId + ',#pilihan_e_cat_edit_' + soalId).summernote(summernoteCfgSm);
+    $('#pembahasan_cat_edit_' + soalId).summernote(summernoteCfg);
+  }, 150);
+}
+
+// CBT Tambah Soal
+document.getElementById('modalTambahSoalCBT')?.addEventListener('shown.bs.modal', function(){ initSummernoteAddCBT(); });
+document.getElementById('modalTambahSoalCBT')?.addEventListener('hidden.bs.modal', function(){ destroySummernote(['#pertanyaan_tambah_cbt','#pilihan_a_tambah_cbt','#pilihan_b_tambah_cbt','#pilihan_c_tambah_cbt','#pilihan_d_tambah_cbt','#pilihan_e_tambah_cbt','#pembahasan_tambah_cbt']); resetPageScrollState(true); });
+// CAT Tambah Soal
+document.getElementById('tambahSoalModal')?.addEventListener('shown.bs.modal', function(){ initSummernoteAddCAT(); });
+document.getElementById('tambahSoalModal')?.addEventListener('hidden.bs.modal', function(){ destroySummernote(['#pertanyaan_cat_add','#pilihan_a_cat_add','#pilihan_b_cat_add','#pilihan_c_cat_add','#pilihan_d_cat_add','#pilihan_e_cat_add','#pembahasan_cat_add']); resetPageScrollState(true); });
+// Edit modals (delegated via ID prefix)
+document.addEventListener('shown.bs.modal', function(e){
+  if (e.target.id.startsWith('modalEditSoal')) {
+    initSummernoteEditCBT(e.target.id.replace('modalEditSoal', ''));
+  } else if (e.target.id.startsWith('editSoalCatModal')) {
+    initSummernoteEditCAT(e.target.id.replace('editSoalCatModal', ''));
+  }
+});
+document.addEventListener('hidden.bs.modal', function(e){
+  if (e.target.id.startsWith('modalEditSoal')) {
+    const soalId = e.target.id.replace('modalEditSoal', '');
+    destroySummernote(['#pertanyaan_edit_cbt_' + soalId,'#pilihan_a_edit_cbt_' + soalId,'#pilihan_b_edit_cbt_' + soalId,'#pilihan_c_edit_cbt_' + soalId,'#pilihan_d_edit_cbt_' + soalId,'#pilihan_e_edit_cbt_' + soalId,'#pembahasan_edit_cbt_' + soalId]);
+    resetPageScrollState(true);
+  } else if (e.target.id.startsWith('editSoalCatModal')) {
+    const soalId = e.target.id.replace('editSoalCatModal', '');
+    destroySummernote(['#pertanyaan_cat_edit_' + soalId,'#pilihan_a_cat_edit_' + soalId,'#pilihan_b_cat_edit_' + soalId,'#pilihan_c_cat_edit_' + soalId,'#pilihan_d_cat_edit_' + soalId,'#pilihan_e_cat_edit_' + soalId,'#pembahasan_cat_edit_' + soalId]);
+    resetPageScrollState(true);
+  }
+});
+document.addEventListener('hidden.bs.modal', function() {
+  requestAnimationFrame(function() {
+    requestAnimationFrame(function() {
+      resetPageScrollState(true);
+    });
+  });
+});
+
+document.addEventListener('shown.bs.modal', function(e) {
+  if (e.target.classList.contains('note-modal')) {
+    hardenSummernoteButtons(e.target);
+  }
+});
+
+// Sync summernote content before form submit
+document.addEventListener('submit', function(e) {
+  const submitter = e.submitter;
+  if ((submitter && (submitter.closest('.note-editor') || submitter.closest('.note-modal'))) || e.target.classList.contains('note-modal-form')) {
+    e.preventDefault();
+    e.stopPropagation();
+    return;
+  }
+  const form = e.target.closest('form');
+  if (!form) return;
+  const modal = form.closest('.modal');
+  if (modal) {
+    modal.querySelectorAll('.summernote, .summernote-sm').forEach(function(el) {
+      if ($(el).data('summernote')) {
+        const code = $(el).summernote('code');
+        el.value = code;
+      }
+    });
+  }
+}, true);
+
+// AJAX Tambah Soal CBT
+document.getElementById('formTambahSoalCBT')?.addEventListener('submit', function(e) {
+  e.preventDefault();
+  const msg = document.getElementById('ajaxMsgCBT');
+  msg.innerHTML = '<div class="alert alert-info py-2 small">Menyimpan...</div>';
+  fetch('<?= base_url('admin/bank-soal/tambah-soal') ?>', {
+    method: 'POST',
+    headers: {'X-Requested-With': 'XMLHttpRequest'},
+    body: new FormData(this)
+  }).then(r => r.json().then(d => ({ok:r.ok, data:d})))
+    .then(res => {
+      if (!res.ok || !res.data.success) throw new Error(res.data.message||'Gagal');
+      msg.innerHTML = '<div class="alert alert-success py-2 small">'+res.data.message+'</div>';
+      setTimeout(() => location.reload(), 800);
+    })
+    .catch(err => msg.innerHTML = '<div class="alert alert-danger py-2 small">'+err.message+'</div>');
+});
+
+// Import Bank functionality (lightweight)
+let bankData = [];
+document.getElementById('modalImportBankSoal')?.addEventListener('shown.bs.modal', function(){
+  fetch('<?= base_url('admin/bank-soal/api/kategori') ?>')
+    .then(r=>r.json()).then(d=>{
+      const s = document.getElementById('filterKat');
+      s.innerHTML = '<option value="">Pilih Kategori</option>';
+      if (d.status==='success') d.data.forEach(k=>{ s.innerHTML += '<option value="'+k+'">'+k.charAt(0).toUpperCase()+k.slice(1)+'</option>'; });
+    });
+});
+document.getElementById('filterKat')?.addEventListener('change', function(){
+  const mp = document.getElementById('filterMapel');
+  mp.innerHTML='<option value="">Loading...</option>'; mp.disabled=!this.value;
+  document.getElementById('filterBank').innerHTML='<option value="">Pilih dulu</option>'; document.getElementById('filterBank').disabled=true;
+  if(!this.value) { mp.innerHTML='<option value="">Pilih dulu</option>'; mp.disabled=true; return; }
+  fetch('<?= base_url('admin/bank-soal/api/jenis-ujian') ?>?kategori='+encodeURIComponent(this.value))
+    .then(r=>r.json()).then(d=>{
+      mp.innerHTML='<option value="">Pilih Mata Pelajaran</option>';
+      if(d.status==='success') d.data.forEach(j=>{ mp.innerHTML += '<option value="'+j.jenis_ujian_id+'">'+j.nama_jenis+'</option>'; });
+      mp.disabled=false;
+    });
+});
+document.getElementById('filterMapel')?.addEventListener('change', function(){
+  const b = document.getElementById('filterBank');
+  b.innerHTML='<option value="">Loading...</option>'; b.disabled=!this.value;
+  document.getElementById('searchBank').disabled=true;
+  if(!this.value) { b.innerHTML='<option value="">Pilih dulu</option>'; b.disabled=true; return; }
+  fetch('<?= base_url('admin/bank-soal/api/bank-ujian') ?>?kategori='+encodeURIComponent(document.getElementById('filterKat').value)+'&jenis_ujian_id='+this.value)
+    .then(r=>r.json()).then(d=>{
+      b.innerHTML='<option value="">Pilih Bank Soal</option>';
+      if(d.status==='success') d.data.forEach(bk=>{ b.innerHTML += '<option value="'+bk.bank_ujian_id+'">'+bk.nama_ujian+' ('+bk.jumlah_soal+' soal)</option>'; });
+      b.disabled=false;
+    });
+});
+document.getElementById('filterBank')?.addEventListener('change', function(){
+  document.getElementById('searchBank').disabled=!this.value;
+  if(!this.value) { document.getElementById('bankContainer').classList.add('d-none'); document.getElementById('noBankMsg').classList.remove('d-none'); return; }
+  document.getElementById('loadingBank').classList.remove('d-none');
+  document.getElementById('bankContainer').classList.add('d-none');
+  fetch('<?= base_url('admin/bank-soal/api/soal') ?>?bank_ujian_id='+this.value)
+    .then(r=>r.json()).then(d=>{
+      document.getElementById('loadingBank').classList.add('d-none');
+      if(d.status==='success'){
+        bankData = d.data||[];
+        const tbody = document.getElementById('bankBody');
+        tbody.innerHTML = bankData.map((s,i) => '<tr><td><input type="checkbox" name="soal_ids[]" value="'+s.soal_id+'" class="check-import"></td><td>'+(i+1)+'</td><td>'+s.kode_soal+'</td><td class="text-truncate" style="max-width:200px">'+ (s.pertanyaan||'').replace(/<[^>]*>/g,'').substring(0,80) +'</td><td class="text-center fw-bold">'+s.jawaban_benar+'</td><td class="text-center">'+s.tingkat_kesulitan+'</td></tr>').join('');
+        document.getElementById('bankContainer').classList.remove('d-none');
+        document.getElementById('noBankMsg').classList.add('d-none');
+        document.querySelectorAll('.check-import').forEach(cb=>cb.addEventListener('change', updateImportBtn));
+        updateImportBtn();
+      }
+    });
+});
+document.getElementById('searchBank')?.addEventListener('input', function(){
+  const q = this.value.toLowerCase();
+  document.querySelectorAll('#bankBody tr').forEach(tr => {
+    tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+});
+document.getElementById('selectAllBank')?.addEventListener('change', function(){
+  document.querySelectorAll('.check-import').forEach(cb => cb.checked = this.checked);
+  updateImportBtn();
+});
+function updateImportBtn(){
+  const cnt = document.querySelectorAll('.check-import:checked').length;
+  const btn = document.getElementById('btnImport');
+  if(btn) { btn.disabled = cnt===0; btn.innerHTML = '<i class="bi bi-download me-1"></i>Import '+(cnt>0?cnt+' Terpilih':'Terpilih'); }
+}
+document.getElementById('btnImport')?.addEventListener('click', function(){
+  if(!confirm('Import soal terpilih?')) return;
+  document.getElementById('formImport').submit();
+});
+</script>
 
 <?= $this->endSection() ?>

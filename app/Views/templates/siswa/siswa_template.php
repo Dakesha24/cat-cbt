@@ -91,6 +91,7 @@
         /* Content Wrapper */
         .content-wrapper {
             margin-left: var(--sidebar-width);
+            margin-top: var(--navbar-height);
             padding: 2rem;
             min-height: calc(100vh - var(--navbar-height));
             transition: margin 0.3s ease;

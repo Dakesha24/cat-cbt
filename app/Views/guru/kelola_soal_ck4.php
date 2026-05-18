@@ -4,7 +4,7 @@
 <div class="container-fluid py-5">
     <div class="row mb-4 align-items-center py-5">
         <div class="col">
-            <h2 class="fw-bold text-primary"><?= $ujian['nama_ujian'] ?></h2>
+            <h2 class="fw-bold text-dark"><?= $ujian['nama_ujian'] ?></h2>
             <p class="text-muted">Kelola Soal Ujian</p>
         </div>
         <div class="col-auto">
@@ -466,9 +466,9 @@ endforeach; ?>
                         </select>
                     </div>
                     <div class="col-md-3">
-                        <label class="form-label">3. Pilih Bank Ujian:</label>
+                        <label class="form-label">3. Pilih Bank Soal:</label>
                         <select id="filterBankUjianImport" class="form-select" disabled>
-                            <option value="">Pilih Bank Ujian</option>
+                            <option value="">Pilih Bank Soal</option>
                         </select>
                     </div>
                     <div class="col-md-3">
@@ -477,9 +477,9 @@ endforeach; ?>
                     </div>
                 </div>
 
-                <!-- Info Bank Ujian yang dipilih -->
+                <!-- Info Bank Soal yang dipilih -->
                 <div id="bankUjianInfo" class="alert alert-info" style="display: none;">
-                    <h6 class="alert-heading">Informasi Bank Ujian</h6>
+                    <h6 class="alert-heading">Informasi Bank Soal</h6>
                     <div class="row">
                         <div class="col-md-6">
                             <strong>Nama:</strong> <span id="infoBankNama"></span><br>
@@ -535,7 +535,7 @@ endforeach; ?>
                         </div>
 
                         <div class="text-center mt-3" id="noBankSoalMessage" style="display: none;">
-                            <p class="text-muted">Pilih kategori, Mata Pelajaran, dan bank ujian untuk melihat soal yang tersedia</p>
+                            <p class="text-muted">Pilih kategori, Mata Pelajaran, dan bank soal untuk melihat soal yang tersedia</p>
                         </div>
                     </form>
                 </div>
@@ -1266,7 +1266,7 @@ endforeach; ?>
 
         // Reset subsequent dropdowns
         jenisUjianSelect.innerHTML = '<option value="">Pilih Mata Pelajaran</option>';
-        bankUjianSelect.innerHTML = '<option value="">Pilih Bank Ujian</option>';
+        bankUjianSelect.innerHTML = '<option value="">Pilih Bank Soal</option>';
         jenisUjianSelect.disabled = !kategori;
         bankUjianSelect.disabled = true;
         document.getElementById('searchBankSoal').disabled = true;
@@ -1285,7 +1285,7 @@ endforeach; ?>
                     data.data.forEach(jenisUjian => {
                         const option = document.createElement('option');
                         option.value = jenisUjian.jenis_ujian_id;
-                        option.textContent = `${jenisUjian.nama_jenis} (${jenisUjian.jumlah_bank} bank ujian)`;
+                        option.textContent = `${jenisUjian.nama_jenis} (${jenisUjian.jumlah_bank} bank soal)`;
                         jenisUjianSelect.appendChild(option);
                     });
                 }
@@ -1301,7 +1301,7 @@ endforeach; ?>
         const bankUjianSelect = document.getElementById('filterBankUjianImport');
 
         // Reset bank ujian dropdown
-        bankUjianSelect.innerHTML = '<option value="">Pilih Bank Ujian</option>';
+        bankUjianSelect.innerHTML = '<option value="">Pilih Bank Soal</option>';
         bankUjianSelect.disabled = !jenisUjianId;
         document.getElementById('searchBankSoal').disabled = true;
 
@@ -1388,7 +1388,7 @@ endforeach; ?>
         if (soalList.length === 0) {
             tbody.innerHTML = '';
             noDataMessage.style.display = 'block';
-            noDataMessage.innerHTML = '<p class="text-muted">Tidak ada soal dalam bank ujian ini</p>';
+            noDataMessage.innerHTML = '<p class="text-muted">Tidak ada soal dalam bank soal ini</p>';
             return;
         }
 
@@ -1542,6 +1542,9 @@ endforeach; ?>
 </script>
 
 <style>
+    .card { border-radius: 0; }
+    .modal-content { border-radius: 0 !important; }
+
     /* Custom styles untuk CKEditor */
     .cke_editor {
         margin-bottom: 10px;
@@ -1656,7 +1659,7 @@ endforeach; ?>
     .form-select-lg {
         padding: 0.75rem 1rem;
         font-size: 1.1rem;
-        border-radius: 0.5rem;
+        border-radius: 0;
     }
 
     /* Alert in Modal */
@@ -1677,7 +1680,7 @@ endforeach; ?>
     .modal-footer .btn {
         padding: 0.75rem 1.5rem;
         font-weight: 500;
-        border-radius: 0.5rem;
+        border-radius: 4px;
         transition: all 0.2s ease;
     }
 
@@ -1688,7 +1691,6 @@ endforeach; ?>
 
     .modal-footer .btn-primary:hover {
         background: linear-gradient(135deg, #0056b3 0%, #003d82 100%);
-        transform: translateY(-1px);
         box-shadow: 0 4px 8px rgba(0, 123, 255, 0.3);
     }
 

@@ -82,6 +82,23 @@ $routes->group('admin', ['namespace' => 'App\Controllers\Admin'], function ($rou
   $routes->post('jenis-ujian/edit/(:num)', 'Admin::editJenisUjian/$1');
   $routes->get('jenis-ujian/hapus/(:num)', 'Admin::hapusJenisUjian/$1');
 
+  // Kelola Metadata Soal (Variabel, Indikator, Materi)
+  $routes->get('variabel', 'Admin::variabel');
+  $routes->post('variabel/tambah', 'Admin::tambahVariabel');
+  $routes->post('variabel/edit/(:num)', 'Admin::editVariabel/$1');
+  $routes->get('variabel/hapus/(:num)', 'Admin::hapusVariabel/$1');
+  $routes->get('api/indikator-by-variabel/(:num)', 'Admin::getIndikatorByVariabel/$1');
+
+  $routes->get('indikator', 'Admin::indikator');
+  $routes->post('indikator/tambah', 'Admin::tambahIndikator');
+  $routes->post('indikator/edit/(:num)', 'Admin::editIndikator/$1');
+  $routes->get('indikator/hapus/(:num)', 'Admin::hapusIndikator/$1');
+
+  $routes->get('materi', 'Admin::materi');
+  $routes->post('materi/tambah', 'Admin::tambahMateri');
+  $routes->post('materi/edit/(:num)', 'Admin::editMateri/$1');
+  $routes->get('materi/hapus/(:num)', 'Admin::hapusMateri/$1');
+
   // API routes untuk AJAX
   $routes->get('api/kelas-by-sekolah/(:num)', 'Admin::getKelasBySekolah/$1');
 
@@ -105,6 +122,20 @@ $routes->group('admin', ['namespace' => 'App\Controllers\Admin'], function ($rou
   $routes->post('soal/edit/(:num)', 'Admin::editSoal/$1');
   $routes->get('soal/hapus/(:num)/(:num)', 'Admin::hapusSoal/$1/$2');
   $routes->post('soal/import-bank', 'Admin::importSoalDariBank');
+  $routes->post('soal/assign-bank', 'Admin::assignSoalDariBank');
+  $routes->get('soal/unassign/(:num)/(:num)', 'Admin::unassignSoalDariUjian/$1/$2');
+
+  // Multi-Bank & Generate Paket
+  $routes->get('ujian/(:num)/bank', 'Admin::assignBank/$1');
+  $routes->post('ujian/(:num)/bank/sync', 'Admin::syncBanks/$1');
+  $routes->get('ujian/(:num)/generate-paket', 'Admin::generatePaket/$1');
+  $routes->post('ujian/(:num)/generate-paket/proses', 'Admin::prosesGeneratePaket/$1');
+  $routes->post('ujian/(:num)/generate-paket/simpan', 'Admin::simpanDraftPaket/$1');
+  $routes->get('ujian/(:num)/draft-paket/batal', 'Admin::batalDraftPaket/$1');
+  $routes->get('ujian/(:num)/draft-paket/(:num)/soal', 'Admin::getSoalByDraftPaket/$1/$2');
+  $routes->get('ujian/(:num)/paket/(:num)/hapus', 'Admin::hapusPaket/$1/$2');
+  $routes->get('ujian/(:num)/paket/hapus-semua', 'Admin::hapusSemuaPaket/$1');
+  $routes->get('ujian/paket/(:num)/soal', 'Admin::getSoalByPaket/$1');
 
   // Kelola Jadwal Ujian
   $routes->get('jadwal-ujian', 'Admin::jadwalUjian');
@@ -115,6 +146,7 @@ $routes->group('admin', ['namespace' => 'App\Controllers\Admin'], function ($rou
   // Kelola Hasil Ujian
   $routes->get('hasil-ujian', 'Admin::daftarHasilUjian');
   $routes->get('hasil-ujian/siswa/(:num)', 'Admin::hasilUjianSiswa/$1');
+  $routes->get('hasil-ujian/percobaan/(:num)', 'Admin::daftarPercobaanSiswa/$1');
   $routes->get('hasil-ujian/detail/(:num)', 'Admin::detailHasilSiswa/$1');
   $routes->get('hasil-ujian/hapus/(:num)', 'Admin::hapusHasilSiswa/$1');
 
@@ -173,11 +205,29 @@ $routes->group('guru', ['namespace' => 'App\Controllers\Guru'], function ($route
 
   $routes->get('hasil-ujian', 'Guru::hasilUjian');
   $routes->get('hasil-ujian/siswa/(:num)', 'Guru::daftarSiswa/$1');
+  $routes->get('hasil-ujian/percobaan/(:num)', 'Guru::daftarPercobaan/$1');
   $routes->get('hasil-ujian/detail/(:num)', 'Guru::detailHasil/$1');
 
   $routes->get('hasil-ujian/hapus/(:num)', 'Guru::hapusHasilSiswa/$1');
   $routes->get('hasil-ujian/reset/(:num)', 'Guru::resetStatusSiswa/$1');
 
+
+  // Metadata Soal
+  $routes->get('variabel', 'Guru::variabel');
+  $routes->post('variabel/tambah', 'Guru::tambahVariabel');
+  $routes->post('variabel/edit/(:num)', 'Guru::editVariabel/$1');
+  $routes->get('variabel/hapus/(:num)', 'Guru::hapusVariabel/$1');
+  $routes->get('api/indikator-by-variabel/(:num)', 'Guru::getIndikatorByVariabel/$1');
+
+  $routes->get('indikator', 'Guru::indikator');
+  $routes->post('indikator/tambah', 'Guru::tambahIndikator');
+  $routes->post('indikator/edit/(:num)', 'Guru::editIndikator/$1');
+  $routes->get('indikator/hapus/(:num)', 'Guru::hapusIndikator/$1');
+
+  $routes->get('materi', 'Guru::materi');
+  $routes->post('materi/tambah', 'Guru::tambahMateri');
+  $routes->post('materi/edit/(:num)', 'Guru::editMateri/$1');
+  $routes->get('materi/hapus/(:num)', 'Guru::hapusMateri/$1');
 
   $routes->get('profil', 'Guru::profil');
   $routes->post('profil/save', 'Guru::saveProfil');
@@ -189,6 +239,7 @@ $routes->group('guru', ['namespace' => 'App\Controllers\Guru'], function ($route
   $routes->get('bank-soal/kategori/(:segment)/jenis-ujian/(:num)/ujian/(:num)', 'Guru::bankSoalUjian/$1/$2/$3');
 
   $routes->get('bank-soal/api/jenis-ujian-kelas', 'Guru::getJenisUjianForKelas');
+  $routes->get('api/kelas-by-sekolah/(:num)', 'Guru::getKelasBySekolah/$1');
 
   // CRUD Soal Bank Ujian
   $routes->post('bank-soal/tambah-soal', 'Guru::tambahSoalBankUjian');
@@ -201,6 +252,20 @@ $routes->group('guru', ['namespace' => 'App\Controllers\Guru'], function ($route
   $routes->get('bank-soal/api/bank-ujian', 'Guru::getBankUjianByKategoriJenis');
   $routes->get('bank-soal/api/soal', 'Guru::getSoalBankUjian');
   $routes->post('soal/import-bank', 'Guru::importSoalDariBank');
+  $routes->post('soal/assign-bank', 'Guru::assignSoalDariBank');
+  $routes->get('soal/unassign/(:num)/(:num)', 'Guru::unassignSoalDariUjian/$1/$2');
+
+  // Multi-Bank & Generate Paket
+  $routes->get('ujian/(:num)/bank', 'Guru::assignBank/$1');
+  $routes->post('ujian/(:num)/bank/sync', 'Guru::syncBanks/$1');
+  $routes->get('ujian/(:num)/generate-paket', 'Guru::generatePaket/$1');
+  $routes->post('ujian/(:num)/generate-paket/proses', 'Guru::prosesGeneratePaket/$1');
+  $routes->post('ujian/(:num)/generate-paket/simpan', 'Guru::simpanDraftPaket/$1');
+  $routes->get('ujian/(:num)/draft-paket/batal', 'Guru::batalDraftPaket/$1');
+  $routes->get('ujian/(:num)/draft-paket/(:num)/soal', 'Guru::getSoalByDraftPaket/$1/$2');
+  $routes->get('ujian/(:num)/paket/(:num)/hapus', 'Guru::hapusPaket/$1/$2');
+  $routes->get('ujian/(:num)/paket/hapus-semua', 'Guru::hapusSemuaPaket/$1');
+  $routes->get('ujian/paket/(:num)/soal', 'Guru::getSoalByPaket/$1');
 
   //summernot untuk soal
   $routes->post('upload-ckeditor5-image', 'Guru::uploadCKEditor5Image');
@@ -218,6 +283,7 @@ $routes->group('siswa', ['namespace' => 'App\Controllers\Siswa'], function ($rou
   $routes->get('pengumuman', 'Siswa::pengumuman');
   $routes->get('ujian', 'Siswa::ujian');
   $routes->get('hasil', 'Siswa::hasil');
+  $routes->get('hasil/ujian/(:num)', 'Siswa::hasilUjian/$1');
   $routes->get('hasil/detail/(:num)', 'Siswa::detailHasil/$1');
   $routes->get('profil', 'Siswa::profil');
   $routes->post('profil/save', 'Siswa::saveProfil');

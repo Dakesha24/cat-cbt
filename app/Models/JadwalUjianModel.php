@@ -8,7 +8,12 @@ class JadwalUjianModel extends Model
 {
   protected $table = 'jadwal_ujian';
   protected $primaryKey = 'jadwal_id';
-  protected $allowedFields = ['ujian_id', 'kelas_id', 'guru_id', 'tanggal_mulai', 'tanggal_selesai', 'kode_akses', 'status'];
+  protected $allowedFields = [
+    'ujian_id', 'kelas_id', 'guru_id',
+    'tanggal_mulai', 'tanggal_selesai', 'durasi_menit',
+    'kode_akses', 'status',
+    'tipe_penugasan', 'siswa_ids'
+  ];
   protected $useTimestamps = false;
 
   public function getJadwalWithRelations()

@@ -19,13 +19,13 @@ class JenisUjianModel extends Model
      */
     public function getByKelasGuru($guruId)
     {
-        $db = \Config\Database::connect();
-
         return $this->select('jenis_ujian.*, kelas.nama_kelas')
             ->join('kelas', 'kelas.kelas_id = jenis_ujian.kelas_id', 'left')
-            ->join('kelas_guru', 'kelas_guru.kelas_id = jenis_ujian.kelas_id')
-            ->where('kelas_guru.guru_id', $guruId)
-            ->orWhere('jenis_ujian.kelas_id IS NULL') // Mata Pelajaran umum
+            ->join('kelas_guru', 'kelas_guru.kelas_id = jenis_ujian.kelas_id', 'left')
+            ->groupStart()
+                ->where('kelas_guru.guru_id', $guruId)
+                ->orWhere('jenis_ujian.kelas_id IS NULL')
+            ->groupEnd()
             ->findAll();
     }
 
@@ -63,7 +63,15 @@ class JenisUjianModel extends Model
     {
         $db = \Config\Database::connect();
 
-        // Opsi 1: Cek berdasarkan kelas
+        $jenisUjian = $this->find($jenisUjianId);
+        if (!$jenisUjian) {
+            return false;
+        }
+
+        if (empty($jenisUjian['kelas_id'])) {
+            return true;
+        }
+
         $access = $db->table('jenis_ujian')
             ->join('kelas_guru', 'kelas_guru.kelas_id = jenis_ujian.kelas_id')
             ->where('jenis_ujian.jenis_ujian_id', $jenisUjianId)

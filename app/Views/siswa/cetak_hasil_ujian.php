@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Laporan Hasil Ujian - <?= esc($hasil['nama_ujian']) ?></title>
+    <title>Laporan Percobaan - <?= esc($hasil['nama_ujian']) ?> - Percobaan <?= esc($hasil['nomor_attempt']) ?></title>
 
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">

@@ -1,7 +1,6 @@
 <?= $this->extend('templates/admin/admin_template') ?>
 
 <?= $this->section('content') ?>
-<br>
 
 <div class="container-fluid px-4 py-5">
 
@@ -72,7 +71,7 @@
       ['title' => 'Kelola Guru', 'desc' => 'Kelola data guru dalam sistem.', 'icon' => 'bi-person-workspace', 'color' => 'primary', 'url' => 'admin/guru'],
       ['title' => 'Kelola Siswa', 'desc' => 'Kelola data siswa dalam sistem.', 'icon' => 'bi-people', 'color' => 'success', 'url' => 'admin/siswa'],
       ['title' => 'Sekolah & Kelas', 'desc' => 'Kelola sekolah, kelas, dan siswa.', 'icon' => 'bi-building-gear', 'color' => 'info', 'url' => 'admin/sekolah'],
-      ['title' => 'Bank Ujian', 'desc' => 'Kelola bank soal dan koleksi ujian.', 'icon' => 'bi-database', 'color' => 'purple', 'url' => 'admin/bank-soal'],
+      ['title' => 'Bank Soal', 'desc' => 'Kelola bank soal dan koleksi ujian.', 'icon' => 'bi-database', 'color' => 'purple', 'url' => 'admin/bank-soal'],
       ['title' => 'Mata Pelajaran', 'desc' => 'Monitor ujian yang dibuat oleh guru.', 'icon' => 'bi-journal-text', 'color' => 'info', 'url' => 'admin/jenis-ujian'],
       ['title' => 'Kelola Ujian', 'desc' => 'Monitor ujian yang dibuat oleh guru.', 'icon' => 'bi-file-earmark-text', 'color' => 'danger', 'url' => 'admin/ujian'],
       ['title' => 'Jadwal Ujian', 'desc' => 'Monitor jadwal dan peserta ujian.', 'icon' => 'bi-calendar-check', 'color' => 'secondary', 'url' => 'admin/jadwal-ujian'],
@@ -122,14 +121,12 @@
   /* Desain Kartu Menu */
   .menu-card {
     border: 1px solid #e9ecef;
-    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-    border-radius: 0.75rem;
-    /* Sedikit lebih bulat */
+    transition: box-shadow 0.2s ease, border-color 0.2s ease;
+    border-radius: 0;
   }
 
   .menu-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.1);
+    box-shadow: 0 0.25rem 1rem rgba(0, 0, 0, 0.1);
     border-color: var(--bs-primary);
   }
 
@@ -148,7 +145,7 @@
     color: inherit;
   }
 
-  /* Custom Color: Purple (untuk Bank Ujian) */
+  /* Custom Color: Purple (untuk Bank Soal) */
   .bg-purple-subtle {
     background-color: rgba(102, 16, 242, 0.1);
   }

@@ -2,9 +2,17 @@
 <?= $this->section('content') ?>
 
 <div class="container py-4">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb small mb-0">
+      <li class="breadcrumb-item"><a href="<?= base_url('siswa/hasil') ?>">Riwayat Ujian</a></li>
+      <li class="breadcrumb-item"><a href="<?= base_url('siswa/hasil/ujian/' . $hasil['peserta_ujian_id']) ?>">Daftar Percobaan</a></li>
+      <li class="breadcrumb-item active" aria-current="page">Detail Percobaan</li>
+    </ol>
+  </nav>
+
   <div class="d-flex justify-content-between align-items-center mb-4 py-5">
-    <h2 class="mb-0">Detail Hasil Ujian</h2>
-    <a href="<?= base_url('siswa/hasil') ?>" class="btn btn-outline-secondary">
+    <h2 class="mb-0">Detail Percobaan</h2>
+    <a href="<?= base_url('siswa/hasil/ujian/' . $hasil['peserta_ujian_id']) ?>" class="btn btn-outline-secondary">
       <i class="bi bi-arrow-left"></i> Kembali
     </a>
   </div>
@@ -16,6 +24,7 @@
         <div class="col-md-8">
           <h4 class="text-primary mb-1"><?= esc($hasil['nama_ujian']) ?></h4>
           <p class="text-muted mb-1"><?= esc($hasil['nama_jenis']) ?></p>
+          <p class="mb-1"><span class="badge bg-primary">Percobaan <?= esc($hasil['nomor_attempt']) ?></span></p>
           <!-- TAMBAHAN: Tampilkan kode ujian -->
           <p class="text-muted mb-3"><small><i class="bi bi-hash"></i> <?= esc($hasil['kode_ujian']) ?></small></p>
           <p class="mb-0"><?= esc($hasil['deskripsi']) ?></p>

@@ -10,6 +10,11 @@ use App\Models\KelasModel;
 use App\Models\SoalUjianModel;
 use App\Models\HasilUjianModel;
 use App\Models\SekolahModel;
+use App\Models\PaketUjianModel;
+use App\Models\AttemptUjianModel;
+use App\Models\AttemptJawabanModel;
+use App\Models\AttemptSoalModel;
+use App\Models\UjianSoalCatModel;
 
 
 class Siswa extends Controller
@@ -21,6 +26,11 @@ class Siswa extends Controller
   protected $soalUjianModel;
   protected $hasilUjianModel;
   protected $sekolahModel;
+  protected $paketUjianModel;
+  protected $attemptUjianModel;
+  protected $attemptJawabanModel;
+  protected $attemptSoalModel;
+  protected $ujianSoalCatModel;
 
   public function __construct()
   {
@@ -31,6 +41,11 @@ class Siswa extends Controller
     $this->soalUjianModel = new SoalUjianModel();
     $this->hasilUjianModel = new HasilUjianModel();
     $this->sekolahModel = new SekolahModel();
+    $this->paketUjianModel = new PaketUjianModel();
+    $this->attemptUjianModel = new AttemptUjianModel();
+    $this->attemptJawabanModel = new AttemptJawabanModel();
+    $this->attemptSoalModel = new AttemptSoalModel();
+    $this->ujianSoalCatModel = new UjianSoalCatModel();
   }
 
   //dashboard
@@ -146,7 +161,7 @@ class Siswa extends Controller
     }
 
     $userId = session()->get('user_id');
-    $siswa = $this->siswaModel->where('user_id', $userId)->first();
+    $siswa = $this->getSiswaWithSchoolByUser((int) $userId);
 
     //kalo belum isi profil, arakan ke profil
     if (!$siswa) {
@@ -154,15 +169,17 @@ class Siswa extends Controller
       return redirect()->to(base_url('siswa/profil'));
     }
 
-    //gabungkan data jadwal ujian dengan status peserta
-    $jadwalUjian = $this->jadwalUjianModel
-      ->select('jadwal_ujian.*, ujian.nama_ujian, ujian.kode_ujian, ujian.deskripsi, ujian.durasi, peserta_ujian.status as status_peserta')
-      ->join('ujian', 'ujian.id_ujian = jadwal_ujian.ujian_id')
-      ->join('peserta_ujian', 'peserta_ujian.jadwal_id = jadwal_ujian.jadwal_id AND peserta_ujian.siswa_id = ' . $siswa['siswa_id'], 'left')
-      ->where('jadwal_ujian.kelas_id', $siswa['kelas_id'])
-      ->where('jadwal_ujian.tanggal_selesai >=', date('Y-m-d H:i:s'))
-      ->where('jadwal_ujian.status !=', 'selesai')
-      ->findAll();
+    $jadwalUjian = $this->getAvailableJadwalForSiswa($siswa);
+
+    foreach ($jadwalUjian as &$jadwal) {
+      $jadwal['jumlah_attempt'] = !empty($jadwal['peserta_ujian_id'])
+        ? $this->attemptUjianModel->where('peserta_ujian_id', $jadwal['peserta_ujian_id'])->countAllResults()
+        : 0;
+      $maksAttempt = (int)($jadwal['maksimal_attempt'] ?? 1);
+      $jadwal['bisa_mengulang'] = ($jadwal['status_peserta'] === 'selesai'
+        && (int)($jadwal['pengulangan_aktif'] ?? 0) === 1
+        && $jadwal['jumlah_attempt'] < $maksAttempt);
+    }
 
     $data = [
       'jadwalUjian' => $jadwalUjian,
@@ -184,7 +201,7 @@ class Siswa extends Controller
 
     // 2. Ambil siswa_id dengan pengecekan
     $userId = session()->get('user_id');
-    $siswa = $this->siswaModel->where('user_id', $userId)->first();
+    $siswa = $this->getSiswaWithSchoolByUser((int) $userId);
 
     if (!$siswa) {
       session()->setFlashdata('error', 'Data siswa tidak ditemukan. Silahkan lengkapi profil terlebih dahulu');
@@ -207,6 +224,44 @@ class Siswa extends Controller
       return redirect()->back();
     }
 
+    $ujianInfo = $this->jadwalUjianModel
+      ->select('
+        jadwal_ujian.*,
+        ujian.id_ujian,
+        ujian.jenis_ujian_id,
+        ujian.nama_ujian,
+        ujian.kode_ujian,
+        ujian.deskripsi,
+        ujian.tipe_ujian,
+        ujian.tampilkan_pembahasan,
+        ujian.visibilitas,
+        ujian.pengulangan_aktif,
+        ujian.maksimal_attempt,
+        ujian.acak_urutan_soal,
+        ujian.acak_pilihan_jawaban,
+        ujian.se_awal,
+        ujian.se_minimum,
+        ujian.delta_se_minimum,
+        ujian.maksimal_soal_tampil,
+        ujian.durasi,
+        ujian.created_by,
+        ujian.sekolah_id as ujian_sekolah_id,
+        ujian.kelas_id as ujian_kelas_id
+      ')
+      ->join('ujian', 'ujian.id_ujian = jadwal_ujian.ujian_id')
+      ->where('jadwal_ujian.jadwal_id', $jadwalId)
+      ->first();
+
+    if (!$ujianInfo || !$this->siswaCanAccessJadwal($siswa, $ujianInfo)) {
+      session()->setFlashdata('error', 'Anda tidak memiliki akses ke jadwal ujian ini.');
+      return redirect()->to(base_url('siswa/ujian'));
+    }
+
+    if (($ujianInfo['status'] ?? '') === 'selesai') {
+      session()->setFlashdata('error', 'Jadwal ujian sudah tidak tersedia.');
+      return redirect()->to(base_url('siswa/ujian'));
+    }
+
     // 5. Cek apakah sudah terdaftar sebagai peserta
     $peserta = $this->pesertaUjianModel
       ->where('jadwal_id', $jadwalId)
@@ -226,6 +281,20 @@ class Siswa extends Controller
         log_message('debug', 'Data peserta yang akan diinsert: ' . print_r($dataPeserta, true));
 
         $this->pesertaUjianModel->insert($dataPeserta);
+      } elseif ($peserta['status'] === 'selesai') {
+        $jumlahAttempt = $this->attemptUjianModel->where('peserta_ujian_id', $peserta['peserta_ujian_id'])->countAllResults();
+        $maksAttempt = (int)($ujianInfo['maksimal_attempt'] ?? 1);
+
+        if ((int)($ujianInfo['pengulangan_aktif'] ?? 0) !== 1 || $jumlahAttempt >= $maksAttempt) {
+          session()->setFlashdata('error', 'Batas attempt ujian sudah habis.');
+          return redirect()->back();
+        }
+
+        $this->pesertaUjianModel->update($peserta['peserta_ujian_id'], [
+          'status' => 'belum_mulai',
+          'waktu_mulai' => null,
+          'waktu_selesai' => null,
+        ]);
       }
 
       // 7. Redirect ke halaman soal
@@ -252,7 +321,7 @@ class Siswa extends Controller
 
     // 2. Ambil data siswa
     $userId = session()->get('user_id');
-    $siswa = $this->siswaModel->where('user_id', $userId)->first();
+    $siswa = $this->getSiswaWithSchoolByUser((int) $userId);
 
     if (!$siswa) {
       session()->setFlashdata('error', 'Data siswa tidak ditemukan');
@@ -261,7 +330,30 @@ class Siswa extends Controller
 
     // 3. Ambil informasi ujian dan jadwal di awal
     $ujianInfo = $this->jadwalUjianModel
-      ->select('jadwal_ujian.*, ujian.*, ujian.kode_ujian, jenis_ujian.nama_jenis')
+      ->select('
+        jadwal_ujian.*,
+        ujian.id_ujian,
+        ujian.jenis_ujian_id,
+        ujian.nama_ujian,
+        ujian.kode_ujian,
+        ujian.deskripsi,
+        ujian.tipe_ujian,
+        ujian.tampilkan_pembahasan,
+        ujian.visibilitas,
+        ujian.pengulangan_aktif,
+        ujian.maksimal_attempt,
+        ujian.acak_urutan_soal,
+        ujian.acak_pilihan_jawaban,
+        ujian.se_awal,
+        ujian.se_minimum,
+        ujian.delta_se_minimum,
+        ujian.maksimal_soal_tampil,
+        ujian.durasi,
+        ujian.created_by,
+        ujian.sekolah_id as ujian_sekolah_id,
+        ujian.kelas_id as ujian_kelas_id,
+        jenis_ujian.nama_jenis
+      ')
       ->join('ujian', 'ujian.id_ujian = jadwal_ujian.ujian_id')
       ->join('jenis_ujian', 'jenis_ujian.jenis_ujian_id = ujian.jenis_ujian_id')
       ->where('jadwal_ujian.jadwal_id', $jadwalId)
@@ -283,110 +375,16 @@ class Siswa extends Controller
       return redirect()->to(base_url('siswa/ujian'));
     }
 
-    if ($peserta['status'] === 'selesai') {
-      session()->setFlashdata('error', 'Anda sudah menyelesaikan ujian ini');
+    if (!$this->siswaCanAccessJadwal($siswa, $ujianInfo)) {
+      session()->setFlashdata('error', 'Anda tidak memiliki akses ke jadwal ujian ini.');
       return redirect()->to(base_url('siswa/ujian'));
     }
 
-    // 5. Set parameter awal jika baru mulai
-    if ($peserta['status'] === 'belum_mulai') {
-      // Set waktu mulai
-      $waktuMulai = date('Y-m-d H:i:s');
-
-      $this->pesertaUjianModel->update($peserta['peserta_ujian_id'], [
-        'status' => 'sedang_mengerjakan',
-        'waktu_mulai' => $waktuMulai
-      ]);
-
-      $catParams = [
-        'theta' => 0,
-        'SE' => 1,
-        'answered_questions' => [],
-        'current_question' => null,
-        'total_questions' => 0
-      ];
-      session()->set('cat_params', $catParams);
-    } else {
-      $waktuMulai = $peserta['waktu_mulai'];
+    if (($ujianInfo['tipe_ujian'] ?? 'CAT') === 'CBT') {
+      return $this->soalCbt($jadwalId, $ujianInfo, $peserta);
     }
 
-    // 6. Ambil CAT params dari session dengan validasi
-    $catParams = session()->get('cat_params');
-
-    // Jika cat_params belum ada atau null, inisialisasi dengan nilai default
-    if (!$catParams) {
-      $catParams = [
-        'theta' => 0,
-        'SE' => 1,
-        'answered_questions' => [],
-        'current_question' => null,
-        'total_questions' => 0
-      ];
-      session()->set('cat_params', $catParams);
-    }
-
-    // 7. Pilih soal berikutnya jika belum ada
-    if (!isset($catParams['current_question']) || $catParams['current_question'] === null) {
-      // Untuk soal pertama, cari yang paling dekat dengan 0
-      $nextQuestion = $this->soalUjianModel
-        ->select('*, kode_soal, ABS(tingkat_kesulitan - 0) as distance')  // Hitung jarak dari 0
-        ->where('ujian_id', $ujianInfo['id_ujian'])
-        ->orderBy('distance', 'ASC')  // Urutkan berdasarkan jarak terdekat dengan 0
-        ->first();
-
-      if ($nextQuestion) {
-        $catParams['current_question'] = $nextQuestion;
-        session()->set('cat_params', $catParams);
-      } else {
-        session()->setFlashdata('error', 'Tidak ada soal yang tersedia');
-        return redirect()->to(base_url('siswa/ujian'));
-      }
-    }
-
-    // 8. Hitung sisa waktu
-    if (!$waktuMulai) {
-      // Jika waktu_mulai belum ada, set waktu sekarang
-      $waktuMulai = date('Y-m-d H:i:s');
-      $this->pesertaUjianModel->update($peserta['peserta_ujian_id'], [
-        'waktu_mulai' => $waktuMulai
-      ]);
-    }
-
-    // Konversi durasi dari format HH:MM:SS ke detik
-    $durasi = explode(':', $ujianInfo['durasi']);
-    $durasiDetik = ($durasi[0] * 3600) + ($durasi[1] * 60) + (isset($durasi[2]) ? $durasi[2] : 0);
-
-    // Hitung sisa waktu
-    $waktuMulaiTimestamp = strtotime($waktuMulai);
-    $waktuSelesai = $waktuMulaiTimestamp + $durasiDetik;
-    $sisaWaktu = $waktuSelesai - time();
-
-    // Jika waktu sudah habis, arahkan ke halaman selesai
-    if ($sisaWaktu <= 0) {
-      // Update status peserta
-      $this->pesertaUjianModel->update($peserta['peserta_ujian_id'], [
-        'status' => 'selesai',
-        'waktu_selesai' => date('Y-m-d H:i:s')
-      ]);
-
-      // Hapus session CAT
-      session()->remove('cat_params');
-
-      return redirect()->to(base_url("siswa/ujian/selesai/{$jadwalId}"));
-    }
-
-
-    // 9. Siapkan data untuk view
-    $data = [
-      'ujian' => $ujianInfo,
-      'soal' => $catParams['current_question'],
-      'sisa_waktu' => $sisaWaktu,
-      'total_soal' => 'Adaptif',
-      'soal_dijawab' => count($catParams['answered_questions'])
-    ];
-
-    // 10. Tampilkan view
-    return view('siswa/soal', $data);
+    return $this->soalCat($jadwalId, $ujianInfo, $peserta);
   }
 
   public function simpanJawaban()
@@ -396,17 +394,11 @@ class Siswa extends Controller
 
     // 1. Validasi input
     $soalId = $this->request->getPost('soal_id');
+    $attemptSoalId = $this->request->getPost('attempt_soal_id');
     $jawaban = $this->request->getPost('jawaban');
 
-    if (!$soalId || !$jawaban) {
+    if ((!$soalId && !$attemptSoalId) || !$jawaban) {
       session()->setFlashdata('error', 'Data jawaban tidak lengkap');
-      return redirect()->back();
-    }
-
-    // 2. Ambil data soal dengan validasi
-    $soal = $this->soalUjianModel->find($soalId);
-    if (!$soal) {
-      session()->setFlashdata('error', 'Soal tidak ditemukan');
       return redirect()->back();
     }
 
@@ -429,194 +421,11 @@ class Siswa extends Controller
       return redirect()->to(base_url('siswa/ujian'));
     }
 
-    // 3. Ambil CAT params dari session dengan validasi
-    $catParams = session()->get('cat_params');
-    if (!$catParams) {
-      session()->setFlashdata('error', 'Parameter ujian tidak ditemukan');
-      return redirect()->to(base_url('siswa/ujian'));
+    if (($ujianInfo['tipe_ujian'] ?? 'CAT') === 'CBT') {
+      return $this->simpanJawabanCbt($ujianInfo, $attemptSoalId, $jawaban);
     }
 
-    // 4. Cek jawaban
-    $isBenar = ($jawaban === $soal['jawaban_benar']);
-
-    try {
-      // 5. Hitung parameter CAT
-      $theta = $catParams['theta'];
-      $b = $soal['tingkat_kesulitan'];
-
-      // 6. Hitung probabilitas
-      $e = 2.71828;
-      $Pi = pow($e, ($theta - $b)) / (1 + pow($e, ($theta - $b)));
-      $Qi = 1 - $Pi;
-      $Ii = $Pi * $Qi; // Fungsi informasi untuk soal saat ini
-
-      // 7. Hitung fungsi informasi
-      $totalIi = 0;
-      foreach ($catParams['answered_questions'] as $answeredSoalId) {
-        $answeredSoal = $this->soalUjianModel->find($answeredSoalId);
-        $bi = $answeredSoal['tingkat_kesulitan'];
-
-        // Hitung Pi dan Qi untuk setiap soal yang sudah dijawab
-        $Pi_answered = pow($e, ($theta - $bi)) / (1 + pow($e, ($theta - $bi)));
-        $Qi_answered = 1 - $Pi_answered;
-
-        // Tambahkan ke total informasi
-        $totalIi += ($Pi_answered * $Qi_answered);
-      }
-
-      // Tambahkan informasi soal saat ini
-      $totalIi += ($Pi * $Qi);
-
-      // 8. Hitung SE baru
-      $SE_old = $catParams['SE'];
-      $SE_new = 1 / sqrt($totalIi);
-      $delta_SE = $SE_old - $SE_new;
-
-      // Debug info
-      log_message('debug', 'Total Information: ' . $totalIi);
-      log_message('debug', 'SE_new: ' . $SE_new);
-      log_message('debug', 'Delta SE: ' . $delta_SE);
-
-      // 9. Pilih soal berikutnya berdasarkan jawaban
-      if ($isBenar) {
-        $theta = $b;
-        //didapat dari tetha = bi + 1/D.alpha ln(0,5(1 + akar (1 + 8c)))
-        //karena logistic 1 PL, maka aplha = 1, D=1.7, c=0
-        //ln(1) = 0
-        //maka tetha = bi
-
-        // Jika benar, cari soal lebih sulit
-        $nextQuestion = $this->soalUjianModel
-          ->select('*, kode_soal, ABS(tingkat_kesulitan - ' . ($b + 0.01) . ') as distance')
-          ->where('ujian_id', $soal['ujian_id'])
-          ->where('tingkat_kesulitan >', $b);
-
-        if (!empty($catParams['answered_questions'])) {
-          $nextQuestion->whereNotIn('soal_id', $catParams['answered_questions']);
-        }
-
-        $nextQuestion = $nextQuestion->orderBy('tingkat_kesulitan', 'ASC')
-          ->first();
-      } else {
-        // Jika salah, update theta dan cari soal lebih mudah
-        $theta = $b;
-        $nextQuestion = $this->soalUjianModel
-          ->select('*, kode_soal, ABS(tingkat_kesulitan - ' . ($b - 0.01) . ') as distance')
-          ->where('ujian_id', $soal['ujian_id'])
-          ->where('tingkat_kesulitan <', $b);
-
-        if (!empty($catParams['answered_questions'])) {
-          $nextQuestion->whereNotIn('soal_id', $catParams['answered_questions']);
-        }
-
-        $nextQuestion = $nextQuestion->orderBy('tingkat_kesulitan', 'DESC')
-          ->first();
-      }
-
-      // Debug info sebelum update
-      log_message('debug', 'Total Questions before: ' . $catParams['total_questions']);
-      // log_message('debug', 'Maksimal Soal: ' . $ujianInfo['maksimal_soal_tampil']);
-
-      // Update CAT parameters
-      $catParams['theta'] = $theta;
-      $catParams['SE'] = $SE_new;
-      if (!in_array($soalId, $catParams['answered_questions'])) {
-        $catParams['answered_questions'][] = $soalId;
-      }
-      $catParams['current_question'] = $nextQuestion;
-      $catParams['total_questions'] = count($catParams['answered_questions']);
-
-      // Debug info setelah update
-      log_message('debug', 'Total Questions after: ' . $catParams['total_questions']);
-
-      // Cek kondisi berhenti dengan lebih ketat
-      $shouldStop = false;
-
-      // 1. Cek maksimal soal
-      // if ($catParams['total_questions'] >= (int)$ujianInfo['maksimal_soal_tampil']) {
-      //   log_message('debug', 'Stopping: Reached max questions');
-      //   $shouldStop = true;
-      // }
-
-
-      // 2. Cek SE target
-      if ($SE_new < (float)$ujianInfo['se_minimum']) {
-        log_message('debug', 'Stopping: SE below minimum');
-        $shouldStop = true;
-      }
-
-      // 3. Cek Delta SE
-      else if (abs($delta_SE) < (float)$ujianInfo['delta_se_minimum']) {
-        log_message('debug', 'Stopping: Delta SE below minimum');
-        $shouldStop = true;
-      }
-
-      // 4. Cek waktu
-      else if (!$nextQuestion) {
-        log_message('debug', 'Stopping: No more questions');
-        $shouldStop = true;
-      }
-
-      // Update session dengan parameter terbaru
-      session()->set('cat_params', $catParams);
-
-      //simpan jawaban ke database
-      try {
-        // Ambil peserta_ujian_id
-        $siswaId = $this->siswaModel->where('user_id', session()->get('user_id'))->first()['siswa_id'];
-        $peserta = $this->pesertaUjianModel
-          ->where('jadwal_id', $ujianInfo['jadwal_id'])
-          ->where('siswa_id', $siswaId)
-          ->first();
-
-        // Simpan hasil jawaban ke tabel hasil_ujian
-        $dataHasil = [
-          'peserta_ujian_id' => $peserta['peserta_ujian_id'],
-          'soal_id' => $soalId,
-          'jawaban_siswa' => $jawaban,
-          'is_correct' => $isBenar,
-          'theta_saat_ini' => $theta,
-          'pi_saat_ini' => $Pi,
-          'qi_saat_ini' => $Qi,
-          'ii_saat_ini' => $Ii,
-          'se_saat_ini' => $SE_new,
-          'delta_se_saat_ini' => $delta_SE
-        ];
-
-        // Debug info
-        log_message('debug', 'Saving hasil ujian: ' . print_r($dataHasil, true));
-
-        $this->hasilUjianModel->insert($dataHasil);
-      } catch (\Exception $e) {
-        log_message('error', 'Error saving hasil ujian: ' . $e->getMessage());
-      }
-
-      if ($shouldStop) {
-        // Update status peserta menjadi selesai
-        $siswaId = $this->siswaModel->where('user_id', session()->get('user_id'))->first()['siswa_id'];
-
-        $peserta = $this->pesertaUjianModel
-          ->where('jadwal_id', $ujianInfo['jadwal_id'])
-          ->where('siswa_id', $siswaId)
-          ->first();
-
-        if ($peserta) {
-          $this->pesertaUjianModel->update($peserta['peserta_ujian_id'], [
-            'status' => 'selesai',
-            'waktu_selesai' => date('Y-m-d H:i:s')
-          ]);
-        }
-
-        return redirect()->to(base_url("siswa/ujian/selesai/{$ujianInfo['jadwal_id']}"));
-      }
-
-      // Lanjut ke soal berikutnya
-      return redirect()->back();
-    } catch (\Exception $e) {
-      log_message('error', 'Error saat memproses jawaban: ' . $e->getMessage());
-      session()->setFlashdata('error', 'Terjadi kesalahan saat memproses jawaban');
-      return redirect()->back();
-    }
+    return $this->simpanJawabanCat($ujianInfo, $attemptSoalId, $jawaban);
   }
 
   public function selesaiUjian($jadwalId)
@@ -645,26 +454,759 @@ class Siswa extends Controller
 
     // 3. Ambil informasi ujian untuk ditampilkan
     $ujianInfo = $this->jadwalUjianModel
-      ->select('jadwal_ujian.*, ujian.nama_ujian, ujian.deskripsi')
+      ->select('jadwal_ujian.*, ujian.nama_ujian, ujian.deskripsi, ujian.tipe_ujian')
       ->join('ujian', 'ujian.id_ujian = jadwal_ujian.ujian_id')
       ->where('jadwal_ujian.jadwal_id', $jadwalId)
       ->first();
 
-    // 4. Hitung nilai akhir dari CAT params
-    $catParams = session()->get('cat_params');
-    $nilaiAkhir = $catParams ? $catParams['theta'] : 0;
+    // 4. Hitung nilai akhir dari attempt terbaru
+    $attempt = $this->attemptUjianModel
+      ->where('peserta_ujian_id', $peserta['peserta_ujian_id'])
+      ->orderBy('nomor_attempt', 'DESC')
+      ->first();
 
-    // 5. Clear session CAT
-    session()->remove('cat_params');
+    $nilaiAkhir = 0;
+    $totalSoal = 0;
+    if ($attempt) {
+      $lastJawaban = $this->attemptJawabanModel
+        ->where('attempt_id', $attempt['attempt_id'])
+        ->orderBy('nomor_tampil', 'DESC')
+        ->first();
+
+      if (($ujianInfo['tipe_ujian'] ?? 'CAT') === 'CAT' && $attempt['status'] !== 'selesai') {
+        $attempt['status'] = 'selesai';
+        $attempt['waktu_selesai'] = date('Y-m-d H:i:s');
+        $attempt['nilai_akhir'] = $attempt['nilai_akhir'] ?? ($lastJawaban['theta_saat_ini'] ?? 0);
+        $this->attemptUjianModel->update($attempt['attempt_id'], [
+          'status' => 'selesai',
+          'waktu_selesai' => $attempt['waktu_selesai'],
+          'nilai_akhir' => $attempt['nilai_akhir'],
+        ]);
+      }
+
+      $nilaiAkhir = $attempt['nilai_akhir'] ?? ($lastJawaban['theta_saat_ini'] ?? 0);
+      $totalSoal = $this->attemptJawabanModel->where('attempt_id', $attempt['attempt_id'])->countAllResults();
+      session()->remove($this->getCatSessionKey((int) $attempt['attempt_id']));
+      session()->remove($this->getCbtSessionKey((int) $attempt['attempt_id']));
+    }
 
     $data = [
       'ujian' => $ujianInfo,
       'peserta' => $peserta,
       'nilai_akhir' => $nilaiAkhir,
-      'total_soal' => count($catParams['answered_questions'])
+      'total_soal' => $totalSoal
     ];
 
     return view('siswa/selesai_ujian', $data);
+  }
+
+  private function getSiswaWithSchoolByUser(int $userId): ?array
+  {
+    return $this->siswaModel
+      ->select('siswa.*, kelas.sekolah_id')
+      ->join('kelas', 'kelas.kelas_id = siswa.kelas_id', 'left')
+      ->where('siswa.user_id', $userId)
+      ->first();
+  }
+
+  private function getAvailableJadwalForSiswa(array $siswa): array
+  {
+    $siswaId = (int) ($siswa['siswa_id'] ?? 0);
+    $jadwalUjian = $this->jadwalUjianModel
+      ->select('
+        jadwal_ujian.*,
+        ujian.nama_ujian,
+        ujian.kode_ujian,
+        ujian.deskripsi,
+        ujian.durasi,
+        ujian.tipe_ujian,
+        ujian.pengulangan_aktif,
+        ujian.maksimal_attempt,
+        ujian.sekolah_id as ujian_sekolah_id,
+        ujian.kelas_id as ujian_kelas_id,
+        peserta_ujian.status as status_peserta,
+        peserta_ujian.peserta_ujian_id
+      ')
+      ->join('ujian', 'ujian.id_ujian = jadwal_ujian.ujian_id')
+      ->join('peserta_ujian', 'peserta_ujian.jadwal_id = jadwal_ujian.jadwal_id AND peserta_ujian.siswa_id = ' . $siswaId, 'left')
+      ->where('jadwal_ujian.status !=', 'selesai')
+      ->orderBy('jadwal_ujian.tanggal_mulai', 'ASC')
+      ->findAll();
+
+    return array_values(array_filter($jadwalUjian, function (array $jadwal) use ($siswa): bool {
+      return $this->siswaCanAccessJadwal($siswa, $jadwal);
+    }));
+  }
+
+  private function siswaCanAccessJadwal(array $siswa, array $jadwal): bool
+  {
+    $kelasId = (int) ($siswa['kelas_id'] ?? 0);
+    $sekolahId = (int) ($siswa['sekolah_id'] ?? 0);
+    $jadwalKelasId = (int) ($jadwal['kelas_id'] ?? 0);
+    $ujianKelasId = (int) ($jadwal['ujian_kelas_id'] ?? 0);
+    $ujianSekolahId = (int) ($jadwal['ujian_sekolah_id'] ?? 0);
+
+    if ($jadwalKelasId > 0 && $jadwalKelasId !== $kelasId) {
+      return false;
+    }
+
+    if ($jadwalKelasId <= 0) {
+      if ($ujianKelasId > 0 && $ujianKelasId !== $kelasId) {
+        return false;
+      }
+
+      if ($ujianKelasId <= 0 && $ujianSekolahId > 0 && $ujianSekolahId !== $sekolahId) {
+        return false;
+      }
+    }
+
+    if (($jadwal['tipe_penugasan'] ?? 'kelas') === 'individu') {
+      $siswaIds = json_decode($jadwal['siswa_ids'] ?? '[]', true);
+      if (!is_array($siswaIds)) {
+        return false;
+      }
+
+      return in_array((int) ($siswa['siswa_id'] ?? 0), array_map('intval', $siswaIds), true);
+    }
+
+    return true;
+  }
+
+  private function soalCbt($jadwalId, array $ujianInfo, array $peserta)
+  {
+    if ($peserta['status'] === 'selesai') {
+      session()->setFlashdata('error', 'Anda sudah menyelesaikan attempt ini');
+      return redirect()->to(base_url('siswa/ujian'));
+    }
+
+    $pesertaId = $peserta['peserta_ujian_id'];
+    $paketId = null;
+    $attempt = $this->attemptUjianModel->getActiveAttempt($pesertaId);
+    if (!empty($attempt['paket_id'])) {
+      $paketId = (int) $attempt['paket_id'];
+    }
+
+    if (!$paketId) {
+      $paket = db_connect()->table('paket_ujian')
+        ->where('ujian_id', $ujianInfo['id_ujian'])
+        ->orderBy('RAND()')
+        ->get(1)
+        ->getRowArray();
+
+      if (!$paket) {
+        session()->setFlashdata('error', 'Paket CBT belum tersedia. Hubungi guru untuk generate paket.');
+        return redirect()->to(base_url('siswa/ujian'));
+      }
+
+      $paketId = $paket['paket_id'];
+    }
+
+    if (!$attempt) {
+      $nomorAttempt = $this->attemptUjianModel->where('peserta_ujian_id', $pesertaId)->countAllResults() + 1;
+      $attemptId = $this->attemptUjianModel->insert([
+        'peserta_ujian_id' => $pesertaId,
+        'nomor_attempt' => $nomorAttempt,
+        'paket_id' => $paketId,
+        'status' => 'sedang_mengerjakan',
+        'waktu_mulai' => date('Y-m-d H:i:s'),
+        'created_at' => date('Y-m-d H:i:s'),
+      ]);
+      $attempt = $this->attemptUjianModel->find($attemptId);
+
+      if (!$this->buatSnapshotAttemptCbt($attempt, $paketId, $pesertaId)) {
+        session()->setFlashdata('error', 'Gagal membuat snapshot soal CBT.');
+        return redirect()->to(base_url('siswa/ujian'));
+      }
+
+      $this->pesertaUjianModel->update($pesertaId, [
+        'status' => 'sedang_mengerjakan',
+        'waktu_mulai' => date('Y-m-d H:i:s'),
+      ]);
+    }
+
+    $sessionKey = $this->getCbtSessionKey((int) $attempt['attempt_id']);
+    $cbtParams = session()->get($sessionKey);
+    if (!$cbtParams || empty($cbtParams['attempt_soal_ids'])) {
+      $snapshotSoal = $this->attemptSoalModel->getByAttempt($attempt['attempt_id']);
+      if (empty($snapshotSoal)) {
+        if (!$this->buatSnapshotAttemptCbt($attempt, $paketId, $pesertaId)) {
+          session()->setFlashdata('error', 'Snapshot soal CBT tidak tersedia.');
+          return redirect()->to(base_url('siswa/ujian'));
+        }
+        $snapshotSoal = $this->attemptSoalModel->getByAttempt($attempt['attempt_id']);
+      }
+
+      if (empty($snapshotSoal)) {
+        session()->setFlashdata('error', 'Snapshot soal CBT kosong.');
+        return redirect()->to(base_url('siswa/ujian'));
+      }
+
+      $cbtParams = [
+        'attempt_id' => $attempt['attempt_id'],
+        'attempt_soal_ids' => array_column($snapshotSoal, 'attempt_soal_id'),
+        'current_index' => 0,
+      ];
+      session()->set($sessionKey, $cbtParams);
+    }
+
+    $waktuMulai = $attempt['waktu_mulai'] ?: date('Y-m-d H:i:s');
+    $durasi = explode(':', $ujianInfo['durasi']);
+    $durasiDetik = ($durasi[0] * 3600) + ($durasi[1] * 60) + (isset($durasi[2]) ? $durasi[2] : 0);
+    $sisaWaktu = (strtotime($waktuMulai) + $durasiDetik) - time();
+
+    if ($sisaWaktu <= 0) {
+      return redirect()->to(base_url("siswa/ujian/selesai/{$jadwalId}"));
+    }
+
+    $attemptSoalId = $cbtParams['attempt_soal_ids'][$cbtParams['current_index']] ?? null;
+    $soal = $attemptSoalId ? $this->formatSnapshotSoalForView($this->attemptSoalModel->find($attemptSoalId)) : null;
+    if (!$soal) {
+      session()->setFlashdata('error', 'Soal CBT tidak ditemukan.');
+      return redirect()->to(base_url('siswa/ujian'));
+    }
+
+    return view('siswa/soal', [
+      'ujian' => $ujianInfo,
+      'soal' => $soal,
+      'sisa_waktu' => $sisaWaktu,
+      'total_soal' => count($cbtParams['attempt_soal_ids']),
+      'soal_dijawab' => $cbtParams['current_index'],
+      'nomor_attempt' => $attempt['nomor_attempt'],
+    ]);
+  }
+
+  private function simpanJawabanCbt(array $ujianInfo, $attemptSoalId, $jawaban)
+  {
+    $siswa = $this->siswaModel->where('user_id', session()->get('user_id'))->first();
+    $peserta = $this->pesertaUjianModel
+      ->where('jadwal_id', $ujianInfo['jadwal_id'])
+      ->where('siswa_id', $siswa['siswa_id'])
+      ->first();
+
+    $attempt = $this->attemptUjianModel->getActiveAttempt($peserta['peserta_ujian_id']);
+    if (!$attempt) {
+      session()->setFlashdata('error', 'Attempt CBT aktif tidak ditemukan.');
+      return redirect()->to(base_url('siswa/ujian'));
+    }
+
+    if (empty($attempt['paket_id'])) {
+      session()->setFlashdata('error', 'Paket CBT belum terkunci untuk attempt ini.');
+      return redirect()->to(base_url('siswa/ujian'));
+    }
+
+    $sessionKey = $this->getCbtSessionKey((int) $attempt['attempt_id']);
+    $cbtParams = session()->get($sessionKey);
+    if (!$cbtParams) {
+      session()->setFlashdata('error', 'Urutan soal CBT tidak ditemukan.');
+      return redirect()->to(base_url('siswa/ujian/soal/' . $ujianInfo['jadwal_id']));
+    }
+
+    $expectedAttemptSoalId = $cbtParams['attempt_soal_ids'][$cbtParams['current_index']] ?? null;
+    if ((int)$expectedAttemptSoalId !== (int)$attemptSoalId) {
+      session()->setFlashdata('error', 'Urutan soal tidak valid.');
+      return redirect()->to(base_url('siswa/ujian/soal/' . $ujianInfo['jadwal_id']));
+    }
+
+    $soal = $this->attemptSoalModel->find($attemptSoalId);
+    if (!$soal) {
+      session()->setFlashdata('error', 'Snapshot soal tidak ditemukan.');
+      return redirect()->to(base_url('siswa/ujian/soal/' . $ujianInfo['jadwal_id']));
+    }
+
+    $soalId = $soal['original_soal_id'];
+    $isBenar = $soal && $jawaban === $soal['jawaban_benar'];
+    $nomorTampil = $cbtParams['current_index'] + 1;
+
+    if (!$this->attemptJawabanModel->where(['attempt_id' => $attempt['attempt_id'], 'soal_id' => $soalId])->first()) {
+      $this->attemptJawabanModel->insert([
+        'attempt_id' => $attempt['attempt_id'],
+        'soal_id' => $soalId,
+        'nomor_tampil' => $nomorTampil,
+        'jawaban_siswa' => $jawaban,
+        'is_correct' => $isBenar ? 1 : 0,
+        'waktu_menjawab' => date('Y-m-d H:i:s'),
+      ]);
+
+      $this->hasilUjianModel->insert([
+        'peserta_ujian_id' => $peserta['peserta_ujian_id'],
+        'soal_id' => $soalId,
+        'jawaban_siswa' => $jawaban,
+        'is_correct' => $isBenar ? 1 : 0,
+        'theta_saat_ini' => 0,
+        'pi_saat_ini' => 0,
+        'qi_saat_ini' => 0,
+        'ii_saat_ini' => 0,
+        'se_saat_ini' => 0,
+        'delta_se_saat_ini' => 0,
+      ]);
+    }
+
+    $cbtParams['current_index']++;
+    if ($cbtParams['current_index'] >= count($cbtParams['attempt_soal_ids'])) {
+      $benar = $this->attemptJawabanModel->countCorrect($attempt['attempt_id']);
+      $nilai = count($cbtParams['attempt_soal_ids']) > 0 ? ($benar / count($cbtParams['attempt_soal_ids'])) * 100 : 0;
+
+      $this->attemptUjianModel->update($attempt['attempt_id'], [
+        'status' => 'selesai',
+        'waktu_selesai' => date('Y-m-d H:i:s'),
+        'nilai_akhir' => $nilai,
+      ]);
+      $this->pesertaUjianModel->update($peserta['peserta_ujian_id'], [
+        'status' => 'selesai',
+        'waktu_selesai' => date('Y-m-d H:i:s'),
+      ]);
+      session()->remove($sessionKey);
+
+      return redirect()->to(base_url("siswa/ujian/selesai/{$ujianInfo['jadwal_id']}"));
+    }
+
+    session()->set($sessionKey, $cbtParams);
+    return redirect()->to(base_url('siswa/ujian/soal/' . $ujianInfo['jadwal_id']));
+  }
+
+  private function buatSnapshotAttemptCbt(array $attempt, $paketId, $pesertaId)
+  {
+    if ($this->attemptSoalModel->where('attempt_id', $attempt['attempt_id'])->countAllResults() > 0) {
+      return true;
+    }
+
+    $sourceAttempt = $this->attemptUjianModel
+      ->where('peserta_ujian_id', $pesertaId)
+      ->where('paket_id', $paketId)
+      ->where('attempt_id !=', $attempt['attempt_id'])
+      ->orderBy('nomor_attempt', 'ASC')
+      ->first();
+
+    if ($sourceAttempt) {
+      $sourceRows = $this->attemptSoalModel->getByAttempt($sourceAttempt['attempt_id']);
+      if (!empty($sourceRows)) {
+        $rows = [];
+        foreach ($sourceRows as $row) {
+          unset($row['attempt_soal_id']);
+          $row['attempt_id'] = $attempt['attempt_id'];
+          $row['created_at'] = date('Y-m-d H:i:s');
+          $rows[] = $row;
+        }
+        return (bool) $this->attemptSoalModel->insertBatch($rows);
+      }
+    }
+
+    $soals = $this->paketUjianModel->getSoalByPaket($paketId, true);
+    if (empty($soals)) {
+      return false;
+    }
+
+    $rows = [];
+    foreach ($soals as $index => $soal) {
+      $rows[] = [
+        'attempt_id' => $attempt['attempt_id'],
+        'paket_id' => $paketId,
+        'original_soal_id' => $soal['soal_id'] ?? null,
+        'nomor_urut' => $index + 1,
+        'kode_soal' => $soal['kode_soal'] ?? null,
+        'pertanyaan' => $soal['pertanyaan'] ?? '',
+        'pilihan_a' => $soal['pilihan_a'] ?? null,
+        'pilihan_b' => $soal['pilihan_b'] ?? null,
+        'pilihan_c' => $soal['pilihan_c'] ?? null,
+        'pilihan_d' => $soal['pilihan_d'] ?? null,
+        'pilihan_e' => $soal['pilihan_e'] ?? null,
+        'jawaban_benar' => $soal['jawaban_benar'] ?? 'A',
+        'tingkat_kesulitan' => $soal['tingkat_kesulitan'] ?? null,
+        'pembahasan' => $soal['pembahasan'] ?? null,
+        'media' => $soal['media'] ?? ($soal['foto'] ?? null),
+        'created_at' => date('Y-m-d H:i:s'),
+      ];
+    }
+
+    return (bool) $this->attemptSoalModel->insertBatch($rows);
+  }
+
+  private function formatSnapshotSoalForView(?array $soal)
+  {
+    if (!$soal) {
+      return null;
+    }
+
+    $soal['soal_id'] = $soal['original_soal_id'];
+    $soal['attempt_soal_id'] = $soal['attempt_soal_id'];
+    $soal['foto'] = $soal['media'] ?? null;
+
+    return $soal;
+  }
+
+  private function soalCat($jadwalId, array $ujianInfo, array $peserta)
+  {
+    if ($peserta['status'] === 'selesai') {
+      session()->setFlashdata('error', 'Anda sudah menyelesaikan attempt ini');
+      return redirect()->to(base_url('siswa/ujian'));
+    }
+
+    $pesertaId = (int) $peserta['peserta_ujian_id'];
+    $attempt = $this->attemptUjianModel->getActiveAttempt($pesertaId);
+    if (!$attempt) {
+      $nomorAttempt = $this->attemptUjianModel->where('peserta_ujian_id', $pesertaId)->countAllResults() + 1;
+      $attemptId = $this->attemptUjianModel->insert([
+        'peserta_ujian_id' => $pesertaId,
+        'nomor_attempt' => $nomorAttempt,
+        'paket_id' => null,
+        'status' => 'sedang_mengerjakan',
+        'waktu_mulai' => date('Y-m-d H:i:s'),
+        'created_at' => date('Y-m-d H:i:s'),
+      ]);
+      $attempt = $this->attemptUjianModel->find($attemptId);
+
+      if (!$this->buatSnapshotAttemptCat($attempt, (int) $ujianInfo['id_ujian'], $pesertaId)) {
+        session()->setFlashdata('error', 'Gagal membuat snapshot soal CAT.');
+        return redirect()->to(base_url('siswa/ujian'));
+      }
+
+      $this->pesertaUjianModel->update($pesertaId, [
+        'status' => 'sedang_mengerjakan',
+        'waktu_mulai' => $attempt['waktu_mulai'],
+      ]);
+    }
+
+    $sessionKey = $this->getCatSessionKey((int) $attempt['attempt_id']);
+    $catParams = session()->get($sessionKey);
+    if (!$catParams) {
+      $catParams = $this->buildCatSessionParams($attempt, (int) $ujianInfo['id_ujian']);
+      if (!$catParams || empty($catParams['current_question'])) {
+        session()->setFlashdata('error', 'Snapshot soal CAT kosong.');
+        return redirect()->to(base_url('siswa/ujian'));
+      }
+      session()->set($sessionKey, $catParams);
+    }
+
+    $waktuMulai = $attempt['waktu_mulai'] ?: date('Y-m-d H:i:s');
+    $durasi = explode(':', $ujianInfo['durasi']);
+    $durasiDetik = ($durasi[0] * 3600) + ($durasi[1] * 60) + (isset($durasi[2]) ? $durasi[2] : 0);
+    $sisaWaktu = (strtotime($waktuMulai) + $durasiDetik) - time();
+
+    if ($sisaWaktu <= 0) {
+      $nilaiAkhir = (float) ($catParams['theta'] ?? 0);
+      $this->attemptUjianModel->update($attempt['attempt_id'], [
+        'status' => 'selesai',
+        'waktu_selesai' => date('Y-m-d H:i:s'),
+        'nilai_akhir' => $nilaiAkhir,
+      ]);
+      $this->pesertaUjianModel->update($pesertaId, [
+        'status' => 'selesai',
+        'waktu_selesai' => date('Y-m-d H:i:s')
+      ]);
+      session()->remove($sessionKey);
+
+      return redirect()->to(base_url("siswa/ujian/selesai/{$jadwalId}"));
+    }
+
+    return view('siswa/soal', [
+      'ujian' => $ujianInfo,
+      'soal' => $catParams['current_question'],
+      'sisa_waktu' => $sisaWaktu,
+      'total_soal' => 'Adaptif',
+      'soal_dijawab' => count($catParams['answered_questions']),
+      'nomor_attempt' => $attempt['nomor_attempt'],
+    ]);
+  }
+
+  private function simpanJawabanCat(array $ujianInfo, $attemptSoalId, $jawaban)
+  {
+    $siswa = $this->siswaModel->where('user_id', session()->get('user_id'))->first();
+    $peserta = $this->pesertaUjianModel
+      ->where('jadwal_id', $ujianInfo['jadwal_id'])
+      ->where('siswa_id', $siswa['siswa_id'])
+      ->first();
+
+    if (!$peserta) {
+      session()->setFlashdata('error', 'Data peserta ujian tidak ditemukan.');
+      return redirect()->to(base_url('siswa/ujian'));
+    }
+
+    $attempt = $this->attemptUjianModel->getActiveAttempt($peserta['peserta_ujian_id']);
+    if (!$attempt) {
+      session()->setFlashdata('error', 'Attempt CAT aktif tidak ditemukan.');
+      return redirect()->to(base_url('siswa/ujian/soal/' . $ujianInfo['jadwal_id']));
+    }
+
+    $sessionKey = $this->getCatSessionKey((int) $attempt['attempt_id']);
+    $catParams = session()->get($sessionKey);
+    if (!$catParams) {
+      $catParams = $this->buildCatSessionParams($attempt, (int) $ujianInfo['id_ujian']);
+      if (!$catParams) {
+        session()->setFlashdata('error', 'Parameter CAT tidak ditemukan.');
+        return redirect()->to(base_url('siswa/ujian/soal/' . $ujianInfo['jadwal_id']));
+      }
+    }
+
+    $expectedAttemptSoalId = $catParams['current_question']['attempt_soal_id'] ?? null;
+    if ((int) $expectedAttemptSoalId !== (int) $attemptSoalId) {
+      session()->setFlashdata('error', 'Urutan soal CAT tidak valid.');
+      return redirect()->to(base_url('siswa/ujian/soal/' . $ujianInfo['jadwal_id']));
+    }
+
+    $soal = $this->attemptSoalModel->find($attemptSoalId);
+    if (!$soal) {
+      session()->setFlashdata('error', 'Snapshot soal CAT tidak ditemukan.');
+      return redirect()->to(base_url('siswa/ujian/soal/' . $ujianInfo['jadwal_id']));
+    }
+
+    $soal = $this->formatSnapshotSoalForView($soal);
+    $soalId = (int) ($soal['soal_id'] ?? 0);
+    $isBenar = $jawaban === ($soal['jawaban_benar'] ?? null);
+
+    try {
+      $theta = (float) ($catParams['theta'] ?? 0);
+      $b = (float) ($soal['tingkat_kesulitan'] ?? 0);
+
+      $e = 2.71828;
+      $Pi = pow($e, ($theta - $b)) / (1 + pow($e, ($theta - $b)));
+      $Qi = 1 - $Pi;
+      $Ii = $Pi * $Qi;
+
+      $totalIi = 0;
+      foreach (($catParams['answered_questions'] ?? []) as $answeredAttemptSoalId) {
+        $answeredSoal = $this->attemptSoalModel->find((int) $answeredAttemptSoalId);
+        if (!$answeredSoal) {
+          continue;
+        }
+
+        $bi = (float) ($answeredSoal['tingkat_kesulitan'] ?? 0);
+        $PiAnswered = pow($e, ($theta - $bi)) / (1 + pow($e, ($theta - $bi)));
+        $QiAnswered = 1 - $PiAnswered;
+        $totalIi += ($PiAnswered * $QiAnswered);
+      }
+
+      $totalIi += $Ii;
+      $SEOld = (float) ($catParams['SE'] ?? 1);
+      $SENew = $totalIi > 0 ? (1 / sqrt($totalIi)) : $SEOld;
+      $deltaSE = $SEOld - $SENew;
+
+      $theta = $b;
+      $answeredQuestions = array_map('intval', $catParams['answered_questions'] ?? []);
+      if (!in_array((int) $attemptSoalId, $answeredQuestions, true)) {
+        $answeredQuestions[] = (int) $attemptSoalId;
+      }
+
+      $nextQuestion = $this->pilihSoalBerikutnyaCat(
+        (int) $attempt['attempt_id'],
+        $b,
+        $answeredQuestions,
+        $isBenar
+      );
+
+      $catParams['theta'] = $theta;
+      $catParams['SE'] = $SENew;
+      $catParams['answered_questions'] = $answeredQuestions;
+      $catParams['current_question'] = $nextQuestion ? $this->formatSnapshotSoalForView($nextQuestion) : null;
+      $catParams['total_questions'] = count($answeredQuestions);
+
+      $nomorTampil = count($answeredQuestions);
+      if (!$this->attemptJawabanModel->where(['attempt_id' => $attempt['attempt_id'], 'soal_id' => $soalId])->first()) {
+        $this->attemptJawabanModel->insert([
+          'attempt_id' => $attempt['attempt_id'],
+          'soal_id' => $soalId,
+          'nomor_tampil' => $nomorTampil,
+          'jawaban_siswa' => $jawaban,
+          'is_correct' => $isBenar ? 1 : 0,
+          'waktu_menjawab' => date('Y-m-d H:i:s'),
+          'theta_saat_ini' => $theta,
+          'se_saat_ini' => $SENew,
+          'delta_se_saat_ini' => $deltaSE,
+          'pi_saat_ini' => $Pi,
+          'qi_saat_ini' => $Qi,
+          'ii_saat_ini' => $Ii,
+        ]);
+
+        $this->hasilUjianModel->insert([
+          'peserta_ujian_id' => $peserta['peserta_ujian_id'],
+          'soal_id' => $soalId,
+          'jawaban_siswa' => $jawaban,
+          'is_correct' => $isBenar ? 1 : 0,
+          'theta_saat_ini' => $theta,
+          'pi_saat_ini' => $Pi,
+          'qi_saat_ini' => $Qi,
+          'ii_saat_ini' => $Ii,
+          'se_saat_ini' => $SENew,
+          'delta_se_saat_ini' => $deltaSE,
+        ]);
+      }
+
+      $shouldStop = false;
+      if ($SENew < (float) $ujianInfo['se_minimum']) {
+        $shouldStop = true;
+      } elseif (abs($deltaSE) < (float) $ujianInfo['delta_se_minimum']) {
+        $shouldStop = true;
+      } elseif (!$nextQuestion) {
+        $shouldStop = true;
+      }
+
+      session()->set($sessionKey, $catParams);
+
+      if ($shouldStop) {
+        $this->attemptUjianModel->update($attempt['attempt_id'], [
+          'status' => 'selesai',
+          'waktu_selesai' => date('Y-m-d H:i:s'),
+          'nilai_akhir' => $theta,
+        ]);
+        $this->pesertaUjianModel->update($peserta['peserta_ujian_id'], [
+          'status' => 'selesai',
+          'waktu_selesai' => date('Y-m-d H:i:s')
+        ]);
+        session()->remove($sessionKey);
+
+        return redirect()->to(base_url("siswa/ujian/selesai/{$ujianInfo['jadwal_id']}"));
+      }
+
+      return redirect()->to(base_url('siswa/ujian/soal/' . $ujianInfo['jadwal_id']));
+    } catch (\Exception $e) {
+      log_message('error', 'Error saat memproses jawaban CAT: ' . $e->getMessage());
+      session()->setFlashdata('error', 'Terjadi kesalahan saat memproses jawaban CAT.');
+      return redirect()->to(base_url('siswa/ujian/soal/' . $ujianInfo['jadwal_id']));
+    }
+  }
+
+  private function buatSnapshotAttemptCat(array $attempt, int $ujianId, int $pesertaId): bool
+  {
+    if ($this->attemptSoalModel->where('attempt_id', $attempt['attempt_id'])->countAllResults() > 0) {
+      return true;
+    }
+
+    $sourceAttempts = $this->attemptUjianModel
+      ->where('peserta_ujian_id', $pesertaId)
+      ->where('attempt_id !=', $attempt['attempt_id'])
+      ->orderBy('nomor_attempt', 'ASC')
+      ->findAll();
+
+    foreach ($sourceAttempts as $sourceAttempt) {
+      $sourceRows = $this->attemptSoalModel->getByAttempt($sourceAttempt['attempt_id']);
+      if (empty($sourceRows)) {
+        continue;
+      }
+
+      $rows = [];
+      foreach ($sourceRows as $row) {
+        unset($row['attempt_soal_id']);
+        $row['attempt_id'] = $attempt['attempt_id'];
+        $row['created_at'] = date('Y-m-d H:i:s');
+        $rows[] = $row;
+      }
+
+      return (bool) $this->attemptSoalModel->insertBatch($rows);
+    }
+
+    $pool = $this->ujianSoalCatModel->getSoalByUjian($ujianId);
+    if (empty($pool)) {
+      return false;
+    }
+
+    usort($pool, static function (array $a, array $b): int {
+      $difficultyA = (float) ($a['tingkat_kesulitan'] ?? 0);
+      $difficultyB = (float) ($b['tingkat_kesulitan'] ?? 0);
+      if ($difficultyA === $difficultyB) {
+        return ((int) ($a['soal_id'] ?? 0)) <=> ((int) ($b['soal_id'] ?? 0));
+      }
+      return $difficultyA <=> $difficultyB;
+    });
+
+    $rows = [];
+    foreach (array_values($pool) as $index => $soal) {
+      $rows[] = [
+        'attempt_id' => $attempt['attempt_id'],
+        'paket_id' => null,
+        'original_soal_id' => $soal['soal_id'] ?? null,
+        'nomor_urut' => $index + 1,
+        'kode_soal' => $soal['kode_soal'] ?? null,
+        'pertanyaan' => $soal['pertanyaan'] ?? '',
+        'pilihan_a' => $soal['pilihan_a'] ?? null,
+        'pilihan_b' => $soal['pilihan_b'] ?? null,
+        'pilihan_c' => $soal['pilihan_c'] ?? null,
+        'pilihan_d' => $soal['pilihan_d'] ?? null,
+        'pilihan_e' => $soal['pilihan_e'] ?? null,
+        'jawaban_benar' => $soal['jawaban_benar'] ?? 'A',
+        'tingkat_kesulitan' => $soal['tingkat_kesulitan'] ?? null,
+        'pembahasan' => $soal['pembahasan'] ?? null,
+        'media' => $soal['foto'] ?? ($soal['media'] ?? null),
+        'created_at' => date('Y-m-d H:i:s'),
+      ];
+    }
+
+    return (bool) $this->attemptSoalModel->insertBatch($rows);
+  }
+
+  private function buildCatSessionParams(array $attempt, int $ujianId): ?array
+  {
+    $snapshotSoal = $this->attemptSoalModel->getByAttempt($attempt['attempt_id']);
+    if (empty($snapshotSoal)) {
+      if (!$this->buatSnapshotAttemptCat($attempt, $ujianId, (int) $attempt['peserta_ujian_id'])) {
+        return null;
+      }
+      $snapshotSoal = $this->attemptSoalModel->getByAttempt($attempt['attempt_id']);
+    }
+
+    if (empty($snapshotSoal)) {
+      return null;
+    }
+
+    $jawabanRows = $this->attemptJawabanModel
+      ->where('attempt_id', $attempt['attempt_id'])
+      ->orderBy('nomor_tampil', 'ASC')
+      ->findAll();
+
+    $answeredAttemptSoalIds = [];
+    $theta = 0;
+    $SE = 1;
+
+    foreach ($jawabanRows as $jawaban) {
+      foreach ($snapshotSoal as $snapshot) {
+        if ((int) $snapshot['original_soal_id'] === (int) $jawaban['soal_id']) {
+          $answeredAttemptSoalIds[] = (int) $snapshot['attempt_soal_id'];
+          break;
+        }
+      }
+      $theta = (float) ($jawaban['theta_saat_ini'] ?? $theta);
+      $SE = (float) ($jawaban['se_saat_ini'] ?? $SE);
+    }
+
+    $currentQuestion = null;
+    if (empty($jawabanRows)) {
+      $currentQuestion = $this->pilihSoalAwalCat((int) $attempt['attempt_id']);
+    } else {
+      $lastJawaban = end($jawabanRows);
+      $lastSnapshot = null;
+      foreach ($snapshotSoal as $snapshot) {
+        if ((int) $snapshot['original_soal_id'] === (int) $lastJawaban['soal_id']) {
+          $lastSnapshot = $snapshot;
+          break;
+        }
+      }
+
+      if ($lastSnapshot) {
+        $currentQuestion = $this->pilihSoalBerikutnyaCat(
+          (int) $attempt['attempt_id'],
+          (float) ($lastSnapshot['tingkat_kesulitan'] ?? 0),
+          $answeredAttemptSoalIds,
+          ((int) ($lastJawaban['is_correct'] ?? 0) === 1)
+        );
+      }
+    }
+
+    return [
+      'attempt_id' => $attempt['attempt_id'],
+      'theta' => $theta,
+      'SE' => $SE,
+      'answered_questions' => $answeredAttemptSoalIds,
+      'current_question' => $currentQuestion ? $this->formatSnapshotSoalForView($currentQuestion) : null,
+      'total_questions' => count($answeredAttemptSoalIds),
+    ];
+  }
+
+  private function getCatSessionKey(int $attemptId): string
+  {
+    return 'cat_attempt_' . $attemptId;
+  }
+
+  private function getCbtSessionKey(int $attemptId): string
+  {
+    return 'cbt_attempt_' . $attemptId;
   }
 
   private function hitungDurasiPerSoal($detailJawaban, $waktuMulaiUjian)
@@ -693,6 +1235,138 @@ class Siswa extends Controller
     return $hasilDenganDurasi;
   }
 
+  private function pilihSoalAwalCat(int $attemptId): ?array
+  {
+    $pool = $this->attemptSoalModel->getByAttempt($attemptId);
+    if (empty($pool)) {
+      return null;
+    }
+
+    usort($pool, static function (array $a, array $b): int {
+      $distanceA = abs((float) ($a['tingkat_kesulitan'] ?? 0));
+      $distanceB = abs((float) ($b['tingkat_kesulitan'] ?? 0));
+      if ($distanceA === $distanceB) {
+        return strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? ''));
+      }
+      return $distanceA <=> $distanceB;
+    });
+
+    return $pool[0] ?? null;
+  }
+
+  private function pilihSoalBerikutnyaCat(int $attemptId, float $currentDifficulty, array $answeredIds, bool $naik): ?array
+  {
+    $answeredLookup = array_map('intval', $answeredIds);
+    $pool = array_filter(
+      $this->attemptSoalModel->getByAttempt($attemptId),
+      static function (array $row) use ($answeredLookup, $currentDifficulty, $naik): bool {
+        $soalId = (int) ($row['attempt_soal_id'] ?? 0);
+        $difficulty = (float) ($row['tingkat_kesulitan'] ?? 0);
+        if (in_array($soalId, $answeredLookup, true)) {
+          return false;
+        }
+
+        return $naik ? $difficulty > $currentDifficulty : $difficulty < $currentDifficulty;
+      }
+    );
+
+    if (empty($pool)) {
+      return null;
+    }
+
+    usort($pool, static function (array $a, array $b) use ($naik): int {
+      $difficultyA = (float) ($a['tingkat_kesulitan'] ?? 0);
+      $difficultyB = (float) ($b['tingkat_kesulitan'] ?? 0);
+      return $naik ? ($difficultyA <=> $difficultyB) : ($difficultyB <=> $difficultyA);
+    });
+
+    return array_values($pool)[0] ?? null;
+  }
+
+  private function getAttemptAwareDetailJawaban($pesertaUjianId, ?int $attemptId = null): array
+  {
+    $db = db_connect();
+    $attemptQuery = $db->table('attempt_ujian')
+      ->where('peserta_ujian_id', $pesertaUjianId);
+
+    if ($attemptId !== null) {
+      $attemptQuery->where('attempt_id', $attemptId);
+    } else {
+      $attemptQuery->orderBy('nomor_attempt', 'DESC');
+    }
+
+    $attempt = $attemptQuery
+      ->get()
+      ->getRowArray();
+
+    if ($attempt) {
+      $rows = $db->table('attempt_jawaban aj')
+        ->select('
+          aj.*,
+          COALESCE(ats.pertanyaan, su.pertanyaan) as pertanyaan,
+          COALESCE(ats.kode_soal, su.kode_soal) as kode_soal,
+          COALESCE(ats.jawaban_benar, su.jawaban_benar) as jawaban_benar,
+          COALESCE(ats.tingkat_kesulitan, su.tingkat_kesulitan) as tingkat_kesulitan,
+          COALESCE(ats.pembahasan, su.pembahasan) as pembahasan,
+          COALESCE(ats.media, su.media) as foto,
+          DATE_FORMAT(aj.waktu_menjawab, "%H:%i:%s") as waktu_menjawab_format
+        ')
+        ->join('attempt_soal ats', 'ats.attempt_id = aj.attempt_id AND ats.original_soal_id = aj.soal_id', 'left')
+        ->join('soal_ujian su', 'su.soal_id = aj.soal_id', 'left')
+        ->where('aj.attempt_id', $attempt['attempt_id'])
+        ->orderBy('aj.nomor_tampil', 'ASC')
+        ->orderBy('aj.waktu_menjawab', 'ASC')
+        ->get()
+        ->getResultArray();
+
+      if (!empty($rows)) {
+        return $rows;
+      }
+    }
+
+    return $this->hasilUjianModel
+      ->select('
+        hasil_ujian.*,
+        soal_ujian.pertanyaan,
+        soal_ujian.kode_soal,
+        soal_ujian.jawaban_benar,
+        soal_ujian.tingkat_kesulitan,
+        soal_ujian.pembahasan,
+        soal_ujian.media as foto,
+        DATE_FORMAT(hasil_ujian.waktu_menjawab, "%H:%i:%s") as waktu_menjawab_format
+      ')
+      ->join('soal_ujian', 'soal_ujian.soal_id = hasil_ujian.soal_id')
+      ->where('hasil_ujian.peserta_ujian_id', $pesertaUjianId)
+      ->orderBy('hasil_ujian.waktu_menjawab', 'ASC')
+      ->findAll();
+  }
+
+  private function getAttemptResultForSiswa(int $attemptId, int $siswaId): ?array
+  {
+    return db_connect()->table('attempt_ujian au')
+      ->select('
+        au.*,
+        pu.peserta_ujian_id,
+        pu.siswa_id,
+        jadwal_ujian.*,
+        ujian.*,
+        ujian.kode_ujian,
+        jenis_ujian.nama_jenis,
+        TIMEDIFF(au.waktu_selesai, au.waktu_mulai) as durasi_total,
+        TIME_TO_SEC(TIMEDIFF(au.waktu_selesai, au.waktu_mulai)) as durasi_total_detik,
+        DATE_FORMAT(au.waktu_mulai, "%d/%m/%Y %H:%i:%s") as waktu_mulai_format,
+        DATE_FORMAT(au.waktu_selesai, "%d/%m/%Y %H:%i:%s") as waktu_selesai_format
+      ')
+      ->join('peserta_ujian pu', 'pu.peserta_ujian_id = au.peserta_ujian_id')
+      ->join('jadwal_ujian', 'jadwal_ujian.jadwal_id = pu.jadwal_id')
+      ->join('ujian', 'ujian.id_ujian = jadwal_ujian.ujian_id')
+      ->join('jenis_ujian', 'jenis_ujian.jenis_ujian_id = ujian.jenis_ujian_id')
+      ->where('au.attempt_id', $attemptId)
+      ->where('pu.siswa_id', $siswaId)
+      ->get()
+      ->getRowArray();
+  }
+
 
   public function hasil()
   {
@@ -703,51 +1377,153 @@ class Siswa extends Controller
     $userId = session()->get('user_id');
     $siswa = $this->siswaModel->where('user_id', $userId)->first();
 
-    // Tambahkan lebih banyak informasi waktu
-    $riwayatUjian = $this->pesertaUjianModel
+    $rows = db_connect()->table('attempt_ujian au')
       ->select('
-            peserta_ujian.*, 
-            jadwal_ujian.*, 
-            ujian.nama_ujian, 
+            au.*,
+            peserta_ujian.peserta_ujian_id,
+            peserta_ujian.jadwal_id,
+            ujian.nama_ujian,
             ujian.kode_ujian,
-            ujian.deskripsi, 
+            ujian.deskripsi,
             ujian.durasi,
+            ujian.tipe_ujian,
             jenis_ujian.nama_jenis,
-            TIMEDIFF(peserta_ujian.waktu_selesai, peserta_ujian.waktu_mulai) as durasi_pengerjaan,
-            TIME_TO_SEC(TIMEDIFF(peserta_ujian.waktu_selesai, peserta_ujian.waktu_mulai)) as durasi_detik,
-            DATE_FORMAT(peserta_ujian.waktu_mulai, "%d/%m/%Y %H:%i:%s") as waktu_mulai_format,
-            DATE_FORMAT(peserta_ujian.waktu_selesai, "%d/%m/%Y %H:%i:%s") as waktu_selesai_format
+            TIMEDIFF(au.waktu_selesai, au.waktu_mulai) as durasi_pengerjaan,
+            TIME_TO_SEC(TIMEDIFF(au.waktu_selesai, au.waktu_mulai)) as durasi_detik,
+            DATE_FORMAT(au.waktu_mulai, "%d/%m/%Y %H:%i:%s") as waktu_mulai_format,
+            DATE_FORMAT(au.waktu_selesai, "%d/%m/%Y %H:%i:%s") as waktu_selesai_format
         ')
+      ->join('peserta_ujian', 'peserta_ujian.peserta_ujian_id = au.peserta_ujian_id')
       ->join('jadwal_ujian', 'jadwal_ujian.jadwal_id = peserta_ujian.jadwal_id')
       ->join('ujian', 'ujian.id_ujian = jadwal_ujian.ujian_id')
       ->join('jenis_ujian', 'jenis_ujian.jenis_ujian_id = ujian.jenis_ujian_id')
       ->where('peserta_ujian.siswa_id', $siswa['siswa_id'])
-      ->where('peserta_ujian.status', 'selesai')
-      ->orderBy('peserta_ujian.waktu_selesai', 'DESC')
-      ->findAll();
+      ->where('au.status', 'selesai')
+      ->orderBy('peserta_ujian.peserta_ujian_id', 'DESC')
+      ->orderBy('au.nomor_attempt', 'ASC')
+      ->get()
+      ->getResultArray();
 
-
-    // Tambahkan informasi jumlah soal untuk setiap ujian
-    foreach ($riwayatUjian as &$ujian) {
-      $jumlahSoal = $this->hasilUjianModel
-        ->where('peserta_ujian_id', $ujian['peserta_ujian_id'])
+    $groupedRiwayat = [];
+    foreach ($rows as $ujian) {
+      $jumlahSoal = $this->attemptJawabanModel
+        ->where('attempt_id', $ujian['attempt_id'])
         ->countAllResults();
       $ujian['jumlah_soal'] = $jumlahSoal;
 
-      // Format durasi menjadi jam:menit:detik
       if ($ujian['durasi_detik']) {
         $jam = floor($ujian['durasi_detik'] / 3600);
         $menit = floor(($ujian['durasi_detik'] % 3600) / 60);
         $detik = $ujian['durasi_detik'] % 60;
         $ujian['durasi_format'] = sprintf('%02d:%02d:%02d', $jam, $menit, $detik);
+      } else {
+        $ujian['durasi_format'] = '00:00:00';
       }
+
+      $groupKey = (int) $ujian['peserta_ujian_id'];
+      if (!isset($groupedRiwayat[$groupKey])) {
+        $groupedRiwayat[$groupKey] = [
+          'peserta_ujian_id' => $ujian['peserta_ujian_id'],
+          'jadwal_id' => $ujian['jadwal_id'],
+          'nama_ujian' => $ujian['nama_ujian'],
+          'kode_ujian' => $ujian['kode_ujian'],
+          'deskripsi' => $ujian['deskripsi'],
+          'durasi' => $ujian['durasi'],
+          'tipe_ujian' => $ujian['tipe_ujian'],
+          'nama_jenis' => $ujian['nama_jenis'],
+          'attempt_terakhir' => null,
+          'jumlah_attempt' => 0,
+          'attempts' => [],
+        ];
+      }
+
+      $groupedRiwayat[$groupKey]['attempts'][] = $ujian;
+      $groupedRiwayat[$groupKey]['jumlah_attempt']++;
+      $groupedRiwayat[$groupKey]['attempt_terakhir'] = $ujian;
     }
 
     $data = [
-      'riwayatUjian' => $riwayatUjian
+      'riwayatUjian' => array_values($groupedRiwayat)
     ];
 
     return view('siswa/hasil', $data);
+  }
+
+  public function hasilUjian($pesertaUjianId)
+  {
+    if (!session()->get('user_id')) {
+      return redirect()->to(base_url('login'));
+    }
+
+    $userId = session()->get('user_id');
+    $siswa = $this->siswaModel->where('user_id', $userId)->first();
+
+    $rows = db_connect()->table('attempt_ujian au')
+      ->select('
+            au.*,
+            peserta_ujian.peserta_ujian_id,
+            peserta_ujian.jadwal_id,
+            ujian.nama_ujian,
+            ujian.kode_ujian,
+            ujian.deskripsi,
+            ujian.durasi,
+            ujian.tipe_ujian,
+            jenis_ujian.nama_jenis,
+            TIMEDIFF(au.waktu_selesai, au.waktu_mulai) as durasi_pengerjaan,
+            TIME_TO_SEC(TIMEDIFF(au.waktu_selesai, au.waktu_mulai)) as durasi_detik,
+            DATE_FORMAT(au.waktu_mulai, "%d/%m/%Y %H:%i:%s") as waktu_mulai_format,
+            DATE_FORMAT(au.waktu_selesai, "%d/%m/%Y %H:%i:%s") as waktu_selesai_format
+        ')
+      ->join('peserta_ujian', 'peserta_ujian.peserta_ujian_id = au.peserta_ujian_id')
+      ->join('jadwal_ujian', 'jadwal_ujian.jadwal_id = peserta_ujian.jadwal_id')
+      ->join('ujian', 'ujian.id_ujian = jadwal_ujian.ujian_id')
+      ->join('jenis_ujian', 'jenis_ujian.jenis_ujian_id = ujian.jenis_ujian_id')
+      ->where('peserta_ujian.siswa_id', $siswa['siswa_id'])
+      ->where('peserta_ujian.peserta_ujian_id', $pesertaUjianId)
+      ->where('au.status', 'selesai')
+      ->orderBy('au.nomor_attempt', 'ASC')
+      ->get()
+      ->getResultArray();
+
+    if (empty($rows)) {
+      session()->setFlashdata('error', 'Riwayat ujian tidak ditemukan.');
+      return redirect()->to(base_url('siswa/hasil'));
+    }
+
+    foreach ($rows as &$attempt) {
+      $attempt['jumlah_soal'] = $this->attemptJawabanModel
+        ->where('attempt_id', $attempt['attempt_id'])
+        ->countAllResults();
+
+      if ($attempt['durasi_detik']) {
+        $jam = floor($attempt['durasi_detik'] / 3600);
+        $menit = floor(($attempt['durasi_detik'] % 3600) / 60);
+        $detik = $attempt['durasi_detik'] % 60;
+        $attempt['durasi_format'] = sprintf('%02d:%02d:%02d', $jam, $menit, $detik);
+      } else {
+        $attempt['durasi_format'] = '00:00:00';
+      }
+
+      $attempt['nilai_tampil'] = ($attempt['tipe_ujian'] ?? 'CAT') === 'CBT'
+        ? round((float) ($attempt['nilai_akhir'] ?? 0), 2)
+        : $this->hitungKemampuanKognitif((float) ($attempt['nilai_akhir'] ?? 0));
+    }
+    unset($attempt);
+
+    $data = [
+      'ujian' => [
+        'peserta_ujian_id' => $rows[0]['peserta_ujian_id'],
+        'nama_ujian' => $rows[0]['nama_ujian'],
+        'kode_ujian' => $rows[0]['kode_ujian'],
+        'deskripsi' => $rows[0]['deskripsi'],
+        'durasi' => $rows[0]['durasi'],
+        'tipe_ujian' => $rows[0]['tipe_ujian'],
+        'nama_jenis' => $rows[0]['nama_jenis'],
+      ],
+      'attempts' => $rows,
+    ];
+
+    return view('siswa/hasil_ujian', $data);
   }
 
   //fungsi kemampuan kognitif
@@ -800,92 +1576,55 @@ class Siswa extends Controller
   }
 
 
-  public function detailHasil($pesertaUjianId)
+  public function detailHasil($attemptId)
   {
     if (!session()->get('user_id')) {
       return redirect()->to(base_url('login'));
     }
 
-    // Ambil detail hasil ujian dengan informasi waktu
-    $hasil = $this->pesertaUjianModel
-      ->select('
-            peserta_ujian.*, 
-            jadwal_ujian.*, 
-            ujian.*, 
-            ujian.kode_ujian,
-            jenis_ujian.nama_jenis,
-            TIMEDIFF(peserta_ujian.waktu_selesai, peserta_ujian.waktu_mulai) as durasi_total,
-            TIME_TO_SEC(TIMEDIFF(peserta_ujian.waktu_selesai, peserta_ujian.waktu_mulai)) as durasi_total_detik,
-            DATE_FORMAT(peserta_ujian.waktu_mulai, "%d/%m/%Y %H:%i:%s") as waktu_mulai_format,
-            DATE_FORMAT(peserta_ujian.waktu_selesai, "%d/%m/%Y %H:%i:%s") as waktu_selesai_format
-        ')
-      ->join('jadwal_ujian', 'jadwal_ujian.jadwal_id = peserta_ujian.jadwal_id')
-      ->join('ujian', 'ujian.id_ujian = jadwal_ujian.ujian_id')
-      ->join('jenis_ujian', 'jenis_ujian.jenis_ujian_id = ujian.jenis_ujian_id')
-      ->where('peserta_ujian.peserta_ujian_id', $pesertaUjianId)
-      ->first();
+    $userId = session()->get('user_id');
+    $siswa = $this->siswaModel->where('user_id', $userId)->first();
+    $hasil = $this->getAttemptResultForSiswa((int) $attemptId, (int) $siswa['siswa_id']);
 
-    // Ambil detail jawaban dengan waktu
-    $detailJawaban = $this->hasilUjianModel
-      ->select('
-            hasil_ujian.*, 
-            soal_ujian.pertanyaan, 
-            soal_ujian.kode_soal,
-            soal_ujian.jawaban_benar, 
-            soal_ujian.tingkat_kesulitan, 
-            soal_ujian.pembahasan,
-            DATE_FORMAT(hasil_ujian.waktu_menjawab, "%H:%i:%s") as waktu_menjawab_format
-        ')
-      ->join('soal_ujian', 'soal_ujian.soal_id = hasil_ujian.soal_id')
-      ->where('hasil_ujian.peserta_ujian_id', $pesertaUjianId)
-      ->orderBy('hasil_ujian.waktu_menjawab', 'ASC')
-      ->findAll();
+    if (!$hasil) {
+      session()->setFlashdata('error', 'Hasil attempt tidak ditemukan.');
+      return redirect()->to(base_url('siswa/hasil'));
+    }
 
-    // Hitung durasi per soal
+    $detailJawaban = $this->getAttemptAwareDetailJawaban($hasil['peserta_ujian_id'], (int) $hasil['attempt_id']);
+
     $detailJawabanDenganDurasi = $this->hitungDurasiPerSoal($detailJawaban, $hasil['waktu_mulai']);
 
-    // Hitung statistik tambahan
     $totalSoal = count($detailJawabanDenganDurasi);
     $jawabanBenar = array_reduce($detailJawabanDenganDurasi, function ($carry, $item) {
       return $carry + ($item['is_correct'] ? 1 : 0);
     }, 0);
 
-    $lastResult = $this->hasilUjianModel
-      ->select('theta_saat_ini, se_saat_ini')
-      ->where('peserta_ujian_id', $pesertaUjianId)
-      ->orderBy('waktu_menjawab', 'DESC')
-      ->limit(1)
-      ->first();
-
-    $theta_akhir = $lastResult ? (float)$lastResult['theta_saat_ini'] : 0;
-
-    // 1. Hitung skor akhir menggunakan fungsi yang sudah diubah
-    $skor_akhir = $this->hitungKemampuanKognitif($theta_akhir);
-
-    // 2. Dapatkan klasifikasi berdasarkan skor akhir
+    $lastResult = !empty($detailJawabanDenganDurasi) ? end($detailJawabanDenganDurasi) : null;
+    $theta_akhir = $lastResult ? (float) ($lastResult['theta_saat_ini'] ?? 0) : (float) ($hasil['nilai_akhir'] ?? 0);
+    $skor_akhir = ($hasil['tipe_ujian'] ?? 'CAT') === 'CBT'
+      ? round((float) ($hasil['nilai_akhir'] ?? 0), 2)
+      : $this->hitungKemampuanKognitif($theta_akhir);
     $klasifikasiKognitif = $this->getKlasifikasiKognitif($skor_akhir);
 
-    // 3. Siapkan array data kognitif untuk dikirim ke view.
-    //    Ini menggantikan array lama yang dihasilkan oleh fungsi hitungKemampuanKognitif yang lama.
     $kemampuanKognitif = [
       'skor' => $skor_akhir,
       'total_benar' => $jawabanBenar,
       'total_salah' => $totalSoal - $jawabanBenar,
-      // Rata-rata pilihan tidak lagi relevan untuk rumus baru, namun bisa tetap dikirim agar tidak error di view.
       'rata_rata_pilihan' => 0
     ];
 
-    // Hitung rata-rata waktu per soal
-    $rataRataWaktu = $hasil['durasi_total_detik'] / $totalSoal;
+    $rataRataWaktu = $totalSoal > 0 ? ($hasil['durasi_total_detik'] / $totalSoal) : 0;
     $rataRataMenit = floor($rataRataWaktu / 60);
     $rataRataDetik = $rataRataWaktu % 60;
 
-    // Format durasi total
     if ($hasil['durasi_total_detik']) {
       $jam = floor($hasil['durasi_total_detik'] / 3600);
       $menit = floor(($hasil['durasi_total_detik'] % 3600) / 60);
       $detik = $hasil['durasi_total_detik'] % 60;
       $hasil['durasi_total_format'] = sprintf('%02d:%02d:%02d', $jam, $menit, $detik);
+    } else {
+      $hasil['durasi_total_format'] = '00:00:00';
     }
 
     $data = [
@@ -898,8 +1637,8 @@ class Siswa extends Controller
       'klasifikasiKognitif' => $klasifikasiKognitif, // Klasifikasi kognitif
       'rataRataWaktuFormat' => sprintf('%d menit %d detik', $rataRataMenit, $rataRataDetik),
       'statistikWaktu' => [
-        'waktu_tercepat' => min(array_column($detailJawabanDenganDurasi, 'durasi_pengerjaan_detik')),
-        'waktu_terlama' => max(array_column($detailJawabanDenganDurasi, 'durasi_pengerjaan_detik')),
+        'waktu_tercepat' => $totalSoal > 0 ? min(array_column($detailJawabanDenganDurasi, 'durasi_pengerjaan_detik')) : 0,
+        'waktu_terlama' => $totalSoal > 0 ? max(array_column($detailJawabanDenganDurasi, 'durasi_pengerjaan_detik')) : 0,
         'rata_rata' => $rataRataWaktu
       ]
     ];
@@ -909,100 +1648,54 @@ class Siswa extends Controller
 
   //function unduh hasil ujian
 
-  public function unduh($pesertaUjianId)
+  public function unduh($attemptId)
   {
     if (!session()->get('user_id')) {
       return redirect()->to(base_url('login'));
     }
 
-    // Verifikasi akses
     $userId = session()->get('user_id');
     $siswa = $this->siswaModel->where('user_id', $userId)->first();
 
-    // Ambil detail hasil ujian dengan informasi waktu lengkap
-    $hasil = $this->pesertaUjianModel
-      ->select('
-            peserta_ujian.*, 
-            jadwal_ujian.*, 
-            ujian.*, 
-            ujian.kode_ujian,
-            jenis_ujian.nama_jenis,
-            TIMEDIFF(peserta_ujian.waktu_selesai, peserta_ujian.waktu_mulai) as durasi_total,
-            TIME_TO_SEC(TIMEDIFF(peserta_ujian.waktu_selesai, peserta_ujian.waktu_mulai)) as durasi_total_detik,
-            DATE_FORMAT(peserta_ujian.waktu_mulai, "%d/%m/%Y %H:%i:%s") as waktu_mulai_format,
-            DATE_FORMAT(peserta_ujian.waktu_selesai, "%d/%m/%Y %H:%i:%s") as waktu_selesai_format
-        ')
-      ->join('jadwal_ujian', 'jadwal_ujian.jadwal_id = peserta_ujian.jadwal_id')
-      ->join('ujian', 'ujian.id_ujian = jadwal_ujian.ujian_id')
-      ->join('jenis_ujian', 'jenis_ujian.jenis_ujian_id = ujian.jenis_ujian_id')
-      ->where('peserta_ujian.peserta_ujian_id', $pesertaUjianId)
-      ->first();
+    $hasil = $this->getAttemptResultForSiswa((int) $attemptId, (int) $siswa['siswa_id']);
 
-    // Verifikasi hak akses
-    if (!$hasil || $hasil['siswa_id'] != $siswa['siswa_id']) {
+    if (!$hasil) {
       session()->setFlashdata('error', 'Anda tidak memiliki akses ke laporan ini');
       return redirect()->to(base_url('siswa/hasil'));
     }
 
-    // Ambil detail jawaban
-    $detailJawaban = $this->hasilUjianModel
-      ->select('
-            hasil_ujian.*, 
-            soal_ujian.pertanyaan, 
-            soal_ujian.kode_soal,
-            soal_ujian.jawaban_benar, 
-            soal_ujian.tingkat_kesulitan, 
-            soal_ujian.pembahasan,
-            DATE_FORMAT(hasil_ujian.waktu_menjawab, "%H:%i:%s") as waktu_menjawab_format
-        ')
-      ->join('soal_ujian', 'soal_ujian.soal_id = hasil_ujian.soal_id')
-      ->where('hasil_ujian.peserta_ujian_id', $pesertaUjianId)
-      ->orderBy('hasil_ujian.waktu_menjawab', 'ASC')
-      ->findAll();
+    $detailJawaban = $this->getAttemptAwareDetailJawaban($hasil['peserta_ujian_id'], (int) $hasil['attempt_id']);
 
-    // Hitung durasi per soal
     $detailJawabanDenganDurasi = $this->hitungDurasiPerSoal($detailJawaban, $hasil['waktu_mulai']);
 
-    // Hitung statistik
     $totalSoal = count($detailJawabanDenganDurasi);
     $jawabanBenar = array_reduce($detailJawabanDenganDurasi, function ($carry, $item) {
       return $carry + ($item['is_correct'] ? 1 : 0);
     }, 0);
 
-    // Ambil theta terakhir dari database
-    $lastResult = $this->hasilUjianModel
-      ->select('theta_saat_ini')
-      ->where('peserta_ujian_id', $pesertaUjianId)
-      ->orderBy('waktu_menjawab', 'DESC')
-      ->limit(1)
-      ->first();
-
-    // Ekstrak nilai numerik dari array $lastResult.
-    $theta_akhir = $lastResult ? (float)$lastResult['theta_saat_ini'] : 0;
-
-    // Hitung skor akhir menggunakan fungsi yang sudah diubah
-    $skor_akhir = $this->hitungKemampuanKognitif($theta_akhir);
-
-    // Dapatkan klasifikasi berdasarkan skor akhir
+    $lastResult = !empty($detailJawabanDenganDurasi) ? end($detailJawabanDenganDurasi) : null;
+    $theta_akhir = $lastResult ? (float) ($lastResult['theta_saat_ini'] ?? 0) : (float) ($hasil['nilai_akhir'] ?? 0);
+    $skor_akhir = ($hasil['tipe_ujian'] ?? 'CAT') === 'CBT'
+      ? round((float) ($hasil['nilai_akhir'] ?? 0), 2)
+      : $this->hitungKemampuanKognitif($theta_akhir);
     $klasifikasiKognitif = $this->getKlasifikasiKognitif($skor_akhir);
 
-    // Siapkan array data kognitif untuk dikirim ke view.
     $kemampuanKognitif = [
       'skor' => $skor_akhir,
       'total_benar' => $jawabanBenar,
       'total_salah' => $totalSoal - $jawabanBenar,
-      'rata_rata_pilihan' => 0 // Tidak lagi relevan
+      'rata_rata_pilihan' => 0
     ];
 
-    // Format durasi total
     if ($hasil['durasi_total_detik']) {
       $jam = floor($hasil['durasi_total_detik'] / 3600);
       $menit = floor(($hasil['durasi_total_detik'] % 3600) / 60);
       $detik = $hasil['durasi_total_detik'] % 60;
       $hasil['durasi_total_format'] = sprintf('%02d:%02d:%02d', $jam, $menit, $detik);
+    } else {
+      $hasil['durasi_total_format'] = '00:00:00';
     }
 
-    // Hitung rata-rata waktu per soal
     $rataRataWaktu = $totalSoal > 0 ? ($hasil['durasi_total_detik'] / $totalSoal) : 0;
     $rataRataMenit = floor($rataRataWaktu / 60);
     $rataRataDetik = $rataRataWaktu % 60;

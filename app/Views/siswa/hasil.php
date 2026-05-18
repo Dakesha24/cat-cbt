@@ -9,72 +9,54 @@
       Anda belum mengikuti ujian apapun.
     </div>
   <?php else: ?>
-    <div class="row g-4">
+    <div class="row g-3">
       <?php foreach ($riwayatUjian as $ujian): ?>
-        <div class="col-md-6">
-          <div class="card h-100 border-0 shadow-sm hover-shadow">
+        <div class="col-md-6 col-xl-4">
+          <div class="card border-0 shadow-sm hover-shadow">
             <div class="card-body">
-              <div class="d-flex justify-content-between align-items-start mb-3">
+              <div class="d-flex justify-content-between align-items-start gap-3 mb-2">
                 <div>
-                  <h5 class="card-title text-primary mb-1"><?= esc($ujian['nama_ujian']) ?></h5>
-                  <small class="text-muted d-block"><?= esc($ujian['nama_jenis']) ?></small>
-                  <!-- TAMBAHAN: Tampilkan kode ujian -->
-                  <small class="text-muted"><i class="bi bi-hash"></i> <?= esc($ujian['kode_ujian']) ?></small>
+                  <h6 class="card-title text-primary mb-1"><?= esc($ujian['nama_ujian']) ?></h6>
+                  <div class="small text-muted">
+                    <?= esc($ujian['nama_jenis']) ?> | <?= esc($ujian['kode_ujian']) ?>
+                  </div>
                 </div>
-                <span class="badge bg-success">Selesai</span>
-              </div>
-
-              <!-- Informasi Waktu -->
-              <div class="mb-3">
-                <div class="row text-center">
-                  <div class="col-4">
-                    <div class="small text-muted">Mulai</div>
-                    <div class="fw-bold small"><?= $ujian['waktu_mulai_format'] ?></div>
-                  </div>
-                  <div class="col-4">
-                    <div class="small text-muted">Selesai</div>
-                    <div class="fw-bold small"><?= $ujian['waktu_selesai_format'] ?></div>
-                  </div>
-                  <div class="col-4">
-                    <div class="small text-muted">Durasi</div>
-                    <div class="fw-bold small text-primary"><?= $ujian['durasi_format'] ?></div>
-                  </div>
+                <div class="text-end">
+                  <div class="small text-muted">Percobaan</div>
+                  <div class="fw-semibold"><?= $ujian['jumlah_attempt'] ?></div>
                 </div>
               </div>
 
-              <!-- Border pemisah -->
-              <hr class="my-3">
+              <div class="exam-meta mb-3">
+                <span class="exam-meta-item">Batas waktu: <strong><?= esc($ujian['durasi']) ?></strong></span>
+                <span class="exam-meta-item">Total percobaan: <strong><?= $ujian['jumlah_attempt'] ?></strong></span>
+              </div>
 
-              <!-- Informasi Detail -->
-              <div class="mb-3">
-                <div class="row">
-                  <div class="col-6">
-                    <small class="text-muted d-block">
-                      <i class="bi bi-list-ol"></i>
-                      Soal Dikerjakan: <strong><?= $ujian['jumlah_soal'] ?></strong>
-                    </small>
-                  </div>
-                  <div class="col-6">
-                    <small class="text-muted d-block">
-                      <i class="bi bi-alarm"></i>
-                      Batas Waktu: <strong><?= $ujian['durasi'] ?></strong>
-                    </small>
-                  </div>
+              <?php if (!empty($ujian['deskripsi'])): ?>
+                <p class="card-text small text-muted mb-3 exam-desc"><?= esc($ujian['deskripsi']) ?></p>
+              <?php endif; ?>
+
+              <div class="result-summary mb-3">
+                <?php $attemptTerakhir = $ujian['attempt_terakhir']; ?>
+                <div class="small text-muted">Percobaan terakhir</div>
+                <div class="small fw-semibold mb-1">Percobaan <?= esc($attemptTerakhir['nomor_attempt'] ?? 0) ?></div>
+                <div class="small text-muted">
+                  <?php if (($ujian['tipe_ujian'] ?? 'CAT') === 'CBT'): ?>
+                    Nilai terakhir:
+                    <strong><?= number_format((float) ($attemptTerakhir['nilai_akhir'] ?? 0), 2) ?></strong>
+                  <?php else: ?>
+                    Skor terakhir:
+                    <strong><?= number_format(50 + (16.67 * (float) ($attemptTerakhir['nilai_akhir'] ?? 0)), 2) ?></strong>
+                  <?php endif; ?>
+                </div>
+                <div class="small text-muted">
+                  Selesai: <?= esc($attemptTerakhir['waktu_selesai_format'] ?? '-') ?>
                 </div>
               </div>
 
-              <p class="card-text small text-muted mb-4"><?= esc($ujian['deskripsi']) ?></p>
-
-              <div class="d-flex gap-2">
-                <a href="<?= base_url('siswa/hasil/detail/' . $ujian['peserta_ujian_id']) ?>"
-                  class="btn btn-outline-primary btn-sm flex-fill">
-                  <i class="bi bi-eye"></i> Lihat Detail
-                </a>
-                <a href="<?= base_url('siswa/hasil/unduh/' . $ujian['peserta_ujian_id']) ?>"
-                  class="btn btn-outline-secondary btn-sm" target="_blank">
-                  <i class="bi bi-download"></i> Unduh
-                </a>
-              </div>
+              <a href="<?= base_url('siswa/hasil/ujian/' . $ujian['peserta_ujian_id']) ?>" class="btn btn-outline-primary btn-sm w-100">
+                <i class="bi bi-list-ul"></i> Lihat Percobaan
+              </a>
             </div>
           </div>
         </div>
@@ -85,12 +67,38 @@
 
 <style>
   .hover-shadow {
-    transition: all 0.3s ease;
+    transition: all 0.2s ease;
   }
 
   .hover-shadow:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 .5rem 1rem rgba(0, 0, 0, .15) !important;
+    box-shadow: 0 .5rem 1rem rgba(0, 0, 0, .12) !important;
+  }
+
+  .card-body {
+    padding: 1rem;
+  }
+
+  .exam-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    font-size: 12px;
+    color: #6c757d;
+  }
+
+  .exam-desc {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .exam-meta-item strong {
+    color: #212529;
+  }
+
+  .result-summary {
+    min-height: 74px;
   }
 </style>
 

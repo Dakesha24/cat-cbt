@@ -24,9 +24,10 @@
                                 <div class="card-body">
                                     <div class="d-flex justify-content-between align-items-start mb-3">
                                         <div>
-                                            <h4 class="card-title text-primary mb-0"><?= esc($jadwal['nama_ujian']) ?></h4>
+                                            <h4 class="card-title text-dark mb-0"><?= esc($jadwal['nama_ujian']) ?></h4>
                                             <!-- TAMBAHAN: Tampilkan kode ujian -->
                                             <small class="text-muted"><?= esc($jadwal['kode_ujian']) ?></small>
+                                            <span class="badge bg-secondary ms-1"><?= esc($jadwal['tipe_ujian'] ?? 'CAT') ?></span>
                                         </div>
                                         <?php
                                         $statusClass = '';
@@ -72,9 +73,18 @@
                                                 Lanjutkan Ujian
                                             </a>
                                         <?php elseif ($jadwal['status_peserta'] == 'selesai'): ?>
-                                            <button class="btn btn-success w-100" disabled>
-                                                Ujian Selesai
-                                            </button>
+                                            <?php if (!empty($jadwal['bisa_mengulang'])): ?>
+                                                <button type="button" class="btn btn-primary w-100"
+                                                    data-bs-toggle="modal"
+                                                    data-bs-target="#modalKodeAkses"
+                                                    data-jadwal-id="<?= $jadwal['jadwal_id'] ?>">
+                                                    Ulangi Ujian (Attempt <?= ((int)$jadwal['jumlah_attempt']) + 1 ?>)
+                                                </button>
+                                            <?php else: ?>
+                                                <button class="btn btn-success w-100" disabled>
+                                                    Ujian Selesai
+                                                </button>
+                                            <?php endif; ?>
                                         <?php else: ?>
                                             <button type="button" class="btn btn-primary w-100"
                                                 data-bs-toggle="modal"
@@ -124,6 +134,11 @@
         </div>
     </div>
 </div>
+
+<style>
+  .card { border-radius: 0; }
+  .modal-content { border-radius: 0 !important; }
+</style>
 
 <script>
     document.getElementById('modalKodeAkses').addEventListener('show.bs.modal', function(event) {
