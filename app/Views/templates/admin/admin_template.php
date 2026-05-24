@@ -460,8 +460,14 @@
                             </li>
                             <li class="nav-item">
                                 <a href="<?= base_url('admin/hasil-ujian') ?>"
-                                    class="nav-link <?= (strpos(current_url(), 'admin/hasil-ujian') !== false) ? 'active' : '' ?>">
+                                    class="nav-link <?= (strpos(current_url(), 'admin/hasil-ujian') !== false && strpos(current_url(), 'admin/hasil-ujian/analitik') === false) ? 'active' : '' ?>">
                                     <i class="bi bi-bar-chart"></i>Hasil Ujian
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="<?= base_url('admin/hasil-ujian/analitik') ?>"
+                                    class="nav-link <?= (strpos(current_url(), 'admin/hasil-ujian/analitik') !== false) ? 'active' : '' ?>">
+                                    <i class="bi bi-graph-up-arrow"></i>Rekap Data Ujian
                                 </a>
                             </li>
                         </ul>

@@ -6,7 +6,9 @@ class Home extends BaseController
 {
     public function index()
     {
-        return view('pages/home');
+        return view('pages/home', [
+            'hideLandingNavbar' => true,
+        ]);
     }
 
     public function guide()

@@ -71,7 +71,9 @@ class Auth extends Controller
       }
     }
 
-    return view('auth/login');
+    return view('auth/login', [
+      'hideLandingNavbar' => true,
+    ]);
   }
 
   public function register()
@@ -106,7 +108,9 @@ class Auth extends Controller
       }
     }
 
-    return view('auth/register');
+    return view('auth/register', [
+      'hideLandingNavbar' => true,
+    ]);
   }
 
   public function logout()

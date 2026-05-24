@@ -194,13 +194,18 @@
                 <label class="form-label small fw-semibold">Kode Soal <span class="text-danger">*</span></label>
                 <input type="text" name="kode_soal" class="form-control" placeholder="Contoh: MAT001" required>
               </div>
-              <div class="col-md-6">
-                <label class="form-label small fw-semibold">Tingkat Kesulitan <span class="text-danger">*</span></label>
-                <div class="input-group">
-                  <input type="number" name="tingkat_kesulitan" class="form-control" step="0.001" value="0.000" min="-3" max="3" required>
-                  <span class="input-group-text small text-muted">-3 s/d +3</span>
-                </div>
-                <div class="form-text">Negatif = mudah, 0 = sedang, positif = sulit</div>
+              <div class="col-md-2">
+                <label class="form-label small fw-semibold">Diskriminasi (a)</label>
+                <input type="number" name="a" class="form-control" step="0.001" value="1.000">
+              </div>
+              <div class="col-md-2">
+                <label class="form-label small fw-semibold">Kesulitan (b) <span class="text-danger">*</span></label>
+                <input type="number" name="tingkat_kesulitan" class="form-control" step="0.001" value="0.000" min="-3" max="3" required>
+                <div class="form-text">-3 s/d +3</div>
+              </div>
+              <div class="col-md-2">
+                <label class="form-label small fw-semibold">Guessing (c)</label>
+                <input type="number" name="c" class="form-control" step="0.001" value="0.000">
               </div>
               <div class="col-12">
                 <label class="form-label small fw-semibold">Pertanyaan <span class="text-danger">*</span></label>
@@ -335,12 +340,17 @@
                   <label class="form-label small fw-semibold">Kode Soal <span class="text-danger">*</span></label>
                   <input type="text" name="kode_soal" class="form-control" value="<?= esc($soal['kode_soal']) ?>" required>
                 </div>
-                <div class="col-md-6">
-                  <label class="form-label small fw-semibold">Tingkat Kesulitan <span class="text-danger">*</span></label>
-                  <div class="input-group">
-                    <input type="number" name="tingkat_kesulitan" class="form-control" step="0.001" value="<?= $soal['tingkat_kesulitan'] ?>" min="-3" max="3" required>
-                    <span class="input-group-text small text-muted">-3 s/d +3</span>
-                  </div>
+                <div class="col-md-2">
+                  <label class="form-label small fw-semibold">Diskriminasi (a)</label>
+                  <input type="number" name="a" class="form-control" step="0.001" value="<?= $soal['a'] ?? 1 ?>">
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label small fw-semibold">Kesulitan (b) <span class="text-danger">*</span></label>
+                  <input type="number" name="tingkat_kesulitan" class="form-control" step="0.001" value="<?= $soal['tingkat_kesulitan'] ?>" min="-3" max="3" required>
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label small fw-semibold">Guessing (c)</label>
+                  <input type="number" name="c" class="form-control" step="0.001" value="<?= $soal['c'] ?? 0 ?>">
                 </div>
                 <div class="col-12">
                   <label class="form-label small fw-semibold">Pertanyaan <span class="text-danger">*</span></label>
@@ -422,12 +432,16 @@
   };
 
   const summernoteConfigSmall = {
-    height: 100,
+    height: 150,
     toolbar: [
-      ['style', ['bold', 'italic', 'underline']],
-      ['font', ['superscript', 'subscript']],
+      ['style', ['bold', 'italic', 'underline', 'clear']],
+      ['font', ['strikethrough', 'superscript', 'subscript']],
+      ['fontsize', ['fontsize']],
       ['color', ['color']],
-      ['insert', ['picture']]
+      ['para', ['ul', 'ol', 'paragraph']],
+      ['table', ['table']],
+      ['insert', ['link', 'picture']],
+      ['view', ['fullscreen', 'codeview']]
     ],
     placeholder: 'Masukkan pilihan...',
     dialogsInBody: true,

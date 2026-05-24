@@ -99,7 +99,9 @@
 </head>
 
 <body>
-    <?= $this->include('templates/navbar') ?>
+    <?php if (empty($hideLandingNavbar)): ?>
+        <?= $this->include('templates/navbar') ?>
+    <?php endif; ?>
 
     <?= $this->renderSection('content') ?>
 

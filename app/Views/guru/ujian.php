@@ -37,22 +37,68 @@ $kelasUmumLabel = 'Semua Guru';
 .type-divider hr { flex: 1; margin: 0; border-color: #dee2e6; }
 .type-divider span { font-size: 0.75rem; font-weight: 600; color: #adb5bd; text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap; }
 .empty-sec { background: #f8f9fa; padding: 1.5rem; text-align: center; color: #adb5bd; font-size: 0.85rem; margin-bottom: 1rem; }
+/* Modal ukuran & corner fix */
+.exam-modal-dialog { max-width: 880px !important; }
 .modal-content { border-radius: 0 !important; overflow: hidden; }
-.modal-dialog-scrollable .modal-content { max-height: calc(100vh - 2rem); }
-.modal-dialog-scrollable .modal-body { max-height: calc(100vh - 210px); overflow-y: auto; background: #fcfdff; }
-.exam-modal-section { background: #fff; border: 1px solid #e6edf5; padding: 1rem; margin-bottom: 1rem; box-shadow: inset 0 1px 0 rgba(255,255,255,0.7); }
+.modal-header, .modal-footer { border-radius: 0 !important; }
+.modal-dialog-scrollable .modal-content { max-height: calc(100vh - 2.5rem); }
+.modal-dialog-scrollable .modal-body { max-height: calc(100vh - 215px); overflow-y: auto; background: #f4f7fb; padding: 1.35rem !important; }
+/* Disabled field styling */
+.exam-modal-section .form-select:disabled,
+.exam-modal-section .form-control:disabled {
+  background-color: #eef1f5 !important;
+  color: #9ca3af !important;
+  border-color: #dde3ec !important;
+  cursor: not-allowed;
+  opacity: 1;
+}
+/* Sections */
+.exam-modal-section {
+  background: #fff;
+  border: 1px solid #dde5f0;
+  padding: 1rem 1.1rem;
+  margin-bottom: 0.85rem;
+  box-shadow: 0 1px 4px rgba(15,23,42,0.04);
+}
 .exam-modal-section:last-child { margin-bottom: 0; }
-.exam-modal-section-title { display: flex; align-items: center; gap: 0.55rem; padding-bottom: 0.7rem; margin-bottom: 1rem !important; border-bottom: 1px solid #e9ecef; letter-spacing: 0.08em; }
-.exam-modal-section-title .section-dot { width: 9px; height: 9px; background: #0d6efd; border-radius: 999px; box-shadow: 0 0 0 4px rgba(13,110,253,.12); flex-shrink: 0; }
-.exam-modal-section-title small { letter-spacing: 0.08em; }
+.exam-modal-section-title {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding-bottom: 0.65rem; margin-bottom: 0.85rem !important;
+  border-bottom: 1px solid #eef2f7; letter-spacing: 0.06em;
+}
+.exam-modal-section-title .section-dot {
+  width: 8px; height: 8px;
+  background: #3b82f6; border-radius: 50%;
+  box-shadow: 0 0 0 3px rgba(59,130,246,.15); flex-shrink: 0;
+}
+.exam-modal-section-title small { letter-spacing: 0.06em; font-size: 0.7rem !important; }
 .exam-modal-grid { background: transparent !important; border: 0 !important; padding: 0 !important; margin-left: 0; margin-right: 0; }
-.exam-modal-help { color: #98a2b3; font-size: 0.74rem; line-height: 1.45; }
-.exam-option-stack { display: grid; gap: 0.55rem; }
-.exam-option-card { display: flex; align-items: flex-start; gap: 0.7rem; padding: 0.8rem 0.9rem; background: #fff; border: 1px solid #e9edf3; }
-.exam-option-card .form-check-input { margin-top: 0.18rem; }
-.exam-option-card .form-check-label { display: block; margin: 0; }
-.exam-option-title { color: #344054; font-size: 0.78rem; font-weight: 700; line-height: 1.3; }
-.exam-option-desc { color: #98a2b3; font-size: 0.72rem; line-height: 1.45; margin-top: 0.15rem; }
+.exam-modal-help { color: #94a3b8; font-size: 0.73rem; line-height: 1.45; }
+.exam-modal-section .form-label { font-size: 0.78rem; font-weight: 600; color: #374151; margin-bottom: 0.28rem; }
+.exam-modal-section .form-control,
+.exam-modal-section .form-select {
+  border-color: #cdd5e0; background: #f9fbfd; font-size: 0.875rem;
+  border-radius: 6px; transition: border-color .15s, box-shadow .15s;
+}
+.exam-modal-section .form-control:focus,
+.exam-modal-section .form-select:focus {
+  border-color: #3b82f6; background: #fff;
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
+}
+.exam-modal-section textarea.form-control { resize: vertical; min-height: 68px; }
+/* Option cards */
+.exam-option-stack { display: grid; gap: 0.5rem; }
+.exam-option-card {
+  display: flex; align-items: flex-start; gap: 0.7rem;
+  padding: 0.75rem 0.9rem; background: #fff;
+  border: 1px solid #e2e8f0; border-radius: 6px;
+  cursor: pointer; transition: border-color .15s, background .15s;
+}
+.exam-option-card:has(.form-check-input:checked) { border-color: #93c5fd; background: #eff6ff; }
+.exam-option-card .form-check-input { margin-top: 0.15rem; flex-shrink: 0; }
+.exam-option-card .form-check-label { display: block; margin: 0; cursor: pointer; }
+.exam-option-title { color: #1e293b; font-size: 0.8rem; font-weight: 700; line-height: 1.3; }
+.exam-option-desc { color: #94a3b8; font-size: 0.71rem; line-height: 1.45; margin-top: 0.12rem; }
 @media (max-width: 767.98px) {
   .exam-page { padding: 1rem !important; }
   .page-header-card { padding: 1rem !important; }
@@ -238,14 +284,15 @@ $kelasUmumLabel = 'Semua Guru';
 
 <!-- ==================== MODAL TAMBAH UJIAN ==================== -->
 <div class="modal fade" id="modalTambahUjian" tabindex="-1">
-  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-    <div class="modal-content border-0 shadow">
+  <div class="modal-dialog exam-modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
       <div class="modal-header bg-primary text-white px-4 py-3">
         <h5 class="modal-title fw-semibold"><i class="bi bi-plus-circle me-2"></i>Tambah Ujian Baru</h5>
         <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
-      <form action="<?= base_url('guru/ujian/tambah') ?>" method="post">
+      <form id="formTambahUjianGuru" action="<?= base_url('guru/ujian/tambah') ?>" method="post" novalidate>
         <div class="modal-body px-4 py-4">
+          <div id="tambahUjianGuruGeneralError" class="alert alert-danger py-2 small d-none"></div>
           <div class="exam-modal-section">
             <h6 class="exam-modal-section-title text-uppercase text-muted fw-semibold small">
               <span class="section-dot"></span>Informasi Dasar
@@ -259,12 +306,13 @@ $kelasUmumLabel = 'Semua Guru';
             </div>
             <div class="col-md-6">
               <label class="form-label small fw-semibold">Mata Pelajaran <span class="text-danger">*</span></label>
-              <select name="jenis_ujian_id" class="form-select" required>
+              <select id="guruTambahJenisUjian" name="jenis_ujian_id" class="form-select" required>
                 <option value="">Pilih Mata Pelajaran</option>
                 <?php if (!empty($jenis_ujian)): foreach ($jenis_ujian as $ju): ?>
                   <option value="<?= $ju['jenis_ujian_id'] ?>"><?= esc($ju['nama_jenis']) ?></option>
                 <?php endforeach; endif; ?>
               </select>
+              <div class="invalid-feedback" id="g_err_jenis_ujian_id"></div>
             </div>
             <div class="col-md-6">
               <label class="form-label small fw-semibold">Akses Kelas</label>
@@ -274,6 +322,7 @@ $kelasUmumLabel = 'Semua Guru';
                   <option value="<?= $kelas['kelas_id'] ?>"><?= esc($kelas['nama_kelas']) ?></option>
                 <?php endforeach; endif; ?>
               </select>
+              <div class="invalid-feedback" id="g_err_kelas_id"></div>
               <div class="form-check mt-2 mb-0">
                 <input class="form-check-input kelas-umum-guru-toggle" type="checkbox" id="kelasUmumGuruTambah" data-target="kelasGuruTambah" checked>
                 <label class="form-check-label small fw-semibold" for="kelasUmumGuruTambah">Kelas Umum</label>
@@ -282,15 +331,18 @@ $kelasUmumLabel = 'Semua Guru';
             </div>
             <div class="col-md-8">
               <label class="form-label small fw-semibold">Nama Ujian <span class="text-danger">*</span></label>
-              <input type="text" name="nama_ujian" class="form-control" placeholder="Contoh: UTS Matematika Semester 1" required>
+              <input type="text" id="guruTambahNamaUjian" name="nama_ujian" class="form-control" placeholder="Contoh: UTS Matematika Semester 1" required>
+              <div class="invalid-feedback" id="g_err_nama_ujian"></div>
             </div>
             <div class="col-md-4">
               <label class="form-label small fw-semibold">Kode Ujian <span class="text-danger">*</span></label>
-              <input type="text" name="kode_ujian" class="form-control" placeholder="MTK-UTS-001" required>
+              <input type="text" id="guruTambahKodeUjian" name="kode_ujian" class="form-control" placeholder="MTK-UTS-001" required>
+              <div class="invalid-feedback" id="g_err_kode_ujian"></div>
             </div>
             <div class="col-12">
               <label class="form-label small fw-semibold">Deskripsi</label>
-              <textarea name="deskripsi" class="form-control" rows="2" placeholder="Deskripsi singkat..." required></textarea>
+              <textarea id="guruTambahDeskripsi" name="deskripsi" class="form-control" rows="2" placeholder="Deskripsi singkat (min. 10 karakter)..." required></textarea>
+              <div class="invalid-feedback" id="g_err_deskripsi"></div>
             </div>
             <div class="col-md-6">
               <label class="form-label small fw-semibold">Durasi <span class="text-danger">*</span></label>
@@ -332,10 +384,6 @@ $kelasUmumLabel = 'Semua Guru';
                   <label class="form-check-label" for="tCBT_g"><strong>CBT</strong> <small class="text-muted">(Fixed-Form)</small></label>
                 </div>
               </div>
-            </div>
-            <div class="col-md-6 cbt-field-g" style="display:none">
-              <label class="form-label small fw-semibold">Maks. Soal per Paket</label>
-              <input type="number" name="maksimal_soal_tampil" class="form-control" value="20" min="1" max="100">
             </div>
           </div>
           </div>
@@ -395,22 +443,25 @@ $kelasUmumLabel = 'Semua Guru';
             <div class="row g-3 exam-modal-grid">
               <div class="col-md-4">
                 <label class="form-label small fw-semibold">SE Awal <span class="text-danger">*</span></label>
-                <input type="number" name="se_awal" class="form-control" step="0.0001" value="1.0000" required>
+                <input type="number" id="guruTambahSeAwal" name="se_awal" class="form-control" step="0.0001" value="1.0000" required>
+                <div class="invalid-feedback" id="g_err_se_awal"></div>
               </div>
               <div class="col-md-4">
                 <label class="form-label small fw-semibold">SE Minimum <span class="text-danger">*</span></label>
-                <input type="number" name="se_minimum" class="form-control" step="0.0001" value="0.2500" required>
+                <input type="number" id="guruTambahSeMinimum" name="se_minimum" class="form-control" step="0.0001" value="0.2500" required>
+                <div class="invalid-feedback" id="g_err_se_minimum"></div>
               </div>
               <div class="col-md-4">
                 <label class="form-label small fw-semibold">Delta SE <span class="text-danger">*</span></label>
-                <input type="number" name="delta_se_minimum" class="form-control" step="0.0001" value="0.0100" required>
+                <input type="number" id="guruTambahDeltaSe" name="delta_se_minimum" class="form-control" step="0.0001" value="0.0100" required>
+                <div class="invalid-feedback" id="g_err_delta_se_minimum"></div>
               </div>
             </div>
           </div>
         </div>
         <div class="modal-footer border-0 bg-light px-4 py-3">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-          <button type="submit" class="btn btn-primary px-4"><i class="bi bi-check-lg me-1"></i>Simpan</button>
+          <button type="submit" id="btnGuruTambahUjianSubmit" class="btn btn-primary px-4"><i class="bi bi-check-lg me-1"></i>Simpan</button>
         </div>
       </form>
     </div>
@@ -513,10 +564,6 @@ $kelasUmumLabel = 'Semua Guru';
                   <label class="form-check-label" for="tCBTE<?= $u['id_ujian'] ?>"><strong>CBT</strong> <small class="text-muted">(Fixed-Form)</small></label>
                 </div>
               </div>
-            </div>
-            <div class="col-md-6 cbt-field-eg<?= $u['id_ujian'] ?>" style="display:<?= ($u['tipe_ujian'] ?? 'CAT') == 'CBT' ? '' : 'none' ?>">
-              <label class="form-label small fw-semibold">Maks. Soal per Paket</label>
-              <input type="number" name="maksimal_soal_tampil" class="form-control" value="<?= esc($u['maksimal_soal_tampil'] ?? 20) ?>" min="1" max="100">
             </div>
           </div>
           </div>
@@ -648,6 +695,34 @@ function syncGuruKelasUmum(toggle) {
   }
   kelasSelect.disabled = false;
 }
+
+function refreshJenisUjianGuru(kelasId) {
+  const sel = document.getElementById('guruTambahJenisUjian');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Memuat...</option>';
+  sel.disabled = true;
+  let url = '<?= base_url('guru/api/jenis-ujian') ?>';
+  if (kelasId > 0) url += '?kelas_id=' + kelasId;
+  fetch(url)
+    .then(r => r.json())
+    .then(d => {
+      let opts = '<option value="">Pilih Mata Pelajaran</option>';
+      if (d.status === 'success' && Array.isArray(d.data) && d.data.length > 0) {
+        d.data.forEach(j => {
+          const label = j.nama_jenis + (j.nama_kelas ? ' - ' + j.nama_kelas : '');
+          opts += '<option value="' + j.jenis_ujian_id + '">' + label + '</option>';
+        });
+        sel.disabled = false;
+      } else {
+        opts = '<option value="">Tidak ada mata pelajaran</option>';
+      }
+      sel.innerHTML = opts;
+    })
+    .catch(() => {
+      sel.innerHTML = '<option value="">Gagal memuat</option>';
+      sel.disabled = false;
+    });
+}
 function toggleCBTFields_g() {
   const isCBT = document.getElementById('tCBT_g').checked;
   document.querySelectorAll('.cbt-field-g').forEach(el => el.style.display = isCBT ? '' : 'none');
@@ -661,9 +736,26 @@ function toggleCBTFieldsE(id) {
 }
 document.addEventListener('DOMContentLoaded', function() {
   initDurationPickers();
+
+  // Muat semua mata pelajaran guru saat halaman load
+  refreshJenisUjianGuru(0);
+
+  // Ketika kelas berubah, refresh mata pelajaran
+  const selKelasGuruTambah = document.getElementById('kelasGuruTambah');
+  if (selKelasGuruTambah) {
+    selKelasGuruTambah.addEventListener('change', function() {
+      refreshJenisUjianGuru(this.value || 0);
+    });
+  }
+
   document.querySelectorAll('.kelas-umum-guru-toggle').forEach(function(toggle) {
     toggle.addEventListener('change', function() {
       syncGuruKelasUmum(this);
+      // Refresh mata pelajaran saat toggle kelas umum tambah
+      if (this.id === 'kelasUmumGuruTambah') {
+        const kelasId = this.checked ? 0 : (selKelasGuruTambah ? selKelasGuruTambah.value || 0 : 0);
+        refreshJenisUjianGuru(kelasId);
+      }
     });
     syncGuruKelasUmum(toggle);
   });
@@ -682,6 +774,79 @@ document.addEventListener('DOMContentLoaded', function() {
         umumToggle.checked = true;
         syncGuruKelasUmum(umumToggle);
       }
+      // Reset dan muat ulang mata pelajaran (semua milik guru)
+      refreshJenisUjianGuru(0);
+      clearTambahUjianGuruErrors();
+    });
+  }
+
+  // AJAX submit form tambah ujian guru
+  const _guruTambahFieldMap = {
+    jenis_ujian_id: 'guruTambahJenisUjian',
+    kelas_id: 'kelasGuruTambah',
+    nama_ujian: 'guruTambahNamaUjian',
+    kode_ujian: 'guruTambahKodeUjian',
+    deskripsi: 'guruTambahDeskripsi',
+    se_awal: 'guruTambahSeAwal',
+    se_minimum: 'guruTambahSeMinimum',
+    delta_se_minimum: 'guruTambahDeltaSe',
+  };
+
+  function clearTambahUjianGuruErrors() {
+    document.querySelectorAll('#formTambahUjianGuru .is-invalid').forEach(el => el.classList.remove('is-invalid'));
+    document.querySelectorAll('#formTambahUjianGuru .invalid-feedback').forEach(el => el.textContent = '');
+    const gen = document.getElementById('tambahUjianGuruGeneralError');
+    if (gen) { gen.textContent = ''; gen.classList.add('d-none'); }
+  }
+
+  function showTambahUjianGuruErrors(errors) {
+    const gen = document.getElementById('tambahUjianGuruGeneralError');
+    Object.entries(errors).forEach(([field, msg]) => {
+      if (field === 'general') {
+        if (gen) { gen.textContent = msg; gen.classList.remove('d-none'); }
+        return;
+      }
+      const inputId = _guruTambahFieldMap[field];
+      if (inputId) {
+        const input = document.getElementById(inputId);
+        if (input) input.classList.add('is-invalid');
+      }
+      const errEl = document.getElementById('g_err_' + field);
+      if (errEl) errEl.textContent = msg;
+    });
+    const first = document.querySelector('#formTambahUjianGuru .is-invalid');
+    if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  const formTambahUjianGuru = document.getElementById('formTambahUjianGuru');
+  if (formTambahUjianGuru) {
+    formTambahUjianGuru.addEventListener('submit', function(e) {
+      e.preventDefault();
+      clearTambahUjianGuruErrors();
+      const btn = document.getElementById('btnGuruTambahUjianSubmit');
+      const origHtml = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Menyimpan...';
+      fetch(this.action, {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        body: new FormData(this)
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          window.location.href = data.redirect || window.location.href;
+        } else {
+          showTambahUjianGuruErrors(data.errors || { general: 'Terjadi kesalahan validasi.' });
+          btn.disabled = false;
+          btn.innerHTML = origHtml;
+        }
+      })
+      .catch(() => {
+        showTambahUjianGuruErrors({ general: 'Gagal terhubung ke server. Silakan coba lagi.' });
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
+      });
     });
   }
 

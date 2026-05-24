@@ -877,7 +877,7 @@
                   </div>
                   <div class="rule-box mb-3">
                     <i class="bi bi-info-circle text-primary me-2"></i>
-                    <span>Soal per paket <strong>&lt;</strong> total soal tersedia. Overlap <strong>diperbolehkan</strong>.</span>
+                    <span>Soal per paket <strong>&le;</strong> total soal tersedia. Overlap <strong>diperbolehkan</strong>.</span>
                   </div>
                   <button type="submit" class="btn btn-outline-dark w-100 cbt-draft-submit">
                     <i class="bi bi-shuffle me-2"></i>Buat Draft
@@ -926,7 +926,7 @@
                           <td><?= esc($p['nama_paket']) ?></td>
                           <td class="text-center"><span class="badge bg-secondary"><?= $p['jumlah_soal'] ?? count($p['soal_ids'] ?? []) ?></span></td>
                           <td class="text-end pe-3">
-                            <button class="btn btn-sm btn-light me-1" onclick="lihatDraftPaket(<?= $idx + 1 ?>, '<?= esc($p['nama_paket']) ?>')" title="Review soal"><i class="bi bi-eye"></i></button>
+                            <button type="button" class="btn btn-sm btn-light me-1" onclick='lihatDraftPaket(<?= $idx + 1 ?>, <?= json_encode($p["nama_paket"] ?? "") ?>)' title="Review soal"><i class="bi bi-eye"></i></button>
                           </td>
                         </tr>
                       <?php endforeach; ?>
@@ -1010,7 +1010,7 @@
                             <td><?= esc($paket['nama_paket']) ?></td>
                             <td class="text-center"><span class="cbt-soft-count"><?= esc($paket['jumlah_soal'] ?? 0) ?></span></td>
                             <td class="text-end pe-3">
-                              <button class="btn btn-sm btn-outline-primary" onclick="lihatPaket(<?= $paket['paket_id'] ?>, '<?= esc($paket['nama_paket']) ?>')">
+                              <button type="button" class="btn btn-sm btn-outline-primary" onclick='lihatPaket(<?= $paket['paket_id'] ?>, <?= json_encode($paket["nama_paket"] ?? "") ?>)'>
                                 <i class="bi bi-eye me-1"></i>Review Soal
                               </button>
                             </td>
@@ -1335,6 +1335,74 @@
 </div>
 
 <script>
+function cleanupReviewModalState(modalEl) {
+  if (!modalEl) {
+    return;
+  }
+  modalEl.classList.remove('show');
+  modalEl.setAttribute('aria-hidden', 'true');
+  modalEl.removeAttribute('aria-modal');
+  modalEl.style.removeProperty('display');
+  document.querySelectorAll('.modal-backdrop').forEach(function(backdrop) {
+    backdrop.remove();
+  });
+  document.body.classList.remove('modal-open');
+  document.body.style.removeProperty('padding-right');
+  document.body.style.removeProperty('overflow');
+  document.documentElement.classList.remove('modal-open');
+  document.documentElement.style.removeProperty('overflow');
+  document.body.style.pointerEvents = '';
+  document.documentElement.style.pointerEvents = '';
+}
+
+function openReviewModal(modalId, titleId, bodyId, titleText) {
+  const modalEl = document.getElementById(modalId);
+  if (!modalEl) {
+    return null;
+  }
+
+  if (titleId) {
+    document.getElementById(titleId).textContent = titleText;
+  }
+  if (bodyId) {
+    document.getElementById(bodyId).innerHTML = '<div class="text-center py-3"><div class="spinner-border text-primary"></div></div>';
+  }
+
+  // Putuskan MutationObserver dari resetPageScrollState agar tidak mengganggu saat Bootstrap
+  // menambah class modal-open ke body ketika membuka modal ini
+  if (typeof _pageScrollObserver !== 'undefined' && _pageScrollObserver) {
+    _pageScrollObserver.disconnect();
+    _pageScrollObserver = null;
+  }
+
+  const existing = bootstrap.Modal.getInstance(modalEl);
+
+  if (existing) {
+    if (existing._isTransitioning) {
+      // Modal sedang animasi menutup (backdrop-click), tunggu selesai lalu buka ulang fresh
+      modalEl.addEventListener('hidden.bs.modal', function() {
+        if (typeof _pageScrollObserver !== 'undefined' && _pageScrollObserver) {
+          _pageScrollObserver.disconnect();
+          _pageScrollObserver = null;
+        }
+        existing.dispose();
+        cleanupReviewModalState(modalEl);
+        new bootstrap.Modal(modalEl).show();
+      }, { once: true });
+    } else {
+      // Instance ada tapi tidak sedang animasi — dispose dan buka fresh
+      existing.dispose();
+      cleanupReviewModalState(modalEl);
+      new bootstrap.Modal(modalEl).show();
+    }
+  } else {
+    cleanupReviewModalState(modalEl);
+    new bootstrap.Modal(modalEl).show();
+  }
+
+  return modalEl;
+}
+
 function cbtShowPanel(panel) {
   document.getElementById('panelGenerate').classList.toggle('d-none', panel !== 'generate');
   document.getElementById('panelPaket').classList.toggle('d-none', panel !== 'paket');
@@ -1393,9 +1461,7 @@ function renderReviewSoal(data, type) {
 }
 
 function lihatPaket(paketId, nama) {
-  document.getElementById('modalLihatPaketTitle').textContent = 'Soal dalam ' + nama;
-  document.getElementById('modalLihatPaketBody').innerHTML = '<div class="text-center py-3"><div class="spinner-border text-primary"></div></div>';
-  new bootstrap.Modal(document.getElementById('modalLihatPaket')).show();
+  openReviewModal('modalLihatPaket', 'modalLihatPaketTitle', 'modalLihatPaketBody', 'Soal dalam ' + nama);
   fetch('<?= base_url('admin/ujian/paket/') ?>' + paketId + '/soal')
     .then(r => r.json())
     .then(data => {
@@ -1411,9 +1477,7 @@ function lihatPaket(paketId, nama) {
 }
 
 function lihatDraftPaket(index, nama) {
-  document.getElementById('modalLihatPaketTitle').textContent = 'Draft ' + nama;
-  document.getElementById('modalLihatPaketBody').innerHTML = '<div class="text-center py-3"><div class="spinner-border text-primary"></div></div>';
-  new bootstrap.Modal(document.getElementById('modalLihatPaket')).show();
+  openReviewModal('modalLihatPaket', 'modalLihatPaketTitle', 'modalLihatPaketBody', 'Draft ' + nama);
   fetch('<?= base_url('admin/ujian/' . $ujian['id_ujian'] . '/draft-paket/') ?>' + index + '/soal')
     .then(r => r.json())
     .then(data => {
@@ -1427,6 +1491,8 @@ function lihatDraftPaket(index, nama) {
       document.getElementById('modalLihatPaketBody').innerHTML = '<p class="text-danger text-center py-4">Gagal memuat draft paket.</p>';
     });
 }
+
+// Modal review selalu di-dispose saat ditutup dan dibuat ulang saat dibuka kembali
 </script>
 
   <?php else: ?>
@@ -1690,86 +1756,76 @@ function updatePilihBtn(){const cnt=document.querySelectorAll('.check-pilih:chec
 </script>
 
 <!-- ==================== MODAL: Tambah Soal CBT (ke Bank) ==================== -->
-<div class="modal fade cbt-soal-modal" id="modalTambahSoalCBT" tabindex="-1" data-bs-focus="false">
-  <div class="modal-dialog modal-xl">
+<div class="modal fade" id="modalTambahSoalCBT" tabindex="-1" data-bs-focus="false">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
     <div class="modal-content border-0 shadow">
       <div class="modal-header bg-primary text-white px-4 py-3">
-        <div>
-          <h5 class="modal-title fw-semibold">Tambah Soal ke Bank</h5>
-          <div class="small text-white-50 mt-1">Isi pertanyaan, pilihan jawaban, dan metadata soal.</div>
-        </div>
+        <h5 class="modal-title fw-semibold"><i class="bi bi-plus-circle me-2"></i>Tambah Soal ke Bank</h5>
         <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
       <form id="formTambahSoalCBT" method="post">
-        <div class="modal-scroll-area">
-          <div class="modal-body px-4 py-4">
-            <input type="hidden" name="bank_ujian_id" value="<?= esc($assignedBanks[0]['bank_ujian_id'] ?? '') ?>">
-            <div id="ajaxMsgCBT" class="mb-3"></div>
-            <div class="cbt-form-section">
-              <div class="cbt-form-section-title">Informasi Soal</div>
-              <div class="row g-3">
-              <div class="col-md-4">
-                <label class="form-label small fw-semibold">Kode Soal <span class="text-danger">*</span></label>
-                <input type="text" name="kode_soal" class="form-control" required>
-              </div>
-              <div class="col-md-4">
-                <label class="form-label small fw-semibold">Jawaban Benar <span class="text-danger">*</span></label>
-                <select name="jawaban_benar" class="form-select" required>
-                  <option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option><option value="E">E</option>
-                </select>
-              </div>
-              <div class="col-md-4">
-                <label class="form-label small fw-semibold">Tingkat Kesulitan</label>
-                <input type="number" name="tingkat_kesulitan" class="form-control" step="0.001" value="0.000" required>
-              </div>
-              <div class="col-12">
-                <label class="form-label small fw-semibold">Pertanyaan <span class="text-danger">*</span></label>
-                <textarea id="pertanyaan_tambah_cbt" name="pertanyaan" class="form-control summernote" rows="3" required placeholder="Tulis pertanyaan..."></textarea>
-              </div>
-              </div>
+        <input type="hidden" name="bank_ujian_id" value="<?= esc($assignedBanks[0]['bank_ujian_id'] ?? '') ?>">
+        <div class="modal-body px-4 py-4">
+          <div id="ajaxMsgCBT" class="mb-3"></div>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">Kode Soal <span class="text-danger">*</span></label>
+              <input type="text" name="kode_soal" class="form-control" required>
             </div>
-            <div class="cbt-form-section">
-              <div class="cbt-form-section-title">Pilihan Jawaban</div>
-              <div class="row g-3">
-              <?php foreach (['a'=>'A','b'=>'B','c'=>'C','d'=>'D','e'=>'E (opsional)'] as $k => $l): ?>
-                <div class="col-md-6">
-                  <label class="form-label small fw-semibold">Pilihan <?= $l ?></label>
-                  <textarea id="pilihan_<?= $k ?>_tambah_cbt" name="pilihan_<?= $k ?>" class="form-control summernote-sm" rows="2" <?= $k!=='e'?'required':'' ?> placeholder="Pilihan <?= $l ?>"></textarea>
-                </div>
-              <?php endforeach; ?>
-              </div>
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">Jawaban Benar <span class="text-danger">*</span></label>
+              <select name="jawaban_benar" class="form-select" required>
+                <option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option><option value="E">E</option>
+              </select>
             </div>
-            <div class="cbt-form-section">
-              <div class="cbt-form-section-title">Metadata & Pembahasan</div>
-              <div class="row g-3">
-              <div class="col-md-4">
-                <label class="form-label small fw-semibold">Variabel</label>
-                <select name="variabel_id" class="form-select" onchange="loadIndikatorCBT(this.value)">
-                  <option value="">-- Tidak ada --</option>
-                  <?php foreach ($variabel as $v): ?><option value="<?= $v['variabel_id'] ?>"><?= esc($v['nama_variabel']) ?></option><?php endforeach; ?>
-                </select>
-              </div>
-              <div class="col-md-4">
-                <label class="form-label small fw-semibold">Indikator</label>
-                <select name="indikator_id" id="indikatorCBT" class="form-select"><option value="">-- Pilih Variabel dulu --</option></select>
-              </div>
-              <div class="col-md-4">
-                <label class="form-label small fw-semibold">Materi</label>
-                <select name="materi_id" class="form-select">
-                  <option value="">-- Tidak ada --</option>
-                  <?php foreach ($materi as $m): ?><option value="<?= $m['materi_id'] ?>"><?= esc($m['nama_materi']) ?></option><?php endforeach; ?>
-                </select>
-              </div>
-              <div class="col-12">
-                <label class="form-label small fw-semibold">Pembahasan</label>
-                <textarea id="pembahasan_tambah_cbt" name="pembahasan" class="form-control summernote" rows="2" placeholder="Opsional..."></textarea>
-              </div>
-              </div>
+            <div class="col-md-4">
+              <label class="form-label small fw-semibold">Diskriminasi (a)</label>
+              <input type="number" name="a" class="form-control" step="0.001" value="1.000">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small fw-semibold">Kesulitan (b) <span class="text-danger">*</span></label>
+              <input type="number" name="tingkat_kesulitan" class="form-control" step="0.001" value="0.000" required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small fw-semibold">Guessing (c)</label>
+              <input type="number" name="c" class="form-control" step="0.001" value="0.000">
+            </div>
+            <div class="col-12">
+              <label class="form-label small fw-semibold">Pertanyaan <span class="text-danger">*</span></label>
+              <textarea id="pertanyaan_tambah_cbt" name="pertanyaan" class="form-control summernote" rows="3" required></textarea>
+            </div>
+            <?php foreach (['a'=>'A','b'=>'B','c'=>'C','d'=>'D','e'=>'E (opsional)'] as $k => $l): ?>
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">Pilihan <?= $l ?></label>
+              <textarea id="pilihan_<?= $k ?>_tambah_cbt" name="pilihan_<?= $k ?>" class="form-control summernote-sm" rows="2" <?= $k!=='e'?'required':'' ?>></textarea>
+            </div>
+            <?php endforeach; ?>
+            <div class="col-md-4">
+              <label class="form-label small fw-semibold">Variabel</label>
+              <select name="variabel_id" class="form-select" onchange="loadIndikatorCBT(this.value)">
+                <option value="">-- Tidak ada --</option>
+                <?php foreach ($variabel as $v): ?><option value="<?= $v['variabel_id'] ?>"><?= esc($v['nama_variabel']) ?></option><?php endforeach; ?>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small fw-semibold">Indikator</label>
+              <select name="indikator_id" id="indikatorCBT" class="form-select"><option value="">-- Pilih Variabel dulu --</option></select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small fw-semibold">Materi</label>
+              <select name="materi_id" class="form-select">
+                <option value="">-- Tidak ada --</option>
+                <?php foreach ($materi as $m): ?><option value="<?= $m['materi_id'] ?>"><?= esc($m['nama_materi']) ?></option><?php endforeach; ?>
+              </select>
+            </div>
+            <div class="col-12">
+              <label class="form-label small fw-semibold">Pembahasan</label>
+              <textarea id="pembahasan_tambah_cbt" name="pembahasan" class="form-control summernote" rows="2"></textarea>
             </div>
           </div>
         </div>
         <div class="modal-footer border-0 bg-light px-4 py-3">
-          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Batal</button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
           <button type="submit" class="btn btn-primary px-4"><i class="bi bi-check-lg me-1"></i>Simpan Soal</button>
         </div>
       </form>
@@ -1833,58 +1889,35 @@ function updatePilihBtn(){const cnt=document.querySelectorAll('.check-pilih:chec
 
 <!-- Edit Soal Modals for CBT mode (inline, simple) -->
 <?php if (($ujian['tipe_ujian'] ?? 'CAT') == 'CBT' && !empty($bankSoal)): foreach ($bankSoal as $s): ?>
-<div class="modal fade cbt-soal-modal" id="modalEditSoal<?= $s['soal_id'] ?>" tabindex="-1" data-bs-focus="false">
-  <div class="modal-dialog modal-xl">
+<div class="modal fade" id="modalEditSoal<?= $s['soal_id'] ?>" tabindex="-1" data-bs-focus="false">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
     <div class="modal-content border-0 shadow">
-      <div class="modal-header bg-warning px-4 py-3">
-        <div>
-          <h5 class="modal-title fw-semibold">Edit Soal</h5>
-          <div class="small text-dark mt-1"><?= esc($s['kode_soal']) ?></div>
-        </div>
+      <div class="modal-header bg-warning text-dark px-4 py-3">
+        <h5 class="modal-title fw-semibold"><i class="bi bi-pencil me-2"></i>Edit Soal</h5>
         <button class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <form action="<?= base_url('admin/soal/edit/' . $s['soal_id']) ?>" method="post">
         <input type="hidden" name="ujian_id" value="<?= $ujian['id_ujian'] ?>">
-        <div class="modal-scroll-area">
-          <div class="modal-body px-4 py-4">
-            <div class="row g-3">
-              <div class="col-md-4"><label class="form-label small fw-semibold">Kode Soal</label><input type="text" name="kode_soal" class="form-control" value="<?= esc($s['kode_soal']) ?>" required></div>
-              <div class="col-md-4"><label class="form-label small fw-semibold">Jawaban Benar</label><select name="jawaban_benar" class="form-select" required>
-                <?php foreach(['A','B','C','D','E'] as $j): ?><option value="<?= $j ?>" <?= $s['jawaban_benar']==$j?'selected':'' ?>><?= $j ?></option><?php endforeach; ?>
-              </select></div>
-              <div class="col-md-4"><label class="form-label small fw-semibold">Kesulitan</label><input type="number" name="tingkat_kesulitan" class="form-control" step="0.001" value="<?= $s['tingkat_kesulitan'] ?>" required></div>
-              <div class="col-12"><label class="form-label small fw-semibold">Pertanyaan</label><textarea id="pertanyaan_edit_cbt_<?= $s['soal_id'] ?>" name="pertanyaan" class="form-control summernote" rows="3" required><?= esc($s['pertanyaan']) ?></textarea></div>
-              <?php foreach(['a'=>'A','b'=>'B','c'=>'C','d'=>'D','e'=>'E'] as $k=>$l): ?>
-              <div class="col-md-6"><label class="form-label small fw-semibold">Pilihan <?= $l ?></label><textarea id="pilihan_<?= $k ?>_edit_cbt_<?= $s['soal_id'] ?>" name="pilihan_<?= $k ?>" class="form-control summernote-sm" rows="2" <?= $k!=='e'?'required':'' ?>><?= esc($s['pilihan_'.$k] ?? '') ?></textarea></div>
-              <?php endforeach; ?>
-              <div class="col-md-4">
-                <label class="form-label small fw-semibold">Variabel</label>
-                <select name="variabel_id" class="form-select" onchange="loadIndikatorCBT(this.value, 'indikatorEdit<?= $s['soal_id'] ?>')">
-                  <option value="">-- Tidak ada --</option>
-                  <?php foreach ($variabel as $v): ?><option value="<?= $v['variabel_id'] ?>" <?= (string)($s['variabel_id'] ?? '') === (string)$v['variabel_id'] ? 'selected' : '' ?>><?= esc($v['nama_variabel']) ?></option><?php endforeach; ?>
-                </select>
-              </div>
-              <div class="col-md-4">
-                <label class="form-label small fw-semibold">Indikator</label>
-                <select name="indikator_id" id="indikatorEdit<?= $s['soal_id'] ?>" class="form-select">
-                  <option value="">-- Tidak ada --</option>
-                  <?php foreach ($indikator as $i): if ((string)($i['variabel_id'] ?? '') !== (string)($s['variabel_id'] ?? '')) continue; ?><option value="<?= $i['indikator_id'] ?>" <?= (string)($s['indikator_id'] ?? '') === (string)$i['indikator_id'] ? 'selected' : '' ?>><?= esc($i['nama_indikator']) ?></option><?php endforeach; ?>
-                </select>
-              </div>
-              <div class="col-md-4">
-                <label class="form-label small fw-semibold">Materi</label>
-                <select name="materi_id" class="form-select">
-                  <option value="">-- Tidak ada --</option>
-                  <?php foreach ($materi as $m): ?><option value="<?= $m['materi_id'] ?>" <?= (string)($s['materi_id'] ?? '') === (string)$m['materi_id'] ? 'selected' : '' ?>><?= esc($m['nama_materi']) ?></option><?php endforeach; ?>
-                </select>
-              </div>
-              <div class="col-12"><label class="form-label small fw-semibold">Pembahasan</label><textarea id="pembahasan_edit_cbt_<?= $s['soal_id'] ?>" name="pembahasan" class="form-control summernote" rows="2"><?= esc($s['pembahasan'] ?? '') ?></textarea></div>
-            </div>
+        <div class="modal-body px-4 py-4">
+          <div class="row g-3">
+            <div class="col-md-6"><label class="form-label small fw-semibold">Kode Soal</label><input type="text" name="kode_soal" class="form-control" value="<?= esc($s['kode_soal']) ?>" required></div>
+            <div class="col-md-6"><label class="form-label small fw-semibold">Jawaban Benar</label><select name="jawaban_benar" class="form-select" required><?php foreach(['A','B','C','D','E'] as $j): ?><option value="<?= $j ?>" <?= $s['jawaban_benar']==$j?'selected':'' ?>><?= $j ?></option><?php endforeach; ?></select></div>
+            <div class="col-md-4"><label class="form-label small fw-semibold">Diskriminasi (a)</label><input type="number" name="a" class="form-control" step="0.001" value="<?= $s['a']??1 ?>"></div>
+            <div class="col-md-4"><label class="form-label small fw-semibold">Kesulitan (b)</label><div class="input-group"><input type="number" name="tingkat_kesulitan" class="form-control" step="0.001" value="<?= $s['tingkat_kesulitan'] ?>" required><span class="input-group-text">-3..+3</span></div></div>
+            <div class="col-md-4"><label class="form-label small fw-semibold">Guessing (c)</label><input type="number" name="c" class="form-control" step="0.001" value="<?= $s['c']??0 ?>"></div>
+            <div class="col-12"><label class="form-label small fw-semibold">Pertanyaan</label><textarea id="pertanyaan_edit_cbt_<?= $s['soal_id'] ?>" name="pertanyaan" class="form-control summernote" required><?= esc($s['pertanyaan']) ?></textarea></div>
+            <?php foreach(['a'=>'A','b'=>'B','c'=>'C','d'=>'D','e'=>'E'] as $k=>$l): ?>
+            <div class="col-md-6"><label class="form-label small fw-semibold">Pilihan <?= $l ?></label><textarea id="pilihan_<?= $k ?>_edit_cbt_<?= $s['soal_id'] ?>" name="pilihan_<?= $k ?>" class="form-control summernote-sm" <?= $k!=='e'?'required':'' ?>><?= esc($s['pilihan_'.$k] ?? '') ?></textarea></div>
+            <?php endforeach; ?>
+            <div class="col-md-4"><label class="form-label small fw-semibold">Variabel</label><select name="variabel_id" class="form-select" onchange="loadIndikatorCBT(this.value, 'indikatorEdit<?= $s['soal_id'] ?>')"><option value="">-- Tidak ada --</option><?php foreach ($variabel as $v): ?><option value="<?= $v['variabel_id'] ?>" <?= (string)($s['variabel_id'] ?? '') === (string)$v['variabel_id'] ? 'selected' : '' ?>><?= esc($v['nama_variabel']) ?></option><?php endforeach; ?></select></div>
+            <div class="col-md-4"><label class="form-label small fw-semibold">Indikator</label><select name="indikator_id" id="indikatorEdit<?= $s['soal_id'] ?>" class="form-select"><option value="">-- Tidak ada --</option><?php foreach ($indikator as $i): if ((string)($i['variabel_id'] ?? '') !== (string)($s['variabel_id'] ?? '')) continue; ?><option value="<?= $i['indikator_id'] ?>" <?= (string)($s['indikator_id'] ?? '') === (string)$i['indikator_id'] ? 'selected' : '' ?>><?= esc($i['nama_indikator']) ?></option><?php endforeach; ?></select></div>
+            <div class="col-md-4"><label class="form-label small fw-semibold">Materi</label><select name="materi_id" class="form-select"><option value="">-- Tidak ada --</option><?php foreach ($materi as $m): ?><option value="<?= $m['materi_id'] ?>" <?= (string)($s['materi_id'] ?? '') === (string)$m['materi_id'] ? 'selected' : '' ?>><?= esc($m['nama_materi']) ?></option><?php endforeach; ?></select></div>
+            <div class="col-12"><label class="form-label small fw-semibold">Pembahasan</label><textarea id="pembahasan_edit_cbt_<?= $s['soal_id'] ?>" name="pembahasan" class="form-control summernote"><?= esc($s['pembahasan'] ?? '') ?></textarea></div>
           </div>
         </div>
         <div class="modal-footer border-0 bg-light px-4 py-3">
-          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Batal</button>
-          <button type="submit" class="btn btn-primary px-4">Simpan</button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+          <button type="submit" class="btn btn-warning px-4">Simpan</button>
         </div>
       </form>
     </div>
@@ -2345,15 +2378,17 @@ const summernoteCfg = {
   }
 };
 const summernoteCfgSm = {
-  height: 100,
+  height: 150,
   dialogsInBody: true,
   dialogsFade: false,
   container: 'body',
   toolbar: [
-    ['style',['bold','italic','underline']],
-    ['font',['superscript','subscript']],
-    ['color',['color']],
-    ['insert',['picture']]
+    ['style', ['bold','italic','underline','clear']],
+    ['fontsize', ['fontsize']],
+    ['color', ['color']],
+    ['para', ['ul','ol','paragraph']],
+    ['table', ['table']],
+    ['insert', ['link','picture']]
   ],
   callbacks: summernoteCfg.callbacks
 };
@@ -2490,7 +2525,10 @@ document.addEventListener('hidden.bs.modal', function(e){
     resetPageScrollState(true);
   }
 });
-document.addEventListener('hidden.bs.modal', function() {
+document.addEventListener('hidden.bs.modal', function(e) {
+  // Review modal tidak punya Summernote, tidak perlu resetPageScrollState
+  // (jika dipanggil, MutationObserver-nya akan merusak modal review berikutnya)
+  if (e.target && e.target.id === 'modalLihatPaket') return;
   requestAnimationFrame(function() {
     requestAnimationFrame(function() {
       resetPageScrollState(true);
@@ -2498,6 +2536,10 @@ document.addEventListener('hidden.bs.modal', function() {
   });
 });
 
+document.addEventListener('show.bs.modal', function(e) {
+  if (e.target.classList.contains('note-modal')) return;
+  if (_pageScrollObserver) { _pageScrollObserver.disconnect(); _pageScrollObserver = null; }
+});
 document.addEventListener('shown.bs.modal', function(e) {
   if (e.target.classList.contains('note-modal')) {
     hardenSummernoteButtons(e.target);

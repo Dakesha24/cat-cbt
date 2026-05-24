@@ -38,6 +38,7 @@ class Guru extends Controller
     protected $ujianSoalCatModel;
     protected $db;
 
+    // Inisialisasi semua model yang dibutuhkan controller ini sekaligus
     public function __construct()
     {
         $this->jenisUjianModel = new JenisUjianModel();
@@ -58,6 +59,7 @@ class Guru extends Controller
         $this->db = \Config\Database::connect();
     }
 
+    // Tampilkan halaman utama dashboard guru
     public function dashboard()
     {
         return view('guru/dashboard');
@@ -65,6 +67,7 @@ class Guru extends Controller
 
     // ===== KELOLA UJIAN =====
 
+    // Tampilkan daftar ujian yang bisa diakses guru berdasarkan kelas yang diajar
     public function ujian()
     {
         $userId = session()->get('user_id');
@@ -93,8 +96,10 @@ class Guru extends Controller
         return view('guru/ujian', $data);
     }
 
+    // Proses form tambah ujian; validasi akses mata pelajaran, sekolah, dan kelas sebelum insert
     public function tambahUjian()
     {
+        $isAjax = $this->request->isAJAX();
         $userId = session()->get('user_id');
         $guru = $this->guruModel->where('user_id', $userId)->first();
 
@@ -121,20 +126,26 @@ class Guru extends Controller
         ];
 
         if (!$this->validate($rules)) {
-            return redirect()->back()->withInput()->with('error', $this->validator->getErrors());
+            $errors = $this->validator->getErrors();
+            if ($isAjax) {
+                return $this->response->setJSON(['success' => false, 'errors' => $errors]);
+            }
+            return redirect()->back()->withInput()->with('error', $errors);
         }
 
         // Validasi Mata Pelajaran (pastikan guru memiliki akses)
         $jenisUjianId = $this->request->getPost('jenis_ujian_id');
         if (!$this->jenisUjianModel->hasAccess($jenisUjianId, $guru['guru_id'])) {
-            return redirect()->to('guru/ujian')
-                ->with('error', 'Anda tidak memiliki akses untuk menggunakan Mata Pelajaran tersebut.');
+            $msg = 'Anda tidak memiliki akses untuk menggunakan Mata Pelajaran tersebut.';
+            if ($isAjax) return $this->response->setJSON(['success' => false, 'errors' => ['jenis_ujian_id' => $msg]]);
+            return redirect()->to('guru/ujian')->with('error', $msg);
         }
 
         $sekolahId = $this->normalizeNullableId($this->request->getPost('sekolah_id'));
         if ((int) ($guru['sekolah_id'] ?? 0) !== (int) $sekolahId) {
-            return redirect()->to('guru/ujian')
-                ->with('error', 'Anda tidak memiliki akses untuk membuat ujian di sekolah tersebut.');
+            $msg = 'Anda tidak memiliki akses untuk membuat ujian di sekolah tersebut.';
+            if ($isAjax) return $this->response->setJSON(['success' => false, 'errors' => ['general' => $msg]]);
+            return redirect()->to('guru/ujian')->with('error', $msg);
         }
 
         // Validasi kelas (jika dipilih)
@@ -148,11 +159,11 @@ class Guru extends Controller
                 ->get()->getRowArray();
 
             if (!$kelasAccess) {
-                return redirect()->to('guru/ujian')
-                    ->with('error', 'Anda tidak memiliki akses untuk menambahkan ujian pada kelas tersebut.');
+                $msg = 'Anda tidak memiliki akses untuk menambahkan ujian pada kelas tersebut.';
+                if ($isAjax) return $this->response->setJSON(['success' => false, 'errors' => ['kelas_id' => $msg]]);
+                return redirect()->to('guru/ujian')->with('error', $msg);
             }
         }
-
 
         $data = [
             'sekolah_id' => $sekolahId,
@@ -178,12 +189,18 @@ class Guru extends Controller
 
         try {
             $this->ujianModel->insert($data);
+            if ($isAjax) {
+                return $this->response->setJSON(['success' => true, 'redirect' => base_url('guru/ujian')]);
+            }
             return redirect()->to('guru/ujian')->with('success', 'Ujian berhasil ditambahkan');
         } catch (\Exception $e) {
-            return redirect()->to('guru/ujian')->with('error', 'Gagal menambahkan ujian: ' . $e->getMessage());
+            $msg = 'Gagal menambahkan ujian: ' . $e->getMessage();
+            if ($isAjax) return $this->response->setJSON(['success' => false, 'errors' => ['general' => $msg]]);
+            return redirect()->to('guru/ujian')->with('error', $msg);
         }
     }
 
+    // Update ujian; cek kepemilikan ujian dan pastikan kelas/sekolah masih dalam wewenang guru
     public function editUjian($id)
     {
         $userId = session()->get('user_id');
@@ -285,6 +302,7 @@ class Guru extends Controller
         }
     }
 
+    // Hapus ujian; tidak bisa dihapus jika masih ada soal terkait (CAT atau CBT)
     public function hapusUjian($id)
     {
         $userId = session()->get('user_id');
@@ -318,6 +336,7 @@ class Guru extends Controller
 
     // ===== KELOLA SOAL =====
 
+    // Halaman kelola soal; menampilkan soal CAT (pool) atau CBT (per ujian) sesuai tipe ujian, plus stepper bank/paket
     public function kelolaSoal($ujian_id)
     {
         $userId = session()->get('user_id');
@@ -335,6 +354,7 @@ class Guru extends Controller
                 ->with('error', 'Ujian tidak ditemukan.');
         }
 
+        // CAT: soal dari pool ujian_soal_cat, CBT: soal langsung dari soal_ujian
         $data['soal'] = (($data['ujian']['tipe_ujian'] ?? 'CAT') === 'CAT')
             ? $this->ujianSoalCatModel->getSoalByUjian($ujian_id)
             : $this->soalUjianModel->where('ujian_id', $ujian_id)->findAll();
@@ -362,6 +382,7 @@ class Guru extends Controller
         $data['paketSudahDipakai'] = $data['attemptCount'] > 0;
         $data['draftPaket'] = $this->getDraftPaket($ujian_id);
         $panel = $this->request->getGet('panel');
+        // Jika paket sudah final (ada di DB, tidak ada draft), paksa step 3 supaya guru tidak bisa generate ulang
         $finalPaketSudahAda = !empty($data['paketList']) && empty($data['draftPaket']['packages']);
         $data['panelAktif'] = in_array($panel, ['generate', 'paket'], true)
             ? $panel
@@ -374,6 +395,8 @@ class Guru extends Controller
     }
 
 
+    // Tambah soal ke ujian; CAT: ujian_id di-null lalu di-link lewat ujian_soal_cat, CBT: ujian_id langsung diisi
+    // Setelah simpan, gambar temp Summernote yang tidak dipakai dihapus otomatis
     public function tambahSoal()
     {
         // Validasi form input (sama seperti sebelumnya)
@@ -407,6 +430,7 @@ class Guru extends Controller
         // Ambil data dari form
         $ujianId = (int) $this->request->getPost('ujian_id');
         $ujian = $this->ujianModel->find($ujianId);
+        // Soal CAT tidak punya ujian_id langsung; relasinya lewat tabel ujian_soal_cat
         $isCatMode = (($ujian['tipe_ujian'] ?? 'CAT') === 'CAT');
 
         $data = [
@@ -481,6 +505,7 @@ class Guru extends Controller
     }
 
 
+    // Update soal; gambar lama yang dihapus dari konten HTML akan otomatis dihapus dari disk jika tidak dipakai soal lain
     public function editSoal($id)
     {
         // Ambil data soal yang akan diedit
@@ -606,6 +631,7 @@ class Guru extends Controller
         }
     }
 
+    // Hapus soal; tidak bisa hapus jika soal sudah dijawab siswa; file foto dan gambar editor ikut dihapus
     public function hapusSoal($id, $ujian_id)
     {
         // Cek apakah soal sudah dijawab siswa
@@ -674,6 +700,7 @@ class Guru extends Controller
 
     // ===== KELOLA JADWAL UJIAN =====
 
+    // Tampilkan daftar jadwal ujian yang dikelola guru; hanya jadwal dari kelas yang diajar guru ini
     public function jadwalUjian()
     {
         $userId = session()->get('user_id');
@@ -722,6 +749,8 @@ class Guru extends Controller
         return view('guru/jadwal_ujian', $data);
     }
 
+    // Tambah jadwal ujian; validasi akses ujian, kelas, dan konsistensi sekolah/kelas sebelum insert
+    // Untuk penugasan individu, siswa_ids disimpan sebagai JSON di kolom siswa_ids
     public function tambahJadwal()
     {
         $userId = session()->get('user_id');
@@ -792,6 +821,7 @@ class Guru extends Controller
     }
 
 
+    // Update jadwal ujian; cek duplikasi kombinasi ujian+kelas (kecuali jadwal sendiri) dan validasi status waktu
     public function editJadwal($id)
     {
         $userId = session()->get('user_id');
@@ -885,6 +915,7 @@ class Guru extends Controller
         }
     }
 
+    // Hapus jadwal ujian; tidak bisa hapus jika sudah ada peserta yang terdaftar
     public function hapusJadwal($id)
     {
         $userId = session()->get('user_id');
@@ -917,6 +948,7 @@ class Guru extends Controller
 
     // ===== KELOLA HASIL UJIAN =====
 
+    // Hitung durasi pengerjaan tiap soal berdasarkan selisih waktu_menjawab dengan soal sebelumnya
     private function hitungDurasiPerSoal($detailJawaban, $waktuMulaiUjian)
     {
         $hasilDenganDurasi = [];
@@ -943,6 +975,7 @@ class Guru extends Controller
         return $hasilDenganDurasi;
     }
 
+    // Konversi theta IRT ke skor 0-100 dengan rumus: 50 + (16.67 * theta); hasil diclamp ke 0 minimum
     private function hitungKemampuanKognitif($theta)
     {
         // Rumus baru: skor akhir siswa (x) = 50 + (16.67 * tetha)
@@ -955,9 +988,7 @@ class Guru extends Controller
         return round($skor_akhir, 2);
     }
 
-    /**
-     * Dapatkan klasifikasi kemampuan kognitif berdasarkan skor
-     */
+    // Kembalikan label kategori + CSS class berdasarkan rentang skor (Sangat Rendah s/d Sangat Baik)
     private function getKlasifikasiKognitif($skor)
     {
         if ($skor < 25) {
@@ -993,6 +1024,7 @@ class Guru extends Controller
         }
     }
 
+    // Ambil attempt terakhir (nomor_attempt tertinggi) milik peserta
     private function getLatestAttemptForPeserta(int $pesertaUjianId): ?array
     {
         return $this->db->table('attempt_ujian')
@@ -1002,6 +1034,7 @@ class Guru extends Controller
             ->getRowArray();
     }
 
+    // Ambil attempt spesifik berdasarkan attempt_id; pastikan attempt itu milik peserta yang benar
     private function getAttemptByIdForPeserta(int $pesertaUjianId, int $attemptId): ?array
     {
         return $this->db->table('attempt_ujian')
@@ -1011,6 +1044,7 @@ class Guru extends Controller
             ->getRowArray();
     }
 
+    // Ambil semua attempt milik peserta, urut dari nomor terkecil (untuk tampilan riwayat percobaan)
     private function getAttemptsForPeserta(int $pesertaUjianId): array
     {
         return $this->db->table('attempt_ujian')
@@ -1020,17 +1054,22 @@ class Guru extends Controller
             ->getResultArray();
     }
 
+    // Bangun ringkasan hasil ujian; CAT: theta akhir dikonversi ke skor, CBT: langsung pakai nilai_akhir dari attempt
+    // theta_saat_ini diambil dari baris terakhir detail jawaban (titik akhir estimasi CAT)
     private function buildResultSummary(array $context, array $detailJawaban, ?array $attempt = null): array
     {
         $isCatMode = ($context['tipe_ujian'] ?? 'CAT') === 'CAT';
         $lastResult = !empty($detailJawaban) ? end($detailJawaban) : null;
+        // Theta final diambil dari jawaban terakhir karena CAT mengupdate theta setiap soal dijawab
         $thetaAkhir = $lastResult ? (float) ($lastResult['theta_saat_ini'] ?? 0) : 0.0;
         $seAkhir = $lastResult && isset($lastResult['se_saat_ini']) ? (float) $lastResult['se_saat_ini'] : null;
 
         if ($isCatMode) {
+            // CAT: konversi theta ke skor 0-100 lalu clamp supaya tidak melewati batas
             $skorAkhir = $this->hitungKemampuanKognitif($thetaAkhir);
             $nilaiAkhir = min(100, max(0, round($skorAkhir)));
         } else {
+            // CBT: nilai_akhir sudah tersimpan di tabel attempt_ujian
             $skorAkhir = round((float) ($attempt['nilai_akhir'] ?? $context['nilai_akhir'] ?? 0), 2);
             $nilaiAkhir = $skorAkhir;
         }
@@ -1045,6 +1084,7 @@ class Guru extends Controller
         ];
     }
 
+    // Tampilkan daftar jadwal ujian beserta statistik durasi (rata-rata, tercepat, terlama) dari peserta yang selesai
     public function hasilUjian()
     {
         $userId = session()->get('user_id');
@@ -1105,6 +1145,89 @@ class Guru extends Controller
         return view('guru/hasil_ujian', ['daftarUjian' => $daftarUjian]);
     }
 
+    // Halaman analitik hasil ujian guru; data difilter ketat berdasarkan guru_id dan opsi filter dari request
+    // Filter sekolah dikunci ke sekolah guru (lockSchoolFilter = true supaya guru tidak bisa ganti sekolah)
+    public function analitikHasilUjian()
+    {
+        $userId = session()->get('user_id');
+        $guru = $this->guruModel->where('user_id', $userId)->first();
+
+        if (!$guru) {
+            return redirect()->to(base_url('guru/hasil-ujian'))->with('error', 'Data guru tidak ditemukan.');
+        }
+
+        $filters = $this->getAnalitikFiltersFromRequest();
+        $filters['sekolah_id'] = (int) ($guru['sekolah_id'] ?? 0);
+
+        $pesertaRows = $this->getAnalitikPesertaRows($filters, (int) $guru['guru_id']);
+        $overallStats = $this->getAnalitikOverallJawaban($filters, (int) $guru['guru_id']);
+        $studentRows = $this->getAnalitikStudentRows($filters, (int) $guru['guru_id']);
+
+        $data = [
+            'pageRole' => 'guru',
+            'basePath' => 'guru/hasil-ujian',
+            'filters' => $filters,
+            'filterOptions' => [
+                'sekolah' => !empty($guru['sekolah_id'])
+                    ? $this->db->table('sekolah')->where('sekolah_id', $guru['sekolah_id'])->get()->getResultArray()
+                    : [],
+                'kelas' => $this->db->table('kelas k')
+                    ->select('k.kelas_id, k.sekolah_id, k.nama_kelas, k.tahun_ajaran, s.nama_sekolah')
+                    ->join('kelas_guru kg', 'kg.kelas_id = k.kelas_id')
+                    ->join('sekolah s', 's.sekolah_id = k.sekolah_id', 'left')
+                    ->where('kg.guru_id', $guru['guru_id'])
+                    ->orderBy('k.nama_kelas', 'ASC')
+                    ->get()
+                    ->getResultArray(),
+                'jenis_ujian' => [
+                    ['value' => 'CAT', 'label' => 'CAT'],
+                    ['value' => 'CBT', 'label' => 'CBT'],
+                ],
+                'ujian' => $this->db->table('jadwal_ujian ju')
+                    ->select('ju.jadwal_id, ju.kelas_id, u.tipe_ujian, u.nama_ujian, u.kode_ujian, k.sekolah_id, k.nama_kelas, ju.tanggal_mulai')
+                    ->join('ujian u', 'u.id_ujian = ju.ujian_id')
+                    ->join('kelas k', 'k.kelas_id = ju.kelas_id', 'left')
+                    ->where('ju.guru_id', $guru['guru_id'])
+                    ->orderBy('ju.tanggal_mulai', 'DESC')
+                    ->get()
+                    ->getResultArray(),
+                'percobaan' => $this->db->table('attempt_ujian au')
+                    ->distinct()
+                    ->select('au.nomor_attempt')
+                    ->join('peserta_ujian pu', 'pu.peserta_ujian_id = au.peserta_ujian_id')
+                    ->join('jadwal_ujian ju', 'ju.jadwal_id = pu.jadwal_id')
+                    ->join('ujian u', 'u.id_ujian = ju.ujian_id')
+                    ->where('ju.guru_id', $guru['guru_id'])
+                    ->where('au.status', 'selesai')
+                    ->where('u.tipe_ujian', 'CBT')
+                    ->orderBy('au.nomor_attempt', 'ASC')
+                    ->get()
+                    ->getResultArray(),
+                'variabel' => $this->variabelModel->orderBy('nama_variabel', 'ASC')->findAll(),
+                'indikator' => $this->indikatorModel
+                    ->select('indikator.*, variabel.nama_variabel')
+                    ->join('variabel', 'variabel.variabel_id = indikator.variabel_id', 'left')
+                    ->orderBy('variabel.nama_variabel', 'ASC')
+                    ->orderBy('indikator.nama_indikator', 'ASC')
+                    ->findAll(),
+                'materi' => $this->materiModel->orderBy('nama_materi', 'ASC')->findAll(),
+            ],
+            'summary' => [
+                'total_peserta' => count($pesertaRows),
+                'rata_rata_skor' => !empty($pesertaRows) ? array_sum(array_column($pesertaRows, 'skor_akhir')) / count($pesertaRows) : 0,
+                'rata_rata_benar' => (float) ($overallStats['persentase_benar'] ?? 0),
+                'rata_rata_durasi_detik' => (int) round($overallStats['rata_rata_durasi_detik'] ?? 0),
+                'total_soal_muncul' => (int) ($overallStats['total_soal'] ?? 0),
+            ],
+            'durationBars' => $this->getAnalitikDurationBars($filters, (int) $guru['guru_id']),
+            'studentRows' => $studentRows,
+            'lockSchoolFilter' => true,
+        ];
+
+        return view('guru/hasil_analitik', $data);
+    }
+
+    // Hapus seluruh hasil ujian satu siswa (jawaban + record peserta); hanya guru pengawas jadwal yang boleh hapus
     public function hapusHasilSiswa($pesertaUjianId)
     {
         $userId = session()->get('user_id');
@@ -1153,9 +1276,384 @@ class Guru extends Controller
         return redirect()->to('guru/hasil-ujian/siswa/' . $peserta['jadwal_id']);
     }
 
-    /**
-     * Reset status ujian siswa (untuk siswa yang belum selesai)
-     */
+    // Ambil dan normalisasi semua parameter filter analitik dari query string request
+    private function getAnalitikFiltersFromRequest(): array
+    {
+        return [
+            'sekolah_id' => $this->normalizeNullableInt($this->request->getGet('sekolah_id')),
+            'kelas_id' => $this->normalizeNullableInt($this->request->getGet('kelas_id')),
+            'tipe_ujian' => $this->normalizeNullableExamType($this->request->getGet('tipe_ujian')),
+            'jadwal_id' => $this->normalizeNullableInt($this->request->getGet('jadwal_id')),
+            'nomor_attempt' => $this->normalizeNullableInt($this->request->getGet('nomor_attempt')),
+            'variabel_id' => $this->normalizeNullableInt($this->request->getGet('variabel_id')),
+            'indikator_id' => $this->normalizeNullableInt($this->request->getGet('indikator_id')),
+            'materi_id' => $this->normalizeNullableInt($this->request->getGet('materi_id')),
+        ];
+    }
+
+    // Konversi nilai ke int, kembalikan null jika kosong atau bukan angka
+    private function normalizeNullableInt($value): ?int
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return is_numeric($value) ? (int) $value : null;
+    }
+
+    // Pastikan nilai tipe ujian hanya 'CAT' atau 'CBT'; selain itu dikembalikan null
+    private function normalizeNullableExamType($value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $value = strtoupper((string) $value);
+
+        return in_array($value, ['CAT', 'CBT'], true) ? $value : null;
+    }
+
+    // Bangun subquery untuk attempt: jika ada filter nomor_attempt tertentu, gunakan itu; jika tidak, ambil attempt terbaru per peserta
+    private function getAnalitikAttemptSubquery(array $filters): string
+    {
+        if (!empty($filters['nomor_attempt'])) {
+            return '(SELECT peserta_ujian_id, nomor_attempt AS max_attempt
+                FROM attempt_ujian
+                WHERE status = "selesai" AND nomor_attempt = ' . (int) $filters['nomor_attempt'] . ') la';
+        }
+
+        return '(SELECT peserta_ujian_id, MAX(nomor_attempt) AS max_attempt
+            FROM attempt_ujian
+            WHERE status = "selesai"
+            GROUP BY peserta_ujian_id) la';
+    }
+
+    // Terapkan semua filter analitik ke query builder; selalu filter guru_id duluan untuk keamanan data
+    private function applyAnalitikScopeFilters($builder, array $filters, int $guruId): void
+    {
+        $builder->where('ju.guru_id', $guruId);
+
+        if (!empty($filters['sekolah_id'])) {
+            $builder->where('k.sekolah_id', $filters['sekolah_id']);
+        }
+
+        if (!empty($filters['kelas_id'])) {
+            $builder->where('ju.kelas_id', $filters['kelas_id']);
+        }
+
+        if (!empty($filters['tipe_ujian'])) {
+            $builder->where('u.tipe_ujian', $filters['tipe_ujian']);
+        }
+
+        if (!empty($filters['jadwal_id'])) {
+            $builder->where('ju.jadwal_id', $filters['jadwal_id']);
+        }
+
+        if (!empty($filters['variabel_id'])) {
+            $builder->where('sq.variabel_id', $filters['variabel_id']);
+        }
+
+        if (!empty($filters['indikator_id'])) {
+            $builder->where('sq.indikator_id', $filters['indikator_id']);
+        }
+
+        if (!empty($filters['materi_id'])) {
+            $builder->where('sq.materi_id', $filters['materi_id']);
+        }
+    }
+
+    // Ambil baris per peserta (satu baris = satu attempt yang difilter); hitung skor_akhir sesuai tipe CAT/CBT
+    private function getAnalitikPesertaRows(array $filters, int $guruId): array
+    {
+        $builder = $this->db->table('peserta_ujian pu')
+            ->select('pu.peserta_ujian_id, u.tipe_ujian, au.nilai_akhir, au.waktu_mulai, au.waktu_selesai')
+            ->join('jadwal_ujian ju', 'ju.jadwal_id = pu.jadwal_id')
+            ->join('ujian u', 'u.id_ujian = ju.ujian_id')
+            ->join('kelas k', 'k.kelas_id = ju.kelas_id', 'left')
+            ->join($this->getAnalitikAttemptSubquery($filters), 'la.peserta_ujian_id = pu.peserta_ujian_id', 'inner', false)
+            ->join('attempt_ujian au', 'au.peserta_ujian_id = la.peserta_ujian_id AND au.nomor_attempt = la.max_attempt', 'inner', false)
+            ->where('pu.status', 'selesai');
+
+        if (!empty($filters['variabel_id']) || !empty($filters['indikator_id']) || !empty($filters['materi_id'])) {
+            $builder
+                ->join('attempt_soal ats', 'ats.attempt_id = au.attempt_id', 'inner')
+                ->join('soal_ujian sq', 'sq.soal_id = ats.original_soal_id', 'left');
+        }
+
+        $this->applyAnalitikScopeFilters($builder, $filters, $guruId);
+
+        $rows = $builder
+            ->groupBy('pu.peserta_ujian_id, u.tipe_ujian, au.nilai_akhir, au.waktu_mulai, au.waktu_selesai')
+            ->get()
+            ->getResultArray();
+
+        foreach ($rows as &$row) {
+            $rawScore = (float) ($row['nilai_akhir'] ?? 0);
+            $row['skor_akhir'] = ($row['tipe_ujian'] ?? 'CAT') === 'CAT'
+                ? $this->hitungKemampuanKognitif($rawScore)
+                : round($rawScore, 2);
+            $row['level_kemampuan'] = $this->getAnalitikLevelKemampuan($row['skor_akhir']);
+        }
+        unset($row);
+
+        return $rows;
+    }
+
+    // Hitung jumlah peserta per level kemampuan (Mahir/Cakap/Layak/Berkembang) untuk grafik distribusi
+    private function buildAnalitikLevelSummary(array $pesertaRows): array
+    {
+        $summary = [
+            'Mahir' => ['label' => 'Mahir', 'count' => 0, 'color' => '#198754'],
+            'Cakap' => ['label' => 'Cakap', 'count' => 0, 'color' => '#0d6efd'],
+            'Layak' => ['label' => 'Layak', 'count' => 0, 'color' => '#fd7e14'],
+            'Berkembang' => ['label' => 'Berkembang', 'count' => 0, 'color' => '#dc3545'],
+        ];
+
+        foreach ($pesertaRows as $row) {
+            $level = $row['level_kemampuan'] ?? 'Berkembang';
+            if (isset($summary[$level])) {
+                $summary[$level]['count']++;
+            }
+        }
+
+        return array_values($summary);
+    }
+
+    // Tentukan level kemampuan berdasarkan skor (Mahir>=75, Cakap>=58, Layak>=42, Berkembang<42)
+    private function getAnalitikLevelKemampuan(float $skor): string
+    {
+        if ($skor >= 75) {
+            return 'Mahir';
+        }
+
+        if ($skor >= 58) {
+            return 'Cakap';
+        }
+
+        if ($skor >= 42) {
+            return 'Layak';
+        }
+
+        return 'Berkembang';
+    }
+
+    // Hitung statistik jawaban agregat (total soal, benar, salah, tidak dijawab, rata-rata durasi) untuk semua peserta terfilter
+    private function getAnalitikOverallJawaban(array $filters, int $guruId): array
+    {
+        $builder = $this->db->table('peserta_ujian pu')
+            ->select('
+                COUNT(ats.attempt_soal_id) as total_soal,
+                SUM(CASE WHEN aj.jawaban_id IS NOT NULL AND aj.is_correct = 1 THEN 1 ELSE 0 END) as total_benar,
+                SUM(CASE WHEN aj.jawaban_id IS NOT NULL AND (aj.is_correct = 0 OR aj.is_correct IS NULL) THEN 1 ELSE 0 END) as total_salah,
+                SUM(CASE WHEN aj.jawaban_id IS NULL THEN 1 ELSE 0 END) as total_tidak_dijawab,
+                AVG(CASE WHEN au.waktu_mulai IS NOT NULL AND au.waktu_selesai IS NOT NULL THEN TIME_TO_SEC(TIMEDIFF(au.waktu_selesai, au.waktu_mulai)) END) as rata_rata_durasi_detik
+            ', false)
+            ->join('jadwal_ujian ju', 'ju.jadwal_id = pu.jadwal_id')
+            ->join('ujian u', 'u.id_ujian = ju.ujian_id')
+            ->join('kelas k', 'k.kelas_id = ju.kelas_id', 'left')
+            ->join($this->getAnalitikAttemptSubquery($filters), 'la.peserta_ujian_id = pu.peserta_ujian_id', 'inner', false)
+            ->join('attempt_ujian au', 'au.peserta_ujian_id = la.peserta_ujian_id AND au.nomor_attempt = la.max_attempt', 'inner', false)
+            ->join('attempt_soal ats', 'ats.attempt_id = au.attempt_id', 'inner')
+            ->join('soal_ujian sq', 'sq.soal_id = ats.original_soal_id', 'left')
+            ->join('attempt_jawaban aj', 'aj.attempt_id = ats.attempt_id AND aj.soal_id = ats.original_soal_id', 'left', false)
+            ->where('pu.status', 'selesai');
+
+        $this->applyAnalitikScopeFilters($builder, $filters, $guruId);
+
+        $row = $builder->get()->getRowArray() ?? [];
+        $totalSoal = (int) ($row['total_soal'] ?? 0);
+        $row['persentase_benar'] = $totalSoal > 0 ? round(((int) ($row['total_benar'] ?? 0) / $totalSoal) * 100, 2) : 0;
+
+        return $row;
+    }
+
+    // Hitung statistik jawaban dikelompokkan per variabel/indikator/materi; $mode menentukan granularitas pengelompokan
+    private function getAnalitikMetadataRows(array $filters, string $mode, int $guruId): array
+    {
+        $selectMap = [
+            'variabel' => '
+                sq.variabel_id as group_id,
+                COALESCE(v.nama_variabel, "Tanpa Variabel") as group_label,
+                "" as parent_label
+            ',
+            'indikator' => '
+                sq.indikator_id as group_id,
+                COALESCE(i.nama_indikator, "Tanpa Indikator") as group_label,
+                COALESCE(v.nama_variabel, "-") as parent_label
+            ',
+            'materi' => '
+                sq.materi_id as group_id,
+                COALESCE(m.nama_materi, "Tanpa Materi") as group_label,
+                COALESCE(i.nama_indikator, "-") as parent_label
+            ',
+        ];
+
+        $groupMap = [
+            'variabel' => 'sq.variabel_id, v.nama_variabel',
+            'indikator' => 'sq.indikator_id, i.nama_indikator, v.nama_variabel',
+            'materi' => 'sq.materi_id, m.nama_materi, i.nama_indikator',
+        ];
+
+        if (!isset($selectMap[$mode])) {
+            return [];
+        }
+
+        $builder = $this->db->table('peserta_ujian pu')
+            ->select($selectMap[$mode] . ',
+                COUNT(ats.attempt_soal_id) as total_soal,
+                SUM(CASE WHEN aj.jawaban_id IS NOT NULL AND aj.is_correct = 1 THEN 1 ELSE 0 END) as total_benar,
+                SUM(CASE WHEN aj.jawaban_id IS NOT NULL AND (aj.is_correct = 0 OR aj.is_correct IS NULL) THEN 1 ELSE 0 END) as total_salah,
+                SUM(CASE WHEN aj.jawaban_id IS NULL THEN 1 ELSE 0 END) as total_tidak_dijawab
+            ', false)
+            ->join('jadwal_ujian ju', 'ju.jadwal_id = pu.jadwal_id')
+            ->join('ujian u', 'u.id_ujian = ju.ujian_id')
+            ->join('kelas k', 'k.kelas_id = ju.kelas_id', 'left')
+            ->join($this->getAnalitikAttemptSubquery($filters), 'la.peserta_ujian_id = pu.peserta_ujian_id', 'inner', false)
+            ->join('attempt_ujian au', 'au.peserta_ujian_id = la.peserta_ujian_id AND au.nomor_attempt = la.max_attempt', 'inner', false)
+            ->join('attempt_soal ats', 'ats.attempt_id = au.attempt_id', 'inner')
+            ->join('soal_ujian sq', 'sq.soal_id = ats.original_soal_id', 'left')
+            ->join('variabel v', 'v.variabel_id = sq.variabel_id', 'left')
+            ->join('indikator i', 'i.indikator_id = sq.indikator_id', 'left')
+            ->join('materi m', 'm.materi_id = sq.materi_id', 'left')
+            ->join('attempt_jawaban aj', 'aj.attempt_id = ats.attempt_id AND aj.soal_id = ats.original_soal_id', 'left', false)
+            ->where('pu.status', 'selesai');
+
+        $this->applyAnalitikScopeFilters($builder, $filters, $guruId);
+
+        $rows = $builder
+            ->groupBy($groupMap[$mode])
+            ->orderBy('group_label', 'ASC')
+            ->get()
+            ->getResultArray();
+
+        foreach ($rows as &$row) {
+            $totalSoal = (int) ($row['total_soal'] ?? 0);
+            $row['persentase_benar'] = $totalSoal > 0 ? round(((int) ($row['total_benar'] ?? 0) / $totalSoal) * 100, 2) : 0;
+            $row['persentase_salah'] = $totalSoal > 0 ? round(((int) ($row['total_salah'] ?? 0) / $totalSoal) * 100, 2) : 0;
+            $row['persentase_tidak_dijawab'] = $totalSoal > 0 ? round(((int) ($row['total_tidak_dijawab'] ?? 0) / $totalSoal) * 100, 2) : 0;
+        }
+        unset($row);
+
+        usort($rows, static fn($a, $b) => ($a['persentase_benar'] <=> $b['persentase_benar']) ?: strcmp($a['group_label'], $b['group_label']));
+
+        return $rows;
+    }
+
+    // Hitung rata-rata durasi (detik) pengerjaan attempt yang sudah selesai sesuai filter
+    private function getAnalitikAverageDurationSeconds(array $filters, int $guruId): int
+    {
+        $builder = $this->db->table('peserta_ujian pu')
+            ->select('AVG(TIME_TO_SEC(TIMEDIFF(au.waktu_selesai, au.waktu_mulai))) as rata_rata_durasi_detik', false)
+            ->join('jadwal_ujian ju', 'ju.jadwal_id = pu.jadwal_id')
+            ->join('ujian u', 'u.id_ujian = ju.ujian_id')
+            ->join('kelas k', 'k.kelas_id = ju.kelas_id', 'left')
+            ->join($this->getAnalitikAttemptSubquery($filters), 'la.peserta_ujian_id = pu.peserta_ujian_id', 'inner', false)
+            ->join('attempt_ujian au', 'au.peserta_ujian_id = la.peserta_ujian_id AND au.nomor_attempt = la.max_attempt', 'inner', false)
+            ->where('pu.status', 'selesai')
+            ->where('au.waktu_mulai IS NOT NULL', null, false)
+            ->where('au.waktu_selesai IS NOT NULL', null, false);
+
+        if (!empty($filters['variabel_id']) || !empty($filters['indikator_id']) || !empty($filters['materi_id'])) {
+            $builder
+                ->join('attempt_soal ats', 'ats.attempt_id = au.attempt_id', 'inner')
+                ->join('soal_ujian sq', 'sq.soal_id = ats.original_soal_id', 'left');
+        }
+
+        $this->applyAnalitikScopeFilters($builder, $filters, $guruId);
+
+        $row = $builder->get()->getRowArray() ?? [];
+
+        return (int) round((float) ($row['rata_rata_durasi_detik'] ?? 0));
+    }
+
+    // Siapkan data bar durasi untuk 3 level granularitas (Variabel, Indikator, Materi) dengan filter masing-masing
+    private function getAnalitikDurationBars(array $filters, int $guruId): array
+    {
+        $variabelFilters = $filters;
+        $variabelFilters['indikator_id'] = null;
+        $variabelFilters['materi_id'] = null;
+
+        $indikatorFilters = $filters;
+        $indikatorFilters['materi_id'] = null;
+
+        return [
+            ['label' => 'Variabel', 'seconds' => $this->getAnalitikAverageDurationSeconds($variabelFilters, $guruId), 'color' => '#2563eb'],
+            ['label' => 'Indikator', 'seconds' => $this->getAnalitikAverageDurationSeconds($indikatorFilters, $guruId), 'color' => '#0f766e'],
+            ['label' => 'Materi', 'seconds' => $this->getAnalitikAverageDurationSeconds($filters, $guruId), 'color' => '#d97706'],
+        ];
+    }
+
+    // Ambil baris per siswa dengan variabel/indikator/materi yang muncul di soal; tambahkan interpretasi kecepatan pengerjaan
+    private function getAnalitikStudentRows(array $filters, int $guruId): array
+    {
+        $builder = $this->db->table('peserta_ujian pu')
+            ->select('
+                pu.peserta_ujian_id,
+                siswa.nama_lengkap,
+                sekolah.nama_sekolah,
+                kelas.nama_kelas,
+                u.tipe_ujian,
+                u.nama_ujian,
+                COALESCE(GROUP_CONCAT(DISTINCT v.nama_variabel ORDER BY v.nama_variabel SEPARATOR ", "), "-") as daftar_variabel,
+                COALESCE(GROUP_CONCAT(DISTINCT i.nama_indikator ORDER BY i.nama_indikator SEPARATOR ", "), "-") as daftar_indikator,
+                COALESCE(GROUP_CONCAT(DISTINCT m.nama_materi ORDER BY m.nama_materi SEPARATOR ", "), "-") as daftar_materi,
+                TIME_TO_SEC(TIMEDIFF(au.waktu_selesai, au.waktu_mulai)) as durasi_detik
+            ', false)
+            ->join('jadwal_ujian ju', 'ju.jadwal_id = pu.jadwal_id')
+            ->join('ujian u', 'u.id_ujian = ju.ujian_id')
+            ->join('kelas', 'kelas.kelas_id = ju.kelas_id', 'left')
+            ->join('sekolah', 'sekolah.sekolah_id = kelas.sekolah_id', 'left')
+            ->join('siswa', 'siswa.siswa_id = pu.siswa_id', 'left')
+            ->join($this->getAnalitikAttemptSubquery($filters), 'la.peserta_ujian_id = pu.peserta_ujian_id', 'inner', false)
+            ->join('attempt_ujian au', 'au.peserta_ujian_id = la.peserta_ujian_id AND au.nomor_attempt = la.max_attempt', 'inner', false)
+            ->join('attempt_soal ats', 'ats.attempt_id = au.attempt_id', 'inner')
+            ->join('soal_ujian sq', 'sq.soal_id = ats.original_soal_id', 'left')
+            ->join('variabel v', 'v.variabel_id = sq.variabel_id', 'left')
+            ->join('indikator i', 'i.indikator_id = sq.indikator_id', 'left')
+            ->join('materi m', 'm.materi_id = sq.materi_id', 'left')
+            ->where('pu.status', 'selesai')
+            ->where('au.waktu_mulai IS NOT NULL', null, false)
+            ->where('au.waktu_selesai IS NOT NULL', null, false);
+
+        $this->applyAnalitikScopeFilters($builder, $filters, $guruId);
+
+        $rows = $builder
+            ->groupBy('pu.peserta_ujian_id, siswa.nama_lengkap, sekolah.nama_sekolah, kelas.nama_kelas, u.tipe_ujian, u.nama_ujian, au.waktu_mulai, au.waktu_selesai')
+            ->orderBy('siswa.nama_lengkap', 'ASC')
+            ->get()
+            ->getResultArray();
+
+        $durations = array_values(array_filter(array_map(static fn($row) => (int) ($row['durasi_detik'] ?? 0), $rows)));
+        $averageDuration = !empty($durations) ? (int) round(array_sum($durations) / count($durations)) : 0;
+
+        foreach ($rows as &$row) {
+            $durationSeconds = (int) ($row['durasi_detik'] ?? 0);
+            $row['interpretasi'] = $this->getAnalitikInterpretasiDurasi($durationSeconds, $averageDuration);
+        }
+        unset($row);
+
+        return $rows;
+    }
+
+    // Interpretasi kecepatan: Cepat jika <90% rata-rata, Lambat jika >110% rata-rata, sisanya Rata-rata
+    private function getAnalitikInterpretasiDurasi(int $durationSeconds, int $averageDuration): string
+    {
+        if ($durationSeconds <= 0 || $averageDuration <= 0) {
+            return 'Rata-rata';
+        }
+
+        if ($durationSeconds <= (int) floor($averageDuration * 0.9)) {
+            return 'Cepat';
+        }
+
+        if ($durationSeconds >= (int) ceil($averageDuration * 1.1)) {
+            return 'Lambat';
+        }
+
+        return 'Rata-rata';
+    }
+
+    // Reset status peserta ke belum_mulai dan hapus jawaban; memungkinkan siswa mengulang dari awal
     public function resetStatusSiswa($pesertaUjianId)
     {
         $userId = session()->get('user_id');
@@ -1210,13 +1708,15 @@ class Guru extends Controller
         return redirect()->to('guru/hasil-ujian/siswa/' . $peserta['jadwal_id']);
     }
 
+    // Daftar siswa peserta satu jadwal ujian beserta nilai, durasi, dan ringkasan per attempt
+    // is_cat_mode menentukan kolom yang ditampilkan (theta/SE untuk CAT, skor langsung untuk CBT)
     public function daftarSiswa($jadwalId)
     {
         $db = \Config\Database::connect();
 
         // Ambil info ujian
         $ujian = $db->table('jadwal_ujian ju')
-            ->select('ju.*, u.nama_ujian, u.deskripsi, u.kode_ujian, j.nama_jenis, k.nama_kelas, k.tahun_ajaran, 
+            ->select('ju.*, u.nama_ujian, u.deskripsi, u.kode_ujian, u.tipe_ujian, j.nama_jenis, k.nama_kelas, k.tahun_ajaran,
                      s.nama_sekolah, g.nama_lengkap as nama_guru, ju.kode_akses,
                      DATE_FORMAT(ju.tanggal_mulai, "%d/%m/%Y %H:%i") as tanggal_mulai_format,
                      DATE_FORMAT(ju.tanggal_selesai, "%d/%m/%Y %H:%i") as tanggal_selesai_format')
@@ -1281,6 +1781,19 @@ class Guru extends Controller
                 $siswa['jumlah_attempt'] = count($attempts);
                 $siswa['attempt_terakhir'] = $attempt['nomor_attempt'] ?? null;
 
+                // Buat ringkasan durasi per percobaan untuk tooltip/modal di tabel daftar siswa
+                $attemptsDurasi = [];
+                foreach ($attempts as $att) {
+                    $d = (!empty($att['waktu_mulai']) && !empty($att['waktu_selesai']))
+                        ? strtotime($att['waktu_selesai']) - strtotime($att['waktu_mulai'])
+                        : 0;
+                    $attemptsDurasi[] = [
+                        'nomor'  => (int) $att['nomor_attempt'],
+                        'durasi' => $d > 0 ? sprintf('%02d:%02d:%02d', floor($d / 3600), floor(($d % 3600) / 60), $d % 60) : '-',
+                    ];
+                }
+                $siswa['attempts_durasi'] = $attemptsDurasi;
+
                 $siswa['kemampuan_kognitif'] = [
                     'skor' => $summary['skor_akhir'],
                     'total_benar' => $jawabanBenar,
@@ -1310,6 +1823,7 @@ class Guru extends Controller
                 $siswa['total_soal'] = 0;
                 $siswa['jumlah_attempt'] = 0;
                 $siswa['attempt_terakhir'] = null;
+                $siswa['attempts_durasi'] = [];
                 $siswa['kemampuan_kognitif'] = ['skor' => 0];
                 $siswa['klasifikasi_kognitif'] = $this->getKlasifikasiKognitif(0);
 
@@ -1325,6 +1839,7 @@ class Guru extends Controller
         return view('guru/daftar_siswa', $data);
     }
 
+    // Tampilkan semua attempt satu peserta dengan ringkasan skor, durasi, dan klasifikasi per percobaan
     public function daftarPercobaan($pesertaUjianId)
     {
         $peserta = $this->pesertaUjianModel
@@ -1379,6 +1894,7 @@ class Guru extends Controller
         ]);
     }
 
+    // Tampilkan detail jawaban per soal satu attempt; backUrl berbeda: CAT ke daftar siswa, CBT ke daftar percobaan
     public function detailHasil($pesertaUjianId)
     {
         $requestedAttemptId = (int) $this->request->getGet('attempt_id');
@@ -1469,7 +1985,10 @@ class Guru extends Controller
             'kemampuanKognitif' => $kemampuanKognitif,
             'klasifikasiKognitif' => $klasifikasiKognitif,
             'rataRataWaktuFormat' => sprintf('%d menit %d detik', $rataRataMenit, $rataRataDetik),
-            'backUrl' => base_url('guru/hasil-ujian/percobaan/' . $pesertaUjianId),
+            // CAT tidak punya halaman daftar percobaan sendiri, langsung kembali ke daftar siswa jadwal
+            'backUrl' => $summary['is_cat_mode']
+                ? base_url('guru/hasil-ujian/siswa/' . $hasil['jadwal_id'])
+                : base_url('guru/hasil-ujian/percobaan/' . $pesertaUjianId),
             'statistikWaktu' => [
                 'waktu_tercepat' => $totalSoal > 0 ? min(array_column($detailJawabanDenganDurasi, 'durasi_pengerjaan_detik')) : 0,
                 'waktu_terlama' => $totalSoal > 0 ? max(array_column($detailJawabanDenganDurasi, 'durasi_pengerjaan_detik')) : 0,
@@ -1480,12 +1999,14 @@ class Guru extends Controller
 
     // ===== KELOLA PENGUMUMAN =====
 
+    // Tampilkan daftar pengumuman beserta info user yang membuatnya
     public function pengumuman()
     {
         $data['pengumuman'] = $this->pengumumanModel->getPengumumanWithUser();
         return view('guru/pengumuman', $data);
     }
 
+    // Tambah pengumuman baru; created_by diambil dari sesi
     public function tambahPengumuman()
     {
         $data = [
@@ -1499,6 +2020,7 @@ class Guru extends Controller
         return redirect()->to('guru/pengumuman')->with('success', 'Pengumuman berhasil ditambahkan');
     }
 
+    // Update isi pengumuman berdasarkan id
     public function editPengumuman($id)
     {
         $data = [
@@ -1511,6 +2033,7 @@ class Guru extends Controller
         return redirect()->to('guru/pengumuman')->with('success', 'Pengumuman berhasil diupdate');
     }
 
+    // Hapus pengumuman; tidak ada pengecekan kepemilikan di sini (asumsi hanya guru sendiri yang akses halaman ini)
     public function hapusPengumuman($id)
     {
         $this->pengumumanModel->delete($id);
@@ -1519,6 +2042,7 @@ class Guru extends Controller
 
     // ===== KELOLA PROFIL =====
 
+    // Tampilkan halaman profil guru lengkap dengan data user dan sekolah
     public function profil()
     {
         $userId = session()->get('user_id');
@@ -1539,6 +2063,7 @@ class Guru extends Controller
         return view('guru/profil', $data);
     }
 
+    // Simpan perubahan profil; update tabel users (email) dan tabel guru (nama, nip, mapel) secara terpisah
     public function saveProfil()
     {
         $userId = session()->get('user_id');
@@ -1583,6 +2108,7 @@ class Guru extends Controller
 
     // ===== KELOLA JENIS UJIAN/MATA PELAJARAN =====
 
+    // Tampilkan daftar mata pelajaran milik guru berdasarkan kelas yang diajar
     public function jenisUjian()
     {
         $userId = session()->get('user_id');
@@ -1597,6 +2123,7 @@ class Guru extends Controller
         return view('guru/jenis_ujian', $data);
     }
 
+    // Tambah mata pelajaran; guru harus sudah di-assign ke kelas, dan kelas yang dipilih harus miliknya
     public function tambahJenisUjian()
     {
         $userId = session()->get('user_id');
@@ -1643,6 +2170,7 @@ class Guru extends Controller
     }
 
 
+    // Hapus mata pelajaran; tidak bisa hapus jika masih ada ujian yang menggunakannya
     public function hapusJenisUjian($id)
     {
         $userId = session()->get('user_id');
@@ -1676,6 +2204,7 @@ class Guru extends Controller
 
     // ===== KELOLA DOWNLOAD HASIL UJIAN =====
 
+    // Generate file Excel (format HTML-table) berisi detail hasil ujian satu peserta; header dikirim langsung ke browser
     public function downloadExcelHTML($pesertaUjianId)
     {
         $requestedAttemptId = (int) $this->request->getGet('attempt_id');
@@ -1771,6 +2300,7 @@ class Guru extends Controller
         exit;
     }
 
+    // Generate tampilan HTML untuk PDF hasil ujian; dikirim sebagai inline HTML ke browser (bukan file PDF asli)
     public function downloadPDFHTML($pesertaUjianId)
     {
         $requestedAttemptId = (int) $this->request->getGet('attempt_id');
@@ -1868,6 +2398,7 @@ class Guru extends Controller
 
     // ===== KELOLA BANK SOAL =====
 
+    // Halaman utama bank soal; tampilkan kelas yang diajar guru sebagai kategori navigasi
     public function bankSoal()
     {
         $userId = session()->get('user_id');
@@ -1891,6 +2422,47 @@ class Guru extends Controller
         return view('guru/bank_soal/index', $data);
     }
 
+    // API AJAX: kembalikan daftar mata pelajaran yang relevan untuk kelas tertentu (atau semua kelas guru)
+    public function getJenisUjian()
+    {
+        $userId = session()->get('user_id');
+        $guru = $this->guruModel->where('user_id', $userId)->first();
+        if (!$guru) {
+            return $this->response->setJSON(['status' => 'error', 'data' => []]);
+        }
+
+        $kelasId = (int)($this->request->getGet('kelas_id') ?? 0);
+
+        $kelasGuru = $this->db->table('kelas_guru')
+            ->select('kelas_id')
+            ->where('guru_id', $guru['guru_id'])
+            ->get()->getResultArray();
+        $kelasIds = array_column($kelasGuru, 'kelas_id');
+
+        $builder = $this->db->table('jenis_ujian ju')
+            ->select('ju.jenis_ujian_id, ju.nama_jenis, ju.kelas_id, k.nama_kelas, k.tahun_ajaran')
+            ->join('kelas k', 'k.kelas_id = ju.kelas_id', 'left')
+            ->orderBy('ju.nama_jenis', 'ASC');
+
+        if ($kelasId > 0 && in_array($kelasId, $kelasIds)) {
+            $builder->groupStart()
+                ->where('ju.kelas_id', $kelasId)
+                ->orWhere('ju.kelas_id IS NULL')
+                ->groupEnd();
+        } elseif (!empty($kelasIds)) {
+            $builder->groupStart()
+                ->whereIn('ju.kelas_id', $kelasIds)
+                ->orWhere('ju.kelas_id IS NULL')
+                ->groupEnd();
+        }
+
+        return $this->response->setJSON([
+            'status' => 'success',
+            'data'   => $builder->get()->getResultArray()
+        ]);
+    }
+
+    // API AJAX: kembalikan kelas milik guru di sekolah tertentu (untuk dropdown dinamis form ujian)
     public function getKelasBySekolah($sekolahId)
     {
         $userId = session()->get('user_id');
@@ -1913,6 +2485,7 @@ class Guru extends Controller
     }
 
 
+    // Tambah bank soal baru; cegah duplikasi kombinasi kategori+mata pelajaran+nama ujian oleh guru yang sama
     public function tambahBankSoal()
     {
         $data = [
@@ -1949,6 +2522,7 @@ class Guru extends Controller
         return redirect()->to('guru/bank-soal')->with('success', 'Bank soal berhasil ditambahkan');
     }
 
+    // Tampilkan mata pelajaran dalam satu kategori bank soal; 'umum' bisa diakses semua guru, kategori kelas dibatasi
     public function bankSoalKategori($kategori)
     {
         $userId = session()->get('user_id');
@@ -2017,6 +2591,7 @@ class Guru extends Controller
         return view('guru/bank_soal/kategori', $data);
     }
 
+    // Tampilkan daftar bank ujian dalam satu kategori+mata pelajaran; untuk kategori kelas dibatasi milik guru sendiri
     public function bankSoalJenisUjian($kategori, $jenisUjianId)
     {
         $userId = session()->get('user_id');
@@ -2067,6 +2642,7 @@ class Guru extends Controller
         return view('guru/bank_soal/jenis_ujian', $data);
     }
 
+    // Tampilkan soal-soal dalam satu bank ujian; canEdit=false jika guru bukan pemilik bank
     public function bankSoalUjian($kategori, $jenisUjianId, $bankUjianId)
     {
         $userId = session()->get('user_id');
@@ -2104,6 +2680,7 @@ class Guru extends Controller
         return view('guru/bank_soal/ujian', $data);
     }
 
+    // Tambah soal ke bank ujian; support AJAX; is_bank_soal=true dan ujian_id=null untuk soal bank
     public function tambahSoalBankUjian()
     {
         $bankUjianId = $this->request->getPost('bank_ujian_id');
@@ -2185,6 +2762,7 @@ class Guru extends Controller
         }
     }
 
+    // Update soal bank ujian; foto lama dihapus dari disk jika diganti atau dihapus via checkbox
     public function editSoalBankUjian($soalId)
     {
         $userId = session()->get('user_id');
@@ -2211,6 +2789,8 @@ class Guru extends Controller
             'pilihan_d' => 'required',
             'jawaban_benar' => 'required|in_list[A,B,C,D,E]',
             'tingkat_kesulitan' => 'required|decimal',
+            'a' => 'permit_empty|decimal',
+            'c' => 'permit_empty|decimal',
             'foto' => 'permit_empty|max_size[foto,2048]|mime_in[foto,image/jpg,image/jpeg,image/png]|ext_in[foto,png,jpg,jpeg]',
             'pembahasan' => 'permit_empty'
         ];
@@ -2231,6 +2811,8 @@ class Guru extends Controller
             'pilihan_e' => $this->request->getPost('pilihan_e'),
             'jawaban_benar' => $this->request->getPost('jawaban_benar'),
             'tingkat_kesulitan' => $this->request->getPost('tingkat_kesulitan'),
+            'a' => $this->request->getPost('a') ?: 1.000,
+            'c' => $this->request->getPost('c') ?: 0.000,
             'pembahasan' => $this->request->getPost('pembahasan')
         ];
 
@@ -2272,6 +2854,7 @@ class Guru extends Controller
         }
     }
 
+    // Hapus soal bank ujian beserta relasinya di ujian_soal_cat; foto dihapus jika ada
     public function hapusSoalBankUjian($soalId)
     {
         $userId = session()->get('user_id');
@@ -2307,7 +2890,7 @@ class Guru extends Controller
     }
 
 
-    // Method untuk mendapatkan bank soal dalam bentuk API (untuk modal import)
+    // API AJAX: kembalikan daftar kategori yang bisa diakses guru (selalu ada 'umum' + nama kelas yang diajar)
     public function getKategoriTersedia()
     {
         $userId = session()->get('user_id');
@@ -2331,6 +2914,7 @@ class Guru extends Controller
         ]);
     }
 
+    // API AJAX: kembalikan mata pelajaran yang punya bank soal di kategori tertentu (untuk modal import soal)
     public function getJenisUjianByKategori()
     {
         $kategori = $this->request->getGet('kategori');
@@ -2381,6 +2965,7 @@ class Guru extends Controller
     }
 
 
+    // API AJAX: kembalikan mata pelajaran milik guru untuk kategori tertentu (untuk dropdown bank soal baru)
     public function getJenisUjianForKelas()
     {
         $kategori = $this->request->getGet('kategori');
@@ -2434,7 +3019,7 @@ class Guru extends Controller
         ]);
     }
 
-    // Method untuk mendapatkan nama ujian berdasarkan kategori dan Mata Pelajaran
+    // API AJAX: kembalikan daftar bank ujian berdasarkan kategori + mata pelajaran (untuk modal pilih soal bank)
     public function getBankUjianByKategoriJenis()
     {
         $kategori = $this->request->getGet('kategori');
@@ -2485,7 +3070,7 @@ class Guru extends Controller
         ]);
     }
 
-    // Method untuk mendapatkan soal dari bank ujian
+    // API AJAX: kembalikan soal-soal dari satu bank ujian; validasi akses kategori sebelum kirim data
     public function getSoalBankUjian()
     {
         $bankUjianId = $this->request->getGet('bank_ujian_id');
@@ -2544,7 +3129,7 @@ class Guru extends Controller
         ]);
     }
 
-    // Method untuk import soal dari bank ujian
+    // Import soal dari bank dengan DUPLIKASI (copy soal baru ke ujian); duplikasi sengaja diizinkan agar bank tidak berubah
     public function importSoalDariBank()
     {
         $ujianId = $this->request->getPost('ujian_id');
@@ -2618,9 +3203,7 @@ class Guru extends Controller
         }
     }
 
-    /**
-     * Tautkan soal dari bank ke ujian (UPDATE ujian_id, tanpa duplikasi)
-     */
+    // Tautkan soal bank ke ujian CAT via ujian_soal_cat (tanpa duplikasi); hanya berlaku untuk ujian tipe CAT
     public function assignSoalDariBank()
     {
         $ujianId = $this->request->getPost('ujian_id');
@@ -2674,9 +3257,7 @@ class Guru extends Controller
         return redirect()->to('guru/soal/' . $ujianId);
     }
 
-    /**
-     * Lepas soal dari ujian (ujian_id = NULL), soal tetap di bank
-     */
+    // Lepas tautan soal dari ujian CAT; soal tetap di bank, hanya link di ujian_soal_cat yang dihapus
     public function unassignSoalDariUjian($soalId, $ujianId)
     {
         $this->ujianSoalCatModel->unlinkSoal((int) $ujianId, (int) $soalId);
@@ -2688,9 +3269,7 @@ class Guru extends Controller
         return redirect()->to('guru/soal/' . $ujianId);
     }
 
-    /**
-     * Upload image untuk Summernote
-     */
+    // Upload gambar dari editor Summernote; simpan sementara di session untuk cleanup jika form tidak jadi disimpan
     public function uploadSummernoteImage()
     {
         // Cek login
@@ -2767,6 +3346,7 @@ class Guru extends Controller
         }
     }
 
+    // Ekstrak nama file gambar editor dari konten HTML (hanya gambar dari folder uploads/editor-images)
     private function extractImageFilenames($htmlContent)
     {
         $imageFiles = [];
@@ -2781,9 +3361,7 @@ class Guru extends Controller
         return $imageFiles;
     }
 
-    /**
-     * Helper function untuk hapus gambar yang tidak digunakan
-     */
+    // Hapus file gambar dari disk jika tidak ada di daftar usedImages; kembalikan jumlah file yang dihapus
     private function cleanupUnusedImages($usedImages, $allUploadedImages)
     {
         $deletedCount = 0;
@@ -2803,9 +3381,7 @@ class Guru extends Controller
         return $deletedCount;
     }
 
-    /**
-     * Helper function untuk cek penggunaan gambar di soal lain
-     */
+    // Cek apakah file gambar dipakai di soal lain (selain excludeSoalId) di semua field HTML
     private function checkImageUsageInOtherQuestions($filename, $excludeSoalId)
     {
         // Cari di semua field HTML di tabel soal_ujian
@@ -2824,9 +3400,7 @@ class Guru extends Controller
         return $builder->countAllResults() > 0;
     }
 
-    /**
-     * Helper function untuk cleanup temp images
-     */
+    // Hapus semua gambar temp dari session dan disk; dipanggil saat validasi gagal atau terjadi error simpan soal
     private function cleanupTempImages()
     {
         $tempImages = session()->get('temp_uploaded_images') ?? [];
@@ -2840,9 +3414,7 @@ class Guru extends Controller
         session()->remove('temp_uploaded_images');
     }
 
-    /**
-     * Method untuk cleanup gambar orphaned (bisa dijadwalkan via cron job)
-     */
+    // Hapus gambar editor yang tidak terpakai di DB; hanya bisa dijalankan admin, cocok dijadwalkan via cron
     public function cleanupOrphanedImages()
     {
         // Hanya admin yang bisa menjalankan
@@ -2883,22 +3455,26 @@ class Guru extends Controller
     //  METADATA SOAL: VARIABEL, INDIKATOR, MATERI
     // =============================================
 
+    // Tampilkan daftar variabel beserta jumlah indikator dan soal yang terkait
     public function variabel()
     {
         $data['variabel'] = $this->variabelModel->getWithCounts();
         return view('guru/variabel', $data);
     }
 
+    // Delegasikan ke handler CRUD variabel
     public function tambahVariabel()
     {
         return $this->_handleVariabelCrud('tambah');
     }
 
+    // Delegasikan ke handler CRUD variabel dengan id tertentu
     public function editVariabel($id)
     {
         return $this->_handleVariabelCrud('edit', $id);
     }
 
+    // Hapus variabel; gagal jika masih ada indikator/soal terkait (foreign key constraint)
     public function hapusVariabel($id)
     {
         if (!$this->variabelModel->find($id)) {
@@ -2914,6 +3490,7 @@ class Guru extends Controller
         return redirect()->to('guru/variabel');
     }
 
+    // Handler generik tambah/edit variabel; validasi nama lalu insert atau update sesuai $action
     private function _handleVariabelCrud($action, $id = null)
     {
         $rules = ['nama_variabel' => 'required|min_length[3]|max_length[100]'];
@@ -2940,6 +3517,7 @@ class Guru extends Controller
 
     // ---------- INDIKATOR ----------
 
+    // Tampilkan daftar indikator beserta variabel induknya
     public function indikator()
     {
         $data['indikator'] = $this->indikatorModel->getAllWithVariabel();
@@ -2947,16 +3525,19 @@ class Guru extends Controller
         return view('guru/indikator', $data);
     }
 
+    // Delegasikan ke handler CRUD indikator
     public function tambahIndikator()
     {
         return $this->_handleIndikatorCrud('tambah');
     }
 
+    // Delegasikan ke handler CRUD indikator dengan id tertentu
     public function editIndikator($id)
     {
         return $this->_handleIndikatorCrud('edit', $id);
     }
 
+    // Hapus indikator; gagal jika masih ada soal yang menggunakannya
     public function hapusIndikator($id)
     {
         if (!$this->indikatorModel->find($id)) {
@@ -2972,6 +3553,7 @@ class Guru extends Controller
         return redirect()->to('guru/indikator');
     }
 
+    // Handler generik tambah/edit indikator; wajib pilih variabel induk
     private function _handleIndikatorCrud($action, $id = null)
     {
         $rules = [
@@ -3002,22 +3584,26 @@ class Guru extends Controller
 
     // ---------- MATERI ----------
 
+    // Tampilkan daftar materi beserta jumlah soal yang menggunakannya
     public function materi()
     {
         $data['materi'] = $this->materiModel->getWithCount();
         return view('guru/materi', $data);
     }
 
+    // Delegasikan ke handler CRUD materi
     public function tambahMateri()
     {
         return $this->_handleMateriCrud('tambah');
     }
 
+    // Delegasikan ke handler CRUD materi dengan id tertentu
     public function editMateri($id)
     {
         return $this->_handleMateriCrud('edit', $id);
     }
 
+    // Hapus materi; gagal jika masih ada soal yang menggunakannya
     public function hapusMateri($id)
     {
         if (!$this->materiModel->find($id)) {
@@ -3033,6 +3619,7 @@ class Guru extends Controller
         return redirect()->to('guru/materi');
     }
 
+    // Handler generik tambah/edit materi
     private function _handleMateriCrud($action, $id = null)
     {
         $rules = ['nama_materi' => 'required|min_length[2]|max_length[200]'];
@@ -3057,6 +3644,7 @@ class Guru extends Controller
         return redirect()->to('guru/materi');
     }
 
+    // API AJAX: kembalikan daftar indikator berdasarkan variabel (untuk dropdown dinamis form soal)
     public function getIndikatorByVariabel($variabelId)
     {
         $indikator = $this->indikatorModel->where('variabel_id', $variabelId)
@@ -3069,12 +3657,14 @@ class Guru extends Controller
     //  MULTI-BANK & GENERATE PAKET
     // =============================================
 
+    // Redirect ke halaman kelola soal; entry point dari tombol "Assign Bank" di UI
     public function assignBank($ujianId)
     {
         // Redirect ke halaman kelola soal (tab Bank & Paket)
         return redirect()->to('guru/soal/' . $ujianId);
     }
 
+    // Sinkronisasi assignment bank ke ujian CBT; tidak bisa diubah jika paket sudah terbentuk
     public function syncBanks($ujianId)
     {
         $existingPaket = $this->paketUjianModel->where('ujian_id', $ujianId)->countAllResults();
@@ -3096,12 +3686,15 @@ class Guru extends Controller
         return redirect()->back();
     }
 
+    // Redirect ke halaman kelola soal; entry point dari tombol "Generate Paket" di UI
     public function generatePaket($ujianId)
     {
         // Redirect ke halaman kelola soal (tab Bank & Paket)
         return redirect()->to('guru/soal/' . $ujianId);
     }
 
+    // Generate draft paket CBT dari satu bank soal; validasi stok soal, cegah generate ulang jika attempt sudah ada
+    // Hasil disimpan ke session sebagai draft; guru harus review dulu sebelum klik "Simpan Paket"
     public function prosesGeneratePaket($ujianId)
     {
         $jumlahPaket = (int) $this->request->getPost('jumlah_paket') ?: 3;
@@ -3125,8 +3718,8 @@ class Guru extends Controller
 
         $bankId = $banks[0]['bank_ujian_id'];
         $totalSoal = $this->soalUjianModel->where(['bank_ujian_id' => $bankId, 'is_bank_soal' => 1])->countAllResults();
-        if ($soalPerPaket >= $totalSoal) {
-            return redirect()->back()->with('error', "Soal per paket harus lebih kecil dari stok bank (Y < N). Tersedia: {$totalSoal}, diminta: {$soalPerPaket}.");
+        if ($soalPerPaket > $totalSoal) {
+            return redirect()->back()->with('error', "Soal per paket tidak boleh melebihi stok bank (Y ≤ N). Tersedia: {$totalSoal}, diminta: {$soalPerPaket}.");
         }
 
         try {
@@ -3139,6 +3732,7 @@ class Guru extends Controller
         return redirect()->to('guru/soal/' . $ujianId . '?step=2&panel=paket');
     }
 
+    // Kunci draft paket ke database dalam satu transaksi; hapus paket lama dulu jika ada, lalu insert baru
     public function simpanDraftPaket($ujianId)
     {
         $draft = $this->getDraftPaket($ujianId);
@@ -3191,6 +3785,7 @@ class Guru extends Controller
         return redirect()->to('guru/soal/' . $ujianId . '?step=3&panel=paket');
     }
 
+    // Batal draft paket; hapus dari session dan kembali ke step generate
     public function batalDraftPaket($ujianId)
     {
         $this->clearDraftPaket($ujianId);
@@ -3198,6 +3793,7 @@ class Guru extends Controller
         return redirect()->to('guru/soal/' . $ujianId . '?step=2&panel=generate');
     }
 
+    // Hapus satu paket; tidak bisa dihapus jika ujian sudah pernah dikerjakan siswa
     public function hapusPaket($ujianId, $paketId)
     {
         $attemptCount = $this->db->table('attempt_ujian au')
@@ -3214,6 +3810,7 @@ class Guru extends Controller
         return redirect()->back();
     }
 
+    // Hapus semua paket dan reset assignment bank; efek samping: bank soal di-unlink juga dari ujian ini
     public function hapusSemuaPaket($ujianId)
     {
         $attemptCount = $this->db->table('attempt_ujian au')
@@ -3232,11 +3829,13 @@ class Guru extends Controller
         return redirect()->to('guru/soal/' . $ujianId . '?step=1');
     }
 
+    // API AJAX: kembalikan soal dalam paket final (dari DB) untuk preview
     public function getSoalByPaket($paketId)
     {
         return $this->response->setJSON($this->paketUjianModel->getSoalByPaket($paketId));
     }
 
+    // API AJAX: kembalikan soal dalam paket draft ke-$index dari session (untuk preview sebelum simpan)
     public function getSoalByDraftPaket($ujianId, $index)
     {
         $draft = $this->getDraftPaket($ujianId);
@@ -3249,6 +3848,7 @@ class Guru extends Controller
         return $this->response->setJSON($this->getOrderedSoalByIds($package['soal_ids'] ?? []));
     }
 
+    // Shortcut ambil data guru dari session user_id yang sedang login
     private function _getGuruData()
     {
         $userId = session()->get('user_id');

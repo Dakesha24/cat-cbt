@@ -101,6 +101,7 @@ $routes->group('admin', ['namespace' => 'App\Controllers\Admin'], function ($rou
 
   // API routes untuk AJAX
   $routes->get('api/kelas-by-sekolah/(:num)', 'Admin::getKelasBySekolah/$1');
+  $routes->get('api/jenis-ujian', 'Admin::getJenisUjian');
 
   // API routes untuk AJAX
   $routes->get('bank-soal/api/kategori', 'Admin::getKategoriTersedia');
@@ -145,6 +146,7 @@ $routes->group('admin', ['namespace' => 'App\Controllers\Admin'], function ($rou
 
   // Kelola Hasil Ujian
   $routes->get('hasil-ujian', 'Admin::daftarHasilUjian');
+  $routes->get('hasil-ujian/analitik', 'Admin::analitikHasilUjian');
   $routes->get('hasil-ujian/siswa/(:num)', 'Admin::hasilUjianSiswa/$1');
   $routes->get('hasil-ujian/percobaan/(:num)', 'Admin::daftarPercobaanSiswa/$1');
   $routes->get('hasil-ujian/detail/(:num)', 'Admin::detailHasilSiswa/$1');
@@ -204,6 +206,7 @@ $routes->group('guru', ['namespace' => 'App\Controllers\Guru'], function ($route
   $routes->get('pengumuman/hapus/(:num)', 'Guru::hapusPengumuman/$1');
 
   $routes->get('hasil-ujian', 'Guru::hasilUjian');
+  $routes->get('hasil-ujian/analitik', 'Guru::analitikHasilUjian');
   $routes->get('hasil-ujian/siswa/(:num)', 'Guru::daftarSiswa/$1');
   $routes->get('hasil-ujian/percobaan/(:num)', 'Guru::daftarPercobaan/$1');
   $routes->get('hasil-ujian/detail/(:num)', 'Guru::detailHasil/$1');
@@ -240,6 +243,7 @@ $routes->group('guru', ['namespace' => 'App\Controllers\Guru'], function ($route
 
   $routes->get('bank-soal/api/jenis-ujian-kelas', 'Guru::getJenisUjianForKelas');
   $routes->get('api/kelas-by-sekolah/(:num)', 'Guru::getKelasBySekolah/$1');
+  $routes->get('api/jenis-ujian', 'Guru::getJenisUjian');
 
   // CRUD Soal Bank Ujian
   $routes->post('bank-soal/tambah-soal', 'Guru::tambahSoalBankUjian');

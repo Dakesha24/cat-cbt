@@ -1,679 +1,345 @@
 <?= $this->extend('templates/guru/guru_template') ?>
-
 <?= $this->section('title') ?>Hasil Ujian Siswa<?= $this->endSection() ?>
-
 <?= $this->section('content') ?>
-<?php $isCatExam = !empty($hasilSiswa[0]['is_cat_mode']); ?>
-<br><br><br>
-<div class="container-fluid">
-    <div class="row">
-        <div class="col-12">
-            <!-- Header Info Ujian -->
-            <div class="card mb-4">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h4 class="card-title mb-0">
-                        <i class="fas fa-chart-line"></i> Hasil Ujian: <?= esc($ujian['nama_ujian']) ?>
-                    </h4>
-                    <a href="<?= base_url('guru/hasil-ujian') ?>" class="btn btn-secondary">
-                        <i class="fas fa-arrow-left me-1"></i>Kembali
-                    </a>
-                </div>
-                <div class="card-body">
-                    <?php if (session()->getFlashdata('success')): ?>
-                        <div class="alert alert-success alert-dismissible fade show" role="alert">
-                            <?= session()->getFlashdata('success') ?>
-                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                        </div>
-                    <?php endif; ?>
 
-                    <?php if (session()->getFlashdata('error')): ?>
-                        <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                            <?= session()->getFlashdata('error') ?>
-                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                        </div>
-                    <?php endif; ?>
-
-                    <div class="row">
-                        <div class="col-md-6">
-                            <table class="table table-borderless">
-                                <tr>
-                                    <td><strong>Jenis Ujian:</strong></td>
-                                    <td><?= esc($ujian['nama_jenis']) ?></td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Kode Ujian:</strong></td>
-                                    <td><code><?= esc($ujian['kode_ujian']) ?></code></td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Kelas:</strong></td>
-                                    <td><?= esc($ujian['nama_kelas']) ?> - <?= esc($ujian['tahun_ajaran']) ?></td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Sekolah:</strong></td>
-                                    <td><?= esc($ujian['nama_sekolah']) ?></td>
-                                </tr>
-                            </table>
-                        </div>
-                        <div class="col-md-6">
-                            <table class="table table-borderless">
-                                <tr>
-                                    <td><strong>Guru:</strong></td>
-                                    <td><?= esc($ujian['nama_guru']) ?></td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Jadwal Ujian:</strong></td>
-                                    <td><?= $ujian['tanggal_mulai_format'] ?> - <?= $ujian['tanggal_selesai_format'] ?></td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Kode Akses:</strong></td>
-                                    <td><code><?= esc($ujian['kode_akses']) ?></code></td>
-                                </tr>
-                            </table>
-                        </div>
-                    </div>
-
-                    <?php if (!empty($ujian['deskripsi'])): ?>
-                        <div class="mt-3">
-                            <strong>Deskripsi:</strong>
-                            <p class="text-muted mb-0"><?= nl2br(esc($ujian['deskripsi'])) ?></p>
-                        </div>
-                    <?php endif; ?>
-                </div>
-            </div>
-
-            <!-- Hasil Siswa -->
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">
-                        <i class="fas fa-users"></i> Hasil Siswa (<?= count($hasilSiswa) ?>)
-                    </h5>
-                    <div class="btn-group">
-                        <button type="button" class="btn btn-outline-success btn-sm" onclick="exportHasil()">
-                            <i class="fas fa-download me-1"></i>Export
-                        </button>
-                        <button type="button" class="btn btn-outline-info btn-sm" onclick="printHasil()">
-                            <i class="fas fa-print me-1"></i>Print
-                        </button>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <!-- Filter -->
-                    <div class="row mb-3">
-                        <div class="col-md-3">
-                            <input type="text" class="form-control" id="searchSiswa" placeholder="Cari nama/nomor peserta...">
-                        </div>
-                        <div class="col-md-2">
-                            <select class="form-select" id="filterStatus">
-                                <option value="">Semua Status</option>
-                                <option value="selesai">Selesai</option>
-                                <option value="sedang_mengerjakan">Sedang Mengerjakan</option>
-                                <option value="belum_mulai">Belum Mulai</option>
-                            </select>
-                        </div>
-                        <div class="col-md-2">
-                            <select class="form-select" id="filterJenisKelamin">
-                                <option value="">Semua Jenis Kelamin</option>
-                                <option value="Laki-laki">Laki-laki</option>
-                                <option value="Perempuan">Perempuan</option>
-                            </select>
-                        </div>
-                        <div class="col-md-2">
-                            <button class="btn btn-outline-secondary" onclick="resetFilter()">
-                                <i class="fas fa-redo me-1"></i>Reset
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Statistik -->
-                    <div class="row mb-4">
-                        <div class="col-md-3">
-                            <div class="card bg-success text-white">
-                                <div class="card-body text-center">
-                                    <h4><?= count(array_filter($hasilSiswa, fn($s) => $s['status'] === 'selesai')) ?></h4>
-                                    <p class="mb-0">Selesai</p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="card bg-primary text-white">
-                                <div class="card-body text-center">
-                                    <h4><?= count(array_filter($hasilSiswa, fn($s) => $s['status'] === 'sedang_mengerjakan')) ?></h4>
-                                    <p class="mb-0">Mengerjakan</p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="card bg-warning text-dark">
-                                <div class="card-body text-center">
-                                    <h4><?= count(array_filter($hasilSiswa, fn($s) => $s['status'] === 'belum_mulai')) ?></h4>
-                                    <p class="mb-0">Belum Mulai</p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="card bg-info text-white">
-                                <div class="card-body text-center">
-                                    <?php
-                                    $skorSelesai = array_filter($hasilSiswa, fn($s) => $s['status'] === 'selesai' && $s['skor'] !== null);
-                                    $rataRata = count($skorSelesai) > 0 ? array_sum(array_column($skorSelesai, 'skor')) / count($skorSelesai) : 0;
-                                    ?>
-                                    <h4><?= round($rataRata, 1) ?></h4>
-                                    <p class="mb-0">Rata-rata <?= $isCatExam ? 'Skor' : 'Nilai' ?></p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Tabel Hasil -->
-                    <div class="table-responsive">
-                        <table class="table table-striped table-hover" id="tableHasil">
-                            <thead class="table-primary">
-                                <tr>
-                                    <th>No</th>
-                                    <th>Nama Siswa</th>
-                                    <th>Jenis Kelamin</th>
-                                    <th>No Peserta/NIS</th>
-                                    <th>Durasi Ujian</th>
-                                    <th>Hasil Akhir</th>
-                                    <th>Aksi</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($hasilSiswa as $index => $siswa): ?>
-                                    <tr data-status="<?= $siswa['status'] ?>" data-jenis-kelamin="<?= $siswa['jenis_kelamin'] ?>">
-                                        <td><?= $index + 1 ?></td>
-                                        <td>
-                                            <strong><?= esc($siswa['nama_lengkap']) ?></strong>
-                                            <br>
-                                            <span class="badge <?= $siswa['status'] === 'selesai' ? 'bg-success' : ($siswa['status'] === 'sedang_mengerjakan' ? 'bg-primary' : 'bg-warning text-dark') ?>">
-                                                <?= $siswa['status'] === 'selesai' ? 'Selesai' : ($siswa['status'] === 'sedang_mengerjakan' ? 'Mengerjakan' : 'Belum Mulai') ?>
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <span class="badge <?= $siswa['jenis_kelamin'] === 'Laki-laki' ? 'bg-info' : ($siswa['jenis_kelamin'] === 'Perempuan' ? 'bg-pink' : 'bg-secondary') ?>">
-                                                <?php if ($siswa['jenis_kelamin'] === 'Laki-laki'): ?>
-                                                    Laki-laki
-                                                <?php elseif ($siswa['jenis_kelamin'] === 'Perempuan'): ?>
-                                                    Perempuan
-                                                <?php else: ?>
-                                                    Belum diisi
-                                                <?php endif; ?>
-                                            </span>
-                                        </td>
-                                        <td><strong><?= esc($siswa['nomor_peserta']) ?></strong></td>
-                                        <td>
-                                            <?php if ($siswa['status'] === 'selesai'): ?>
-                                                <div class="text-start">
-                                                    <small class="text-muted d-block">
-                                                        <i class="fas fa-play text-success"></i> <?= $siswa['waktu_mulai_format'] ?>
-                                                    </small>
-                                                    <small class="text-muted d-block">
-                                                        <i class="fas fa-stop text-danger"></i> <?= $siswa['waktu_selesai_format'] ?>
-                                                    </small>
-                                                    <strong class="text-primary">
-                                                        <i class="fas fa-clock"></i> <?= $siswa['durasi_format'] ?>
-                                                    </strong>
-                                                </div>
-                                            <?php else: ?>
-                                                <span class="text-muted">-</span>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td>
-                                            <?php if ($siswa['status'] === 'selesai'): ?>
-                                                <div class="text-start">
-                                                    <small class="text-muted d-block">
-                                                        <strong>Percobaan:</strong> <?= (int) ($siswa['jumlah_attempt'] ?? 0) ?>
-                                                    </small>
-                                                    <?php if (!empty($siswa['is_cat_mode'])): ?>
-                                                        <small class="text-muted d-block">
-                                                            <strong>Theta Akhir:</strong> <?= number_format((float) $siswa['theta_akhir'], 3) ?>
-                                                        </small>
-                                                        <small class="text-muted d-block">
-                                                            <strong>SE Akhir:</strong> <?= number_format((float) $siswa['se_akhir'], 3) ?>
-                                                        </small>
-                                                    <?php else: ?>
-                                                        <small class="text-muted d-block">
-                                                            <strong>Nilai Akhir:</strong> <?= number_format((float) $siswa['nilai'], 2) ?>
-                                                        </small>
-                                                    <?php endif; ?>
-                                                    <small class="text-muted d-block">
-                                                        <strong>Soal:</strong> <?= $siswa['jawaban_benar'] ?>/<?= $siswa['total_soal'] ?> benar
-                                                    </small>
-                                                    <span class="fs-6 fw-bold text-success d-block">
-                                                        <strong><?= !empty($siswa['is_cat_mode']) ? 'Skor' : 'Nilai' ?>:</strong> <?= number_format((float) $siswa['skor'], !empty($siswa['is_cat_mode']) ? 1 : 2) ?>
-                                                    </span>
-                                                    <?php if (!empty($siswa['is_cat_mode'])): ?>
-                                                        <span class="badge <?= $siswa['klasifikasi_kognitif']['bg_class'] ?> mt-1">
-                                                            <?= $siswa['klasifikasi_kognitif']['kategori'] ?>
-                                                        </span>
-                                                    <?php endif; ?>
-                                                </div>
-                                            <?php else: ?>
-                                                <span class="text-muted">-</span>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td>
-                                            <div class="d-grid gap-1">
-                                                <?php if ($siswa['status'] === 'selesai'): ?>
-                                                    <a href="<?= base_url('guru/hasil-ujian/percobaan/' . $siswa['peserta_ujian_id']) ?>"
-                                                        class="btn btn-info btn-sm">
-                                                        <i class="fas fa-layer-group me-1"></i><?= ($siswa['jumlah_attempt'] ?? 0) > 1 ? 'Lihat Percobaan' : 'Lihat Detail' ?>
-                                                    </a>
-                                                    <button type="button"
-                                                        class="btn btn-outline-danger btn-sm"
-                                                        onclick="confirmDelete(<?= $siswa['peserta_ujian_id'] ?>, '<?= addslashes($siswa['nama_lengkap']) ?>', 'selesai')"
-                                                        title="Hapus Hasil Ujian">
-                                                        <i class="fas fa-trash me-1"></i>Hapus
-                                                    </button>
-
-                                                <?php elseif ($siswa['status'] === 'sedang_mengerjakan'): ?>
-                                                    <!-- Tombol untuk siswa yang sedang mengerjakan -->
-                                                    <span class="badge bg-primary mb-1">
-                                                        <i class="fas fa-clock me-1"></i>Sedang Mengerjakan
-                                                    </span>
-                                                    <button type="button"
-                                                        class="btn btn-warning btn-sm"
-                                                        onclick="confirmReset(<?= $siswa['peserta_ujian_id'] ?>, '<?= addslashes($siswa['nama_lengkap']) ?>', 'sedang_mengerjakan')"
-                                                        title="Reset ke Belum Mulai">
-                                                        <i class="fas fa-redo me-1"></i>Reset
-                                                    </button>
-                                                    <button type="button"
-                                                        class="btn btn-outline-danger btn-sm"
-                                                        onclick="confirmDelete(<?= $siswa['peserta_ujian_id'] ?>, '<?= addslashes($siswa['nama_lengkap']) ?>', 'sedang_mengerjakan')"
-                                                        title="Hapus Peserta Ujian">
-                                                        <i class="fas fa-trash me-1"></i>Hapus
-                                                    </button>
-
-                                                <?php else: // belum_mulai 
-                                                ?>
-                                                    <!-- Tombol untuk siswa yang belum mulai -->
-                                                    <span class="badge bg-warning text-dark mb-1">
-                                                        <i class="fas fa-hourglass-half me-1"></i>Belum Mulai
-                                                    </span>
-                                                    <button type="button"
-                                                        class="btn btn-outline-danger btn-sm"
-                                                        onclick="confirmDelete(<?= $siswa['peserta_ujian_id'] ?>, '<?= addslashes($siswa['nama_lengkap']) ?>', 'belum_mulai')"
-                                                        title="Hapus Peserta Ujian">
-                                                        <i class="fas fa-trash me-1"></i>Hapus
-                                                    </button>
-                                                <?php endif; ?>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+<?php
+$isCbt     = ($ujian['tipe_ujian'] ?? 'CAT') === 'CBT';
+$selesai   = array_values(array_filter($hasilSiswa, fn($s) => $s['status'] === 'selesai'));
+$mengerjakan = array_values(array_filter($hasilSiswa, fn($s) => $s['status'] === 'sedang_mengerjakan'));
+$belumMulai  = array_values(array_filter($hasilSiswa, fn($s) => $s['status'] === 'belum_mulai'));
+$skorArr   = array_filter($selesai, fn($s) => $s['skor'] !== null);
+$rataRata  = count($skorArr) > 0 ? array_sum(array_column($skorArr, 'skor')) / count($skorArr) : null;
+?>
 
 <style>
-    .bg-pink {
-        background-color: #e91e63 !important;
-        color: white !important;
-    }
+.hs-wrap{padding:72px 0 48px;background:#f4f6f9;min-height:100vh}
+.hs-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:1rem;margin-bottom:1.25rem}
+.hs-title{font-size:1.05rem;font-weight:700;color:#0f172a;margin:0 0 .2rem}
+.hs-meta{font-size:.8rem;color:#6b7280}
+.hs-type-badge{display:inline-block;font-size:.68rem;font-weight:700;letter-spacing:.06em;padding:.18rem .55rem;border-radius:3px;margin-right:.4rem;vertical-align:middle}
+.hs-type-cbt{background:#d1fae5;color:#065f46}
+.hs-type-cat{background:#dbeafe;color:#1e40af}
 
-    /* Tambahan CSS untuk klasifikasi kognitif */
-    .bg-orange {
-        background-color: #fd7e14 !important;
-        color: white !important;
-    }
+.hs-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border:1px solid #e2e8f0;margin-bottom:1.25rem}
+.hs-stat{background:#fff;padding:.9rem 1.1rem;border-right:1px solid #e2e8f0}
+.hs-stat:last-child{border-right:none}
+.hs-stat-num{font-size:1.65rem;font-weight:700;line-height:1;letter-spacing:-.02em}
+.hs-stat-lbl{font-size:.68rem;color:#9ca3af;text-transform:uppercase;letter-spacing:.05em;margin-top:.2rem}
+.num-green{color:#16a34a}.num-blue{color:#2563eb}.num-amber{color:#d97706}.num-slate{color:#0f172a}
+@media(max-width:575px){.hs-stats{grid-template-columns:repeat(2,1fr)}.hs-stat:nth-child(2){border-right:none}.hs-stat:nth-child(1),.hs-stat:nth-child(2){border-bottom:1px solid #e2e8f0}}
 
-    .text-orange {
-        color: #fd7e14 !important;
-    }
+.hs-card{background:#fff;border:1px solid #e2e8f0}
+.hs-card-hd{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.75rem;padding:.85rem 1.25rem;border-bottom:1px solid #f1f5f9}
+.hs-card-title{font-size:.88rem;font-weight:600;color:#0f172a}
+.hs-filter{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
+.hs-filter .form-control,.hs-filter .form-select{font-size:.8rem;border-radius:0;border-color:#d1d5db;padding:.3rem .6rem;height:auto}
+.hs-filter .form-control{width:210px}
+.hs-filter .form-select{width:160px}
 
-    /* Pastikan semua bg-class kognitif ada */
-    .bg-success {
-        background-color: #28a745 !important;
-        color: white !important;
-    }
+.hs-table{width:100%;border-collapse:collapse;font-size:.83rem}
+.hs-table thead th{background:#f8fafc;color:#475569;font-weight:600;font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;padding:.6rem 1rem;border-bottom:2px solid #e2e8f0;white-space:nowrap}
+.hs-table tbody tr{border-bottom:1px solid #f1f5f9}
+.hs-table tbody tr:last-child{border-bottom:none}
+.hs-table tbody tr:hover{background:#fafbfc}
+.hs-table td{padding:.7rem 1rem;vertical-align:middle}
+.hs-no{color:#9ca3af;font-size:.75rem;text-align:center;width:36px}
 
-    .bg-info {
-        background-color: #17a2b8 !important;
-        color: white !important;
-    }
+.hs-name{font-weight:600;color:#0f172a;font-size:.86rem}
+.hs-badges{display:flex;align-items:center;gap:.35rem;margin-top:.25rem}
+.hs-sbadge{font-size:.67rem;font-weight:600;padding:.15rem .45rem;border-radius:3px;line-height:1.4}
+.sbg-done{background:#dcfce7;color:#166534}
+.sbg-ongoing{background:#dbeafe;color:#1e40af}
+.sbg-pending{background:#fef9c3;color:#92400e}
+.hs-gender{font-size:.7rem;color:#9ca3af;font-weight:500}
 
-    .bg-warning {
-        background-color: #ffc107 !important;
-        color: #212529 !important;
-    }
+.hs-nopeserta{font-family:monospace;font-size:.82rem;color:#374151;font-weight:600}
 
-    .bg-danger {
-        background-color: #dc3545 !important;
-        color: white !important;
-    }
+.hs-dur-list{display:flex;flex-direction:column;gap:.18rem}
+.hs-dur-row{display:flex;align-items:center;gap:.4rem;font-size:.8rem}
+.hs-dur-p{font-size:.68rem;font-weight:700;color:#9ca3af;letter-spacing:.03em;min-width:20px}
+.hs-dur-val{font-family:monospace;font-weight:600;color:#0f172a}
+.hs-dur-single{font-family:monospace;font-size:.82rem;font-weight:600;color:#0f172a}
 
-    @media print {
+.hs-benar{display:flex;align-items:baseline;gap:.25rem;line-height:1}
+.hs-benar-n{font-size:1.15rem;font-weight:700;color:#0f172a}
+.hs-benar-d{font-size:.78rem;color:#9ca3af}
+.hs-nilai{font-size:.75rem;color:#6b7280;margin-top:.3rem}
+.hs-nilai-v{font-weight:700;color:#0f172a}
+.hs-attempt-note{font-size:.68rem;color:#9ca3af;margin-top:.2rem}
+.hs-skor-big{font-size:1.15rem;font-weight:700;color:#0f172a;line-height:1}
+.hs-skor-meta{font-size:.72rem;color:#6b7280;margin-top:.25rem;line-height:1.6}
+.hs-kat{display:inline-block;font-size:.67rem;font-weight:700;padding:.15rem .5rem;border-radius:3px;margin-top:.3rem;letter-spacing:.03em}
 
-        /* Sembunyikan kolom aksi saat print */
-        .table th:last-child,
-        .table td:last-child {
-            display: none !important;
-        }
+.hs-act{display:flex;flex-direction:column;gap:.3rem}
+.hs-btn{display:inline-flex;align-items:center;gap:.3rem;font-size:.76rem;font-weight:500;padding:.3rem .65rem;border-radius:0;border:1px solid;cursor:pointer;text-decoration:none;background:transparent;line-height:1.4;white-space:nowrap;transition:background .12s}
+.hs-btn-view{border-color:#bfdbfe;color:#1d4ed8}.hs-btn-view:hover{background:#eff6ff;color:#1d4ed8}
+.hs-btn-reset{border-color:#fde68a;color:#92400e}.hs-btn-reset:hover{background:#fffbeb;color:#92400e}
+.hs-btn-del{border-color:#fca5a5;color:#dc2626}.hs-btn-del:hover{background:#fef2f2;color:#dc2626}
 
-        /* Sembunyikan tombol export dan print */
-        .btn-group {
-            display: none !important;
-        }
-
-        /* Sembunyikan filter */
-        .row .col-md-3,
-        .row .col-md-2 {
-            display: none !important;
-        }
-    }
+.hs-empty{color:#9ca3af;font-size:.83rem}
+@media print{.hs-act,.hs-filter,.hs-head .d-flex{display:none!important}.hs-wrap{padding-top:0;background:#fff}}
 </style>
 
+<div class="hs-wrap">
+<div class="container-fluid px-3 px-md-4">
+
+  <?php if (session()->getFlashdata('success')): ?>
+    <div class="alert alert-success alert-dismissible fade show border-0 mb-3" style="border-radius:0" role="alert">
+      <?= session()->getFlashdata('success') ?>
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+  <?php endif; ?>
+  <?php if (session()->getFlashdata('error')): ?>
+    <div class="alert alert-danger alert-dismissible fade show border-0 mb-3" style="border-radius:0" role="alert">
+      <?= session()->getFlashdata('error') ?>
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+  <?php endif; ?>
+
+  <!-- Header -->
+  <div class="hs-head">
+    <div>
+      <div class="hs-title">
+        <span class="hs-type-badge <?= $isCbt ? 'hs-type-cbt' : 'hs-type-cat' ?>"><?= $isCbt ? 'CBT' : 'CAT' ?></span>
+        <?= esc($ujian['nama_ujian']) ?>
+      </div>
+      <div class="hs-meta">
+        <?= esc($ujian['nama_kelas']) ?> &middot; <?= esc($ujian['nama_sekolah']) ?> &middot; <?= esc($ujian['nama_jenis']) ?>
+        &middot; Guru: <?= esc($ujian['nama_guru']) ?>
+        &middot; <?= $ujian['tanggal_mulai_format'] ?> &ndash; <?= $ujian['tanggal_selesai_format'] ?>
+        &middot; Kode: <code><?= esc($ujian['kode_akses']) ?></code>
+      </div>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <button class="hs-btn hs-btn-view" onclick="exportHasil()" style="border-radius:0">
+        <i class="fas fa-download"></i>Export CSV
+      </button>
+      <a href="<?= base_url('guru/hasil-ujian') ?>" class="hs-btn" style="border-color:#d1d5db;color:#374151;border-radius:0;text-decoration:none;display:inline-flex;align-items:center;gap:.3rem">
+        <i class="fas fa-arrow-left"></i>Kembali
+      </a>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="hs-stats">
+    <div class="hs-stat">
+      <div class="hs-stat-num num-green"><?= count($selesai) ?></div>
+      <div class="hs-stat-lbl">Selesai</div>
+    </div>
+    <div class="hs-stat">
+      <div class="hs-stat-num num-blue"><?= count($mengerjakan) ?></div>
+      <div class="hs-stat-lbl">Mengerjakan</div>
+    </div>
+    <div class="hs-stat">
+      <div class="hs-stat-num num-amber"><?= count($belumMulai) ?></div>
+      <div class="hs-stat-lbl">Belum Mulai</div>
+    </div>
+    <div class="hs-stat">
+      <div class="hs-stat-num num-slate"><?= $rataRata !== null ? round($rataRata, 1) : '—' ?></div>
+      <div class="hs-stat-lbl">Rata-rata <?= $isCbt ? 'Nilai' : 'Skor' ?></div>
+    </div>
+  </div>
+
+  <!-- Table card -->
+  <div class="hs-card">
+    <div class="hs-card-hd">
+      <span class="hs-card-title">Daftar Peserta <span style="color:#9ca3af;font-weight:400">(<?= count($hasilSiswa) ?>)</span></span>
+      <div class="hs-filter">
+        <input type="text" class="form-control" id="searchSiswa" placeholder="Cari nama / no. peserta&hellip;">
+        <select class="form-select" id="filterStatus">
+          <option value="">Semua Status</option>
+          <option value="selesai">Selesai</option>
+          <option value="sedang_mengerjakan">Mengerjakan</option>
+          <option value="belum_mulai">Belum Mulai</option>
+        </select>
+        <button class="hs-btn" style="border-color:#d1d5db;color:#374151;border-radius:0" onclick="resetFilter()">Reset</button>
+      </div>
+    </div>
+
+    <div class="table-responsive">
+      <table class="hs-table" id="tableHasil">
+        <thead>
+          <tr>
+            <th class="hs-no text-center">#</th>
+            <th>Siswa</th>
+            <th>No. Peserta</th>
+            <th><?= $isCbt ? 'Durasi per Percobaan' : 'Durasi' ?></th>
+            <th><?= $isCbt ? 'Hasil (percobaan terakhir)' : 'Hasil Akhir' ?></th>
+            <th>Aksi</th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php foreach ($hasilSiswa as $idx => $siswa): ?>
+          <?php
+            $stCls = match($siswa['status']) { 'selesai' => 'sbg-done', 'sedang_mengerjakan' => 'sbg-ongoing', default => 'sbg-pending' };
+            $stLbl = match($siswa['status']) { 'selesai' => 'Selesai', 'sedang_mengerjakan' => 'Mengerjakan', default => 'Belum Mulai' };
+            $genderShort = $siswa['jenis_kelamin'] === 'Laki-laki' ? 'L' : ($siswa['jenis_kelamin'] === 'Perempuan' ? 'P' : '—');
+          ?>
+          <tr data-status="<?= $siswa['status'] ?>"
+              data-nama="<?= esc(strtolower($siswa['nama_lengkap'])) ?>"
+              data-no="<?= esc(strtolower($siswa['nomor_peserta'] ?? '')) ?>">
+            <td class="hs-no"><?= $idx + 1 ?></td>
+            <td>
+              <div class="hs-name"><?= esc($siswa['nama_lengkap']) ?></div>
+              <div class="hs-badges">
+                <span class="hs-sbadge <?= $stCls ?>"><?= $stLbl ?></span>
+                <span class="hs-gender"><?= $genderShort ?></span>
+              </div>
+            </td>
+            <td><span class="hs-nopeserta"><?= esc($siswa['nomor_peserta'] ?? '—') ?></span></td>
+            <td>
+              <?php if ($siswa['status'] === 'selesai'): ?>
+                <?php if ($isCbt && !empty($siswa['attempts_durasi'])): ?>
+                  <div class="hs-dur-list">
+                    <?php foreach ($siswa['attempts_durasi'] as $att): ?>
+                      <div class="hs-dur-row">
+                        <span class="hs-dur-p">P<?= $att['nomor'] ?></span>
+                        <span class="hs-dur-val"><?= esc($att['durasi']) ?></span>
+                      </div>
+                    <?php endforeach; ?>
+                  </div>
+                <?php else: ?>
+                  <span class="hs-dur-single"><?= esc($siswa['durasi_format']) ?></span>
+                <?php endif; ?>
+              <?php else: ?>
+                <span class="hs-empty">—</span>
+              <?php endif; ?>
+            </td>
+            <td>
+              <?php if ($siswa['status'] === 'selesai'): ?>
+                <?php if ($isCbt): ?>
+                  <?php if ($siswa['nilai'] !== null): ?>
+                    <div class="hs-skor-big"><?= number_format((float)$siswa['nilai'], 2) ?></div>
+                  <?php endif; ?>
+                  <?php if (($siswa['jumlah_attempt'] ?? 0) > 1): ?>
+                    <div class="hs-attempt-note"><?= $siswa['jumlah_attempt'] ?> percobaan</div>
+                  <?php endif; ?>
+                <?php else: ?>
+                  <div class="hs-skor-big"><?= number_format((float)$siswa['skor'], 1) ?></div>
+                  <span class="hs-kat <?= $siswa['klasifikasi_kognitif']['bg_class'] ?> text-white">
+                    <?= esc($siswa['klasifikasi_kognitif']['kategori']) ?>
+                  </span>
+                <?php endif; ?>
+              <?php else: ?>
+                <span class="hs-empty">—</span>
+              <?php endif; ?>
+            </td>
+            <td>
+              <div class="hs-act">
+                <?php if ($siswa['status'] === 'selesai'): ?>
+                  <a href="<?= base_url($isCbt ? 'guru/hasil-ujian/percobaan/' : 'guru/hasil-ujian/detail/') . $siswa['peserta_ujian_id'] ?>" class="hs-btn hs-btn-view">
+                    <i class="fas fa-<?= $isCbt ? 'layer-group' : 'eye' ?>"></i>
+                    <?= $isCbt ? 'Percobaan' : 'Detail' ?>
+                  </a>
+                  <button class="hs-btn hs-btn-del" onclick="confirmDelete(<?= $siswa['peserta_ujian_id'] ?>, '<?= addslashes($siswa['nama_lengkap']) ?>', 'selesai')">
+                    <i class="fas fa-trash"></i>Hapus
+                  </button>
+                <?php elseif ($siswa['status'] === 'sedang_mengerjakan'): ?>
+                  <button class="hs-btn hs-btn-reset" onclick="confirmReset(<?= $siswa['peserta_ujian_id'] ?>, '<?= addslashes($siswa['nama_lengkap']) ?>', 'sedang_mengerjakan')">
+                    <i class="fas fa-redo"></i>Reset
+                  </button>
+                  <button class="hs-btn hs-btn-del" onclick="confirmDelete(<?= $siswa['peserta_ujian_id'] ?>, '<?= addslashes($siswa['nama_lengkap']) ?>', 'sedang_mengerjakan')">
+                    <i class="fas fa-trash"></i>Hapus
+                  </button>
+                <?php else: ?>
+                  <button class="hs-btn hs-btn-del" onclick="confirmDelete(<?= $siswa['peserta_ujian_id'] ?>, '<?= addslashes($siswa['nama_lengkap']) ?>', 'belum_mulai')">
+                    <i class="fas fa-trash"></i>Hapus
+                  </button>
+                <?php endif; ?>
+              </div>
+            </td>
+          </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+</div>
+
 <script>
-    // Filter functionality
-    document.getElementById('searchSiswa').addEventListener('keyup', filterTable);
-    document.getElementById('filterStatus').addEventListener('change', filterTable);
-    document.getElementById('filterJenisKelamin').addEventListener('change', filterTable);
+document.getElementById('searchSiswa').addEventListener('input', filterTable);
+document.getElementById('filterStatus').addEventListener('change', filterTable);
 
-    function filterTable() {
-        const searchText = document.getElementById('searchSiswa').value.toLowerCase();
-        const statusFilter = document.getElementById('filterStatus').value;
-        const jenisKelaminFilter = document.getElementById('filterJenisKelamin').value;
-        const rows = document.querySelectorAll('#tableHasil tbody tr');
+function filterTable() {
+  const q  = document.getElementById('searchSiswa').value.toLowerCase();
+  const st = document.getElementById('filterStatus').value;
+  document.querySelectorAll('#tableHasil tbody tr').forEach(function(r) {
+    const nameMatch = !q || r.dataset.nama.includes(q) || r.dataset.no.includes(q);
+    const stMatch   = !st || r.dataset.status === st;
+    r.style.display = (nameMatch && stMatch) ? '' : 'none';
+  });
+}
+function resetFilter() {
+  document.getElementById('searchSiswa').value = '';
+  document.getElementById('filterStatus').value = '';
+  filterTable();
+}
 
-        rows.forEach(row => {
-            const nama = row.cells[1].textContent.toLowerCase();
-            const nomor = row.cells[3].textContent.toLowerCase();
-            const status = row.getAttribute('data-status');
-            const jenisKelamin = row.getAttribute('data-jenis-kelamin');
+function exportHasil() {
+  const isCbt = <?= $isCbt ? 'true' : 'false' ?>;
+  const headers = ['No','Nama','No. Peserta','Status','Durasi','Jawaban Benar','Total Soal',isCbt?'Nilai':'Skor'];
+  if (!isCbt) headers.push('Theta','SE','Klasifikasi');
+  let csv = headers.join(',') + '\n';
+  <?php foreach ($hasilSiswa as $i => $s): ?>
+  csv += [
+    <?= $i+1 ?>,
+    '"<?= addslashes($s['nama_lengkap']) ?>"',
+    '"<?= addslashes($s['nomor_peserta'] ?? '') ?>"',
+    '"<?= $s['status'] ?>"',
+    <?php if ($isCbt && !empty($s['attempts_durasi'])): ?>
+      '"<?= implode(' | ', array_map(fn($a) => 'P'.$a['nomor'].': '.$a['durasi'], $s['attempts_durasi'])) ?>"',
+    <?php else: ?>
+      '"<?= $s['durasi_format'] ?? '-' ?>"',
+    <?php endif; ?>
+    <?= (int)($s['jawaban_benar'] ?? 0) ?>,
+    <?= (int)($s['total_soal'] ?? 0) ?>,
+    <?= $s['skor'] !== null ? number_format((float)$s['skor'], 2) : 0 ?>
+    <?php if (!$isCbt): ?>
+    ,<?= isset($s['theta_akhir']) ? number_format((float)$s['theta_akhir'], 4) : 0 ?>
+    ,<?= isset($s['se_akhir']) ? number_format((float)$s['se_akhir'], 4) : 0 ?>
+    ,'"<?= addslashes($s['klasifikasi_kognitif']['kategori'] ?? '') ?>"'
+    <?php endif; ?>
+  ].join(',') + '\n';
+  <?php endforeach; ?>
+  const blob = new Blob(['﻿' + csv], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'hasil_<?= preg_replace('/[^a-zA-Z0-9]/', '_', $ujian['nama_ujian']) ?>_<?= preg_replace('/[^a-zA-Z0-9]/', '_', $ujian['nama_kelas'] ?? '') ?>.csv';
+  a.click();
+}
 
-            const textMatch = !searchText || nama.includes(searchText) || nomor.includes(searchText);
-            const statusMatch = !statusFilter || status === statusFilter;
-            const jenisKelaminMatch = !jenisKelaminFilter || jenisKelamin === jenisKelaminFilter;
-
-            row.style.display = (textMatch && statusMatch && jenisKelaminMatch) ? '' : 'none';
-        });
-    }
-
-    function resetFilter() {
-        document.getElementById('searchSiswa').value = '';
-        document.getElementById('filterStatus').value = '';
-        document.getElementById('filterJenisKelamin').value = '';
-        filterTable();
-    }
-
-    function exportHasil() {
-        const namaUjian = '<?= addslashes($ujian['nama_ujian']) ?>';
-        const namaKelas = '<?= addslashes($ujian['nama_kelas']) ?>';
-        const isCatExam = <?= $isCatExam ? 'true' : 'false' ?>;
-
-        // Buat CSV content
-        const headers = [
-            'No',
-            'Nama Siswa',
-            'Jenis Kelamin',
-            'No Peserta/NIS',
-            'Status',
-            'Waktu Mulai',
-            'Waktu Selesai',
-            'Durasi'
-        ];
-        if (isCatExam) {
-            headers.push('Theta Akhir', 'SE Akhir', 'Total Soal', 'Jawaban Benar', 'Skor', 'Tingkat Kemampuan');
-        } else {
-            headers.push('Nilai Akhir', 'Total Soal', 'Jawaban Benar', 'Nilai');
-        }
-        let csvContent = headers.join(',') + '\n';
-
-        const rows = document.querySelectorAll('#tableHasil tbody tr');
-        rows.forEach((row, index) => {
-            if (row.style.display !== 'none') {
-                const cells = row.querySelectorAll('td');
-                const rowData = [];
-
-                // No
-                rowData.push(index + 1);
-                // Nama (ambil hanya text tanpa badge)
-                rowData.push('"' + cells[1].querySelector('strong').textContent.trim().replace(/"/g, '""') + '"');
-                // Jenis Kelamin
-                rowData.push('"' + cells[2].querySelector('.badge').textContent.trim().replace(/"/g, '""') + '"');
-                // No Peserta
-                rowData.push('"' + cells[3].textContent.trim().replace(/"/g, '""') + '"');
-
-                <?php foreach ($hasilSiswa as $siswa): ?>
-                    if (index === <?= array_search($siswa, $hasilSiswa) ?>) {
-                        rowData.push('"<?= $siswa['status'] ?>"');
-                        rowData.push('"<?= $siswa['waktu_mulai_format'] ?? '-' ?>"');
-                        rowData.push('"<?= $siswa['waktu_selesai_format'] ?? '-' ?>"');
-                        rowData.push('"<?= $siswa['durasi_format'] ?? '-' ?>"');
-                        <?php if (!empty($siswa['is_cat_mode'])): ?>
-                            rowData.push('"<?= isset($siswa['theta_akhir']) ? number_format((float) $siswa['theta_akhir'], 3) : '-' ?>"');
-                            rowData.push('"<?= isset($siswa['se_akhir']) ? number_format((float) $siswa['se_akhir'], 3) : '-' ?>"');
-                            rowData.push('"<?= $siswa['total_soal'] ?>"');
-                            rowData.push('"<?= $siswa['jawaban_benar'] ?>"');
-                            rowData.push('"<?= isset($siswa['skor']) ? number_format((float) $siswa['skor'], 1) : '-' ?>"');
-                            rowData.push('"<?= addslashes($siswa['klasifikasi_kognitif']['kategori'] ?? '-') ?>');
-                        <?php else: ?>
-                            rowData.push('"<?= isset($siswa['nilai']) ? number_format((float) $siswa['nilai'], 2) : '-' ?>"');
-                            rowData.push('"<?= $siswa['total_soal'] ?>"');
-                            rowData.push('"<?= $siswa['jawaban_benar'] ?>"');
-                            rowData.push('"<?= isset($siswa['skor']) ? number_format((float) $siswa['skor'], 2) : '-' ?>"');
-                        <?php endif; ?>
-                    }
-                <?php endforeach; ?>
-
-                csvContent += rowData.join(',') + '\n';
-            }
-        });
-
-        // Download CSV
-        const blob = new Blob([csvContent], {
-            type: 'text/csv;charset=utf-8;'
-        });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = `hasil_${namaUjian.replace(/[^a-zA-Z0-9]/g, '_')}_${namaKelas.replace(/[^a-zA-Z0-9]/g, '_')}.csv`;
-        link.click();
-    }
-
-    function printHasil() {
-        const printWindow = window.open('', '_blank');
-        const ujianInfo = `
-        <div style="text-align: center; margin-bottom: 20px;">
-            <h2>Hasil Ujian</h2>
-            <h3><?= esc($ujian['nama_ujian']) ?></h3>
-            <p>Kelas: <?= esc($ujian['nama_kelas']) ?> - <?= esc($ujian['nama_sekolah']) ?></p>
-            <p>Guru: <?= esc($ujian['nama_guru']) ?></p>
-            <p>Jadwal: <?= $ujian['tanggal_mulai_format'] ?> - <?= $ujian['tanggal_selesai_format'] ?></p>
-        </div>
-    `;
-
-        const tableContent = document.getElementById('tableHasil').outerHTML;
-
-        printWindow.document.write(`
-        <html>
-            <head>
-                <title>Hasil Ujian</title>
-                <style>
-                    body { font-family: Arial, sans-serif; margin: 20px; }
-                    table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 10px; }
-                    th, td { border: 1px solid #ddd; padding: 4px; text-align: left; }
-                    th { background-color: #f2f2f2; font-weight: bold; }
-                    .badge { padding: 2px 4px; border-radius: 3px; font-size: 8px; }
-                    .bg-success { background-color: #d4edda; color: #155724; }
-                    .bg-primary { background-color: #cce7ff; color: #004085; }
-                    .bg-warning { background-color: #fff3cd; color: #856404; }
-                    .bg-info { background-color: #d1ecf1; color: #0c5460; }
-                    .bg-pink { background-color: #e91e63; color: white; }
-                    .d-grid { display: none; }
-                </style>
-            </head>
-            <body>
-                ${ujianInfo}
-                ${tableContent}
-                <div style="margin-top: 30px; text-align: center; font-size: 12px; color: #666;">
-                    Dicetak pada: ${new Date().toLocaleString('id-ID')}
-                </div>
-            </body>
-        </html>
-    `);
-
-        printWindow.document.close();
-        printWindow.print();
-    }
-
-    // Function untuk konfirmasi hapus hasil ujian
-    function confirmDelete(pesertaUjianId, namaSiswa, status) {
-        let title, warning, description;
-
-        if (status === 'selesai') {
-            title = 'Konfirmasi Hapus Hasil Ujian';
-            warning = 'Semua data jawaban dan hasil ujian akan dihapus permanen';
-            description = 'Apakah Anda yakin ingin menghapus hasil ujian untuk:';
-        } else if (status === 'sedang_mengerjakan') {
-            title = 'Konfirmasi Hapus Peserta yang Sedang Mengerjakan';
-            warning = 'Peserta akan dihapus dari ujian dan progress yang sudah dikerjakan akan hilang';
-            description = 'Apakah Anda yakin ingin menghapus peserta yang sedang mengerjakan:';
-        } else {
-            title = 'Konfirmasi Hapus Peserta Ujian';
-            warning = 'Peserta akan dihapus dari daftar ujian';
-            description = 'Apakah Anda yakin ingin menghapus peserta ujian:';
-        }
-
-        const modalHtml = `
-        <div class="modal fade" id="deleteModal" tabindex="-1">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header border-0">
-                        <h5 class="modal-title">
-                            <i class="fas fa-exclamation-triangle text-warning me-2"></i>
-                            ${title}
-                        </h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="alert alert-warning">
-                            <strong>Peringatan!</strong> Tindakan ini tidak dapat dibatalkan.
-                        </div>
-                        <p>${description}</p>
-                        <div class="card bg-light">
-                            <div class="card-body">
-                                <strong>${namaSiswa}</strong><br>
-                                <small class="text-muted">${warning}</small>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="modal-footer border-0">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                            <i class="fas fa-times me-1"></i>Batal
-                        </button>
-                        <button type="button" class="btn btn-danger" onclick="deleteHasil(${pesertaUjianId})">
-                            <i class="fas fa-trash me-1"></i>Ya, Hapus
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-
-        // Remove existing modal
-        const existingModal = document.getElementById('deleteModal');
-        if (existingModal) {
-            existingModal.remove();
-        }
-
-        // Add new modal
-        document.body.insertAdjacentHTML('beforeend', modalHtml);
-
-        // Show modal
-        const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
-        modal.show();
-    }
-
-    // TAMBAHAN: Function untuk konfirmasi reset status ujian
-    function confirmReset(pesertaUjianId, namaSiswa, status) {
-        let description, warning;
-
-        if (status === 'sedang_mengerjakan') {
-            description = 'Apakah Anda yakin ingin reset ujian untuk siswa yang sedang mengerjakan:';
-            warning = 'Progress ujian yang sudah dikerjakan akan hilang dan siswa dapat mengulang dari awal';
-        } else {
-            description = 'Apakah Anda yakin ingin reset status ujian untuk:';
-            warning = 'Status akan dikembalikan ke "belum_mulai"';
-        }
-
-        const modalHtml = `
-        <div class="modal fade" id="resetModal" tabindex="-1">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header border-0">
-                        <h5 class="modal-title">
-                            <i class="fas fa-redo text-warning me-2"></i>
-                            Konfirmasi Reset Status Ujian
-                        </h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="alert alert-info">
-                            <strong>Info:</strong> ${warning}
-                        </div>
-                        <p>${description}</p>
-                        <div class="card bg-light">
-                            <div class="card-body">
-                                <strong>${namaSiswa}</strong><br>
-                                <small class="text-muted">Siswa dapat mengulang ujian dari awal</small>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="modal-footer border-0">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                            <i class="fas fa-times me-1"></i>Batal
-                        </button>
-                        <button type="button" class="btn btn-warning" onclick="resetStatus(${pesertaUjianId})">
-                            <i class="fas fa-redo me-1"></i>Ya, Reset
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-
-        // Remove existing modal
-        const existingModal = document.getElementById('resetModal');
-        if (existingModal) {
-            existingModal.remove();
-        }
-
-        // Add new modal
-        document.body.insertAdjacentHTML('beforeend', modalHtml);
-
-        // Show modal
-        const modal = new bootstrap.Modal(document.getElementById('resetModal'));
-        modal.show();
-    }
-
-    // TAMBAHAN: Function untuk execute hapus
-    function deleteHasil(pesertaUjianId) {
-        // Show loading
-        const deleteBtn = document.querySelector('#deleteModal .btn-danger');
-        const originalText = deleteBtn.innerHTML;
-        deleteBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Menghapus...';
-        deleteBtn.disabled = true;
-
-        // Redirect ke controller
-        window.location.href = `<?= base_url('guru/hasil-ujian/hapus/') ?>${pesertaUjianId}`;
-    }
-
-    // TAMBAHAN: Function untuk execute reset
-    function resetStatus(pesertaUjianId) {
-        // Show loading
-        const resetBtn = document.querySelector('#resetModal .btn-warning');
-        const originalText = resetBtn.innerHTML;
-        resetBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Reset...';
-        resetBtn.disabled = true;
-
-        // Redirect ke controller
-        window.location.href = `<?= base_url('guru/hasil-ujian/reset/') ?>${pesertaUjianId}`;
-    }
+function confirmDelete(id, nama, status) {
+  const msgs = {
+    selesai: {title:'Hapus Hasil Ujian', warn:'Semua data jawaban dan hasil ujian dihapus permanen.'},
+    sedang_mengerjakan: {title:'Hapus Peserta (Sedang Mengerjakan)', warn:'Progress yang sudah dikerjakan akan hilang.'},
+    belum_mulai: {title:'Hapus Peserta Ujian', warn:'Peserta dihapus dari daftar ujian.'}
+  };
+  const m = msgs[status] || msgs.belum_mulai;
+  _showModal('deleteModal',
+    `<div class="modal-header border-0"><h6 class="modal-title fw-semibold"><i class="fas fa-exclamation-triangle text-warning me-2"></i>${m.title}</h6><button class="btn-close" data-bs-dismiss="modal"></button></div>
+     <div class="modal-body"><p class="mb-2 small text-muted">${m.warn}</p><div class="p-3 bg-light" style="border-left:3px solid #dc2626"><strong>${nama}</strong></div></div>
+     <div class="modal-footer border-0"><button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Batal</button><button class="btn btn-danger btn-sm" onclick="doDelete(${id})"><i class="fas fa-trash me-1"></i>Ya, Hapus</button></div>`
+  );
+}
+function confirmReset(id, nama, status) {
+  _showModal('resetModal',
+    `<div class="modal-header border-0"><h6 class="modal-title fw-semibold"><i class="fas fa-redo text-warning me-2"></i>Reset Status Ujian</h6><button class="btn-close" data-bs-dismiss="modal"></button></div>
+     <div class="modal-body"><p class="mb-2 small text-muted">Progress ujian akan hilang dan siswa dapat mengulang dari awal.</p><div class="p-3 bg-light" style="border-left:3px solid #d97706"><strong>${nama}</strong></div></div>
+     <div class="modal-footer border-0"><button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Batal</button><button class="btn btn-warning btn-sm" onclick="doReset(${id})"><i class="fas fa-redo me-1"></i>Ya, Reset</button></div>`
+  );
+}
+function _showModal(id, body) {
+  let el = document.getElementById(id);
+  if (el) el.remove();
+  document.body.insertAdjacentHTML('beforeend',
+    `<div class="modal fade" id="${id}" tabindex="-1"><div class="modal-dialog"><div class="modal-content border-0 shadow">${body}</div></div></div>`
+  );
+  new bootstrap.Modal(document.getElementById(id)).show();
+}
+function doDelete(id) { window.location.href = '<?= base_url('guru/hasil-ujian/hapus/') ?>' + id; }
+function doReset(id)  { window.location.href = '<?= base_url('guru/hasil-ujian/reset/') ?>' + id; }
 </script>
 
 <?= $this->endSection() ?>

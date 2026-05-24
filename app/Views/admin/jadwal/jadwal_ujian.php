@@ -5,6 +5,15 @@
 <?php
 $jadwalCAT = array_filter($jadwal ?? [], static fn($item) => ($item['tipe_ujian'] ?? 'CAT') === 'CAT');
 $jadwalCBT = array_filter($jadwal ?? [], static fn($item) => ($item['tipe_ujian'] ?? '') === 'CBT');
+$formatExamLabel = static function (array $exam): string {
+  $namaUjian = esc($exam['nama_ujian'] ?? '-');
+  $tipeUjian = esc($exam['tipe_ujian'] ?? 'CAT');
+  $kodeUjian = trim((string) ($exam['kode_ujian'] ?? ''));
+
+  return $kodeUjian !== ''
+    ? $namaUjian . ' [' . $tipeUjian . '] (' . esc($kodeUjian) . ')'
+    : $namaUjian . ' [' . $tipeUjian . ']';
+};
 $jadwalSections = [
   ['type' => 'CAT', 'title' => 'Computer Adaptive Test', 'badge' => 'bg-primary', 'text' => 'primary', 'cardClass' => 'cat-card', 'items' => $jadwalCAT, 'empty' => 'Belum ada jadwal CAT'],
   ['type' => 'CBT', 'title' => 'Computer Based Test', 'badge' => 'bg-success', 'text' => 'success', 'cardClass' => 'cbt-card', 'items' => $jadwalCBT, 'empty' => 'Belum ada jadwal CBT'],
@@ -122,7 +131,7 @@ $jadwalSections = [
               <select name="ujian_id" id="jUjianTambah" class="form-select" required>
                 <option value="">Pilih Ujian</option>
                 <?php if(!empty($ujian_tambah)): foreach($ujian_tambah as $u): ?>
-                  <option value="<?=$u['id_ujian']?>"><?=esc($u['nama_ujian'])?> (<?=esc($u['kode_ujian'])?>)</option>
+                  <option value="<?=$u['id_ujian']?>"><?=$formatExamLabel($u)?></option>
                 <?php endforeach; endif; ?>
               </select>
               <div class="form-text" id="jExamInfoTambah">Pilih ujian terlebih dahulu. Sekolah dan kelas jadwal akan mengikuti pengaturan ujian.</div>
@@ -220,7 +229,7 @@ $jadwalSections = [
               <label class="form-label small fw-semibold">Ujian</label>
               <select name="ujian_id" class="form-select jUjianEdit" data-jid="<?=$j['jadwal_id']?>" required>
                 <?php if(!empty($ujian_edit)): foreach($ujian_edit as $u): ?>
-                  <option value="<?=$u['id_ujian']?>" <?=$u['id_ujian']==$j['ujian_id']?'selected':''?>><?=esc($u['nama_ujian'])?></option>
+                  <option value="<?=$u['id_ujian']?>" <?=$u['id_ujian']==$j['ujian_id']?'selected':''?>><?=$formatExamLabel($u)?></option>
                 <?php endforeach; endif; ?>
               </select>
               <div class="form-text" id="jExamInfoEdit<?=$j['jadwal_id']?>">Jadwal mengikuti pengaturan sekolah dan kelas dari ujian yang dipilih.</div>
