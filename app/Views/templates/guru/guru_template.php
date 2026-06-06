@@ -410,7 +410,7 @@
                         <span>Kelola Ujian</span>
                         <i class="bi bi-chevron-down toggle-icon"></i>
                     </a>
-                    <div class="collapse <?= (strpos(current_url(), 'guru/ujian') !== false || strpos(current_url(), 'guru/soal') !== false || strpos(current_url(), 'guru/jadwal') !== false || strpos(current_url(), 'guru/hasil') !== false) ? 'show' : '' ?>"
+                    <div class="collapse <?= (strpos(current_url(), 'guru/ujian') !== false || strpos(current_url(), 'guru/soal') !== false || strpos(current_url(), 'guru/jadwal') !== false || strpos(current_url(), 'guru/hasil-ujian') !== false) ? 'show' : '' ?>"
                         id="collapseGuruUjian">
                         <ul class="nav flex-column submenu">
                             <li class="nav-item">
@@ -427,18 +427,22 @@
                             </li>
                             <li class="nav-item">
                                 <a href="<?= base_url('guru/hasil-ujian') ?>"
-                                    class="nav-link <?= (strpos(current_url(), 'guru/hasil-ujian') !== false && strpos(current_url(), 'guru/hasil-ujian/analitik') === false) ? 'active' : '' ?>">
+                                    class="nav-link <?= (strpos(current_url(), 'guru/hasil-ujian') !== false && strpos(current_url(), 'guru/hasil-ujian/analitik') === false && strpos(current_url(), 'guru/analisis-ujian') === false) ? 'active' : '' ?>">
                                     <i class="bi bi-clipboard-data"></i>Hasil Ujian
-                                </a>
-                            </li>
-                            <li class="nav-item">
-                                <a href="<?= base_url('guru/hasil-ujian/analitik') ?>"
-                                    class="nav-link <?= (strpos(current_url(), 'guru/hasil-ujian/analitik') !== false) ? 'active' : '' ?>">
-                                    <i class="bi bi-graph-up-arrow"></i>Rekap Data Ujian
                                 </a>
                             </li>
                         </ul>
                     </div>
+                </li>
+
+                <!-- Analisis -->
+                <li class="sidebar-section">Analisis</li>
+                <li class="nav-item">
+                    <a href="<?= base_url('guru/analisis-ujian') ?>"
+                        class="nav-link <?= (strpos(current_url(), 'guru/analisis-ujian') !== false) ? 'active' : '' ?>">
+                        <i class="bi bi-bar-chart-line"></i>
+                        <span>Analisis Hasil Ujian</span>
+                    </a>
                 </li>
 
                 <!-- Lainnya -->

@@ -8,6 +8,7 @@ class Home extends BaseController
     {
         return view('pages/home', [
             'hideLandingNavbar' => true,
+            'hideFooter'        => true,
         ]);
     }
 

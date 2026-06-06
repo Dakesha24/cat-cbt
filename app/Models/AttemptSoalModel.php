@@ -1,12 +1,11 @@
 <?php
-
 namespace App\Models;
 
 use CodeIgniter\Model;
 
 class AttemptSoalModel extends Model
 {
-    protected $table = 'attempt_soal';
+    protected $table = 'attempt_soal_cbt';
     protected $primaryKey = 'attempt_soal_id';
     protected $allowedFields = [
         'attempt_id',
@@ -22,6 +21,8 @@ class AttemptSoalModel extends Model
         'pilihan_e',
         'jawaban_benar',
         'tingkat_kesulitan',
+        'a',
+        'c',
         'pembahasan',
         'media',
         'created_at',

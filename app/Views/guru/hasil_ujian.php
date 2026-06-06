@@ -11,7 +11,6 @@ $ujianCBT = array_filter($daftarUjian ?? [], fn($u) => ($u['tipe_ujian'] ?? '') 
 
 <style>
 .exam-page { background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%); border: 1px solid #e9eef5; }
-.page-header-card { background: linear-gradient(135deg, #ffffff 0%, #f2f7ff 100%); border: 1px solid #dbe7ff; }
 .exam-card { border-radius: 0; overflow: hidden; border: 1px solid #e9ecef; border-left: 4px solid #dee2e6; transition: transform 0.18s ease, box-shadow 0.2s ease; }
 .exam-card.cat-card { border-left-color: #0d6efd; }
 .exam-card.cbt-card { border-left-color: #198754; }
@@ -39,23 +38,24 @@ $ujianCBT = array_filter($daftarUjian ?? [], fn($u) => ($u['tipe_ujian'] ?? '') 
 }
 </style>
 
-<br><br><br>
 <div class="container-fluid py-4">
-  <div class="exam-page shadow-sm px-3 px-md-4 py-4">
-    <div class="page-header-card d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4 px-3 px-md-4 py-3 shadow-sm">
-      <div>
-        <h2 class="fw-bold text-dark mb-1">Hasil Ujian</h2>
-        <p class="text-muted mb-0">Lihat hasil dan progres ujian untuk kelas yang Anda ajar</p>
-      </div>
-      <div class="d-flex gap-2 flex-wrap">
-        <a href="<?= base_url('guru/jadwal-ujian') ?>" class="btn btn-outline-primary shadow-sm">
-          <i class="bi bi-calendar3 me-2"></i>Jadwal Ujian
-        </a>
-        <a href="<?= base_url('guru/ujian') ?>" class="btn btn-primary shadow-sm">
-          <i class="bi bi-journal-text me-2"></i>Kelola Ujian
-        </a>
-      </div>
+
+  <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+    <div>
+      <h2 class="fw-bold text-dark mb-1">Hasil Ujian</h2>
+      <p class="text-muted mb-0">Lihat hasil dan progres ujian untuk kelas yang Anda ajar</p>
     </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a href="<?= base_url('guru/jadwal-ujian') ?>" class="btn btn-outline-secondary shadow-sm">
+        <i class="bi bi-calendar3 me-2"></i>Jadwal Ujian
+      </a>
+      <a href="<?= base_url('guru/ujian') ?>" class="btn btn-primary shadow-sm">
+        <i class="bi bi-journal-text me-2"></i>Kelola Ujian
+      </a>
+    </div>
+  </div>
+
+  <div class="exam-page shadow-sm px-3 px-md-4 py-4">
 
     <?php if (session()->getFlashdata('success')): ?>
       <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm" role="alert">

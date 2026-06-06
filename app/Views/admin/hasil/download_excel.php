@@ -68,12 +68,19 @@
         <td class="label">SE Akhir</td>
         <td><?= number_format((float) $seAkhir, 3) ?></td>
       </tr>
+    <?php else: ?>
+      <tr>
+        <td class="label">&#952;_EAP (Theta Final)</td>
+        <td><?= number_format((float) ($lastTheta ?? 0), 4) ?></td>
+        <td class="label">SEM (Std. Error)</td>
+        <td><?= number_format((float) ($seAkhir ?? 0), 4) ?></td>
+      </tr>
     <?php endif; ?>
     <tr>
-      <td class="label"><?= !empty($isCatMode) ? 'Skor' : 'Nilai' ?></td>
+      <td class="label"><?= !empty($isCatMode) ? 'Skor Kognitif' : 'Nilai EAP' ?></td>
       <td class="highlight"><?= number_format((float) $finalScore, 2) ?></td>
-      <td class="label">Nilai</td>
-      <td class="highlight"><?= number_format((float) $finalGrade, !empty($isCatMode) ? 0 : 2) ?></td>
+      <td class="label">Kategori</td>
+      <td><?= esc($klasifikasiKognitif['kategori']) ?></td>
     </tr>
   </table>
 
@@ -85,6 +92,22 @@
         <td><?= $kemampuanKognitif['skor'] ?></td>
         <td class="label">Kategori</td>
         <td><?= esc($klasifikasiKognitif['kategori']) ?></td>
+      </tr>
+    </table>
+  <?php else: ?>
+    <h2>Analisis EAP (IRT 3PL)</h2>
+    <table>
+      <tr>
+        <td class="label">Nilai EAP</td>
+        <td class="highlight"><?= number_format((float) $finalScore, 2) ?></td>
+        <td class="label">Kategori</td>
+        <td><?= esc($klasifikasiKognitif['kategori']) ?></td>
+      </tr>
+      <tr>
+        <td class="label">&#952;_EAP</td>
+        <td><?= number_format((float) ($lastTheta ?? 0), 4) ?></td>
+        <td class="label">Rumus</td>
+        <td>NA = 50 + (10 &#215; &#952;_EAP)</td>
       </tr>
     </table>
   <?php endif; ?>
@@ -100,6 +123,12 @@
         <th>Jawaban Siswa</th>
         <th>Jawaban Benar</th>
         <th>Status</th>
+        <?php if (empty($isCatMode)): ?>
+          <th>Kategori</th>
+          <th>P(&#952;)</th>
+          <th>z</th>
+          <th>Keterangan</th>
+        <?php endif; ?>
         <th>Waktu Jawab</th>
         <th>Durasi</th>
         <?php if (!empty($isCatMode)): ?>
@@ -118,6 +147,12 @@
           <td class="text-center"><?= esc($jawaban['jawaban_siswa']) ?></td>
           <td class="text-center"><?= esc($jawaban['jawaban_benar']) ?></td>
           <td class="text-center <?= !empty($jawaban['is_correct']) ? 'text-success' : 'text-danger' ?>"><?= !empty($jawaban['is_correct']) ? 'Benar' : 'Salah' ?></td>
+          <?php if (empty($isCatMode)): ?>
+            <td class="text-center"><?= esc($jawaban['kategori_soal'] ?? '-') ?></td>
+            <td class="text-center"><?= isset($jawaban['p_residu']) ? number_format((float) $jawaban['p_residu'], 3) : '-' ?></td>
+            <td class="text-center"><?= isset($jawaban['z_score']) ? number_format((float) $jawaban['z_score'], 3) : '-' ?></td>
+            <td class="text-center"><?= esc($jawaban['keterangan_residu'] ?? '-') ?></td>
+          <?php endif; ?>
           <td class="text-center"><?= esc($jawaban['waktu_menjawab_format']) ?></td>
           <td class="text-center"><?= esc($jawaban['durasi_pengerjaan_format']) ?></td>
           <?php if (!empty($isCatMode)): ?>

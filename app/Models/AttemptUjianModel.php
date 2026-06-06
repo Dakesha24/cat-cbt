@@ -16,6 +16,8 @@ class AttemptUjianModel extends Model
         'waktu_mulai',
         'waktu_selesai',
         'nilai_akhir',
+        'theta_akhir',
+        'sem_akhir',
         'created_at',
     ];
     protected $useTimestamps = false;

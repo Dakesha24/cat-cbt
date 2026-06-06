@@ -85,17 +85,20 @@ $routes->group('admin', ['namespace' => 'App\Controllers\Admin'], function ($rou
   // Kelola Metadata Soal (Variabel, Indikator, Materi)
   $routes->get('variabel', 'Admin::variabel');
   $routes->post('variabel/tambah', 'Admin::tambahVariabel');
+  $routes->post('variabel/tambah-inline', 'Admin::tambahVariabelInline');
   $routes->post('variabel/edit/(:num)', 'Admin::editVariabel/$1');
   $routes->get('variabel/hapus/(:num)', 'Admin::hapusVariabel/$1');
   $routes->get('api/indikator-by-variabel/(:num)', 'Admin::getIndikatorByVariabel/$1');
 
   $routes->get('indikator', 'Admin::indikator');
   $routes->post('indikator/tambah', 'Admin::tambahIndikator');
+  $routes->post('indikator/tambah-inline', 'Admin::tambahIndikatorInline');
   $routes->post('indikator/edit/(:num)', 'Admin::editIndikator/$1');
   $routes->get('indikator/hapus/(:num)', 'Admin::hapusIndikator/$1');
 
   $routes->get('materi', 'Admin::materi');
   $routes->post('materi/tambah', 'Admin::tambahMateri');
+  $routes->post('materi/tambah-inline', 'Admin::tambahMateriInline');
   $routes->post('materi/edit/(:num)', 'Admin::editMateri/$1');
   $routes->get('materi/hapus/(:num)', 'Admin::hapusMateri/$1');
 
@@ -165,9 +168,17 @@ $routes->group('admin', ['namespace' => 'App\Controllers\Admin'], function ($rou
   $routes->get('pengumuman/hapus/(:num)', 'Admin::hapusPengumuman/$1');
   $routes->get('pengumuman/toggle/(:num)', 'Admin::toggleStatusPengumuman/$1');
 
-  // debugging (bisa dihps)
-  $routes->get('debug-hasil', 'Admin::debugHasilUjian');
-  $routes->get('update-status', 'Admin::updateStatusJadwal');
+  // Analisis Hasil Ujian
+  $routes->get('analisis-ujian', 'Admin::analisisUjian');
+
+  // Biodata Tambahan (Form Builder)
+  $routes->get ('form-builder',                   'FormBuilder::index');
+  $routes->post('form-builder/field/simpan',      'FormBuilder::saveField');
+  $routes->post('form-builder/field/hapus/(:num)', 'FormBuilder::hapusField/$1');
+  $routes->post('form-builder/field/urutan',      'FormBuilder::updateUrutan');
+  $routes->post('form-builder/opsi/simpan',       'FormBuilder::saveOpsi');
+  $routes->post('form-builder/opsi/hapus/(:num)',  'FormBuilder::hapusOpsi/$1');
+
 
   //summernot untuk soal
   $routes->post('upload-ckeditor5-image', 'Admin::uploadCKEditor5Image');
@@ -181,6 +192,7 @@ $routes->group('guru', ['namespace' => 'App\Controllers\Guru'], function ($route
   $routes->get('jenis-ujian', 'Guru::jenisUjian');
   $routes->get('ujian', 'Guru::ujian');
   $routes->get('jadwal-ujian', 'Guru::jadwalUjian');
+  $routes->get('analisis-ujian', 'Guru::analisisUjian');
   $routes->get('hasil-ujian', 'Guru::hasilUjian');
   $routes->get('pengumuman', 'Guru::pengumuman');
 
@@ -218,17 +230,20 @@ $routes->group('guru', ['namespace' => 'App\Controllers\Guru'], function ($route
   // Metadata Soal
   $routes->get('variabel', 'Guru::variabel');
   $routes->post('variabel/tambah', 'Guru::tambahVariabel');
+  $routes->post('variabel/tambah-inline', 'Guru::tambahVariabelInline');
   $routes->post('variabel/edit/(:num)', 'Guru::editVariabel/$1');
   $routes->get('variabel/hapus/(:num)', 'Guru::hapusVariabel/$1');
   $routes->get('api/indikator-by-variabel/(:num)', 'Guru::getIndikatorByVariabel/$1');
 
   $routes->get('indikator', 'Guru::indikator');
   $routes->post('indikator/tambah', 'Guru::tambahIndikator');
+  $routes->post('indikator/tambah-inline', 'Guru::tambahIndikatorInline');
   $routes->post('indikator/edit/(:num)', 'Guru::editIndikator/$1');
   $routes->get('indikator/hapus/(:num)', 'Guru::hapusIndikator/$1');
 
   $routes->get('materi', 'Guru::materi');
   $routes->post('materi/tambah', 'Guru::tambahMateri');
+  $routes->post('materi/tambah-inline', 'Guru::tambahMateriInline');
   $routes->post('materi/edit/(:num)', 'Guru::editMateri/$1');
   $routes->get('materi/hapus/(:num)', 'Guru::hapusMateri/$1');
 
@@ -289,19 +304,12 @@ $routes->group('siswa', ['namespace' => 'App\Controllers\Siswa'], function ($rou
   $routes->get('hasil', 'Siswa::hasil');
   $routes->get('hasil/ujian/(:num)', 'Siswa::hasilUjian/$1');
   $routes->get('hasil/detail/(:num)', 'Siswa::detailHasil/$1');
+  $routes->get('hasil/unduh/(:num)', 'Siswa::unduh/$1');
   $routes->get('profil', 'Siswa::profil');
   $routes->post('profil/save', 'Siswa::saveProfil');
   $routes->post('ujian/mulai', 'Siswa::mulaiUjian');
+  $routes->post('ujian/simpan-jawaban', 'Siswa::simpanJawaban');
   $routes->get('ujian/soal/(:num)', 'Siswa::soal/$1');
   $routes->get('ujian/selesai/(:num)', 'Siswa::selesaiUjian/$1');
-  $routes->get('hasil/review/(:num)', 'Siswa::review/$1');
-  $routes->post('ujian/simpan-jawaban', 'Siswa::simpanJawaban');
-  $routes->post('ujian/mulai', 'Siswa::mulaiUjian');
-  $routes->get('ujian/soal/(:num)', 'Siswa::soal/$1');
-
-  $routes->get('hasil/unduh/(:num)', 'Siswa::unduh/$1');
-
   $routes->get('api/kelas-by-sekolah/(:num)', 'Siswa::getKelasBySekolah/$1');
-
-  $routes->get('hasil/unduh/(:num)', 'Siswa::unduh/$1');
 });

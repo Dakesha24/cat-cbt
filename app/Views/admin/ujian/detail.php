@@ -3,7 +3,6 @@
 <?= $this->section('title') ?>Detail Ujian<?= $this->endSection() ?>
 
 <?= $this->section('content') ?>
-<br><br><br>
 
 <div class="container-fluid">
   <div class="row">

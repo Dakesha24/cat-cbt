@@ -109,9 +109,8 @@ $kelasUmumLabel = 'Semua Guru';
 </style>
 
 <div class="container-fluid py-4">
-  <div class="exam-page shadow-sm px-3 px-md-4 py-4">
-  <!-- Header -->
-  <div class="page-header-card d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4 px-3 px-md-4 py-3 shadow-sm">
+
+  <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
     <div>
       <h2 class="fw-bold text-dark mb-1">Kelola Ujian</h2>
       <p class="text-muted mb-0">Buat dan kelola ujian untuk kelas yang Anda ajar</p>
@@ -120,6 +119,8 @@ $kelasUmumLabel = 'Semua Guru';
       <i class="bi bi-plus-lg me-2"></i>Tambah Ujian
     </button>
   </div>
+
+  <div class="exam-page shadow-sm px-3 px-md-4 py-4">
 
   <!-- Alerts -->
   <?php if (session()->getFlashdata('success')): ?>
@@ -625,15 +626,15 @@ $kelasUmumLabel = 'Semua Guru';
             <div class="row g-3 exam-modal-grid">
               <div class="col-md-4">
                 <label class="form-label small fw-semibold">SE Awal</label>
-                <input type="number" name="se_awal" class="form-control" step="0.0001" value="<?= esc($u['se_awal']) ?>" required>
+                <input type="number" name="se_awal" class="form-control" step="0.0001" value="<?= esc($u['se_awal'] ?? '1.0000') ?>" required>
               </div>
               <div class="col-md-4">
                 <label class="form-label small fw-semibold">SE Minimum</label>
-                <input type="number" name="se_minimum" class="form-control" step="0.0001" value="<?= esc($u['se_minimum']) ?>" required>
+                <input type="number" name="se_minimum" class="form-control" step="0.0001" value="<?= esc($u['se_minimum'] ?? '0.2500') ?>" required>
               </div>
               <div class="col-md-4">
                 <label class="form-label small fw-semibold">Delta SE</label>
-                <input type="number" name="delta_se_minimum" class="form-control" step="0.0001" value="<?= esc($u['delta_se_minimum']) ?>" required>
+                <input type="number" name="delta_se_minimum" class="form-control" step="0.0001" value="<?= esc($u['delta_se_minimum'] ?? '0.0100') ?>" required>
               </div>
             </div>
           </div>

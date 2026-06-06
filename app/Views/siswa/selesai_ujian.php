@@ -21,6 +21,20 @@
                                 <p class="h3"><?= $total_soal ?></p>
                             </div>
                         </div>
+                        <div class="col-6">
+                            <h5><?= (($ujian['tipe_ujian'] ?? 'CAT') === 'CBT') ? 'Nilai EAP' : 'Nilai Akhir' ?></h5>
+                            <?php if (($ujian['tipe_ujian'] ?? 'CAT') === 'CBT'): ?>
+                                <p class="h3"><?= number_format((float) ($nilai_akhir ?? 0), 2) ?></p>
+                                <?php if (($theta_akhir ?? null) !== null || ($sem_akhir ?? null) !== null): ?>
+                                    <div class="small text-muted">
+                                        TF <?= number_format((float) ($theta_akhir ?? 0), 4) ?>
+                                        | SEM <?= number_format((float) ($sem_akhir ?? 0), 4) ?>
+                                    </div>
+                                <?php endif; ?>
+                            <?php else: ?>
+                                <p class="h3"><?= number_format(max(0, min(100, 50 + (16.67 * (float) ($nilai_akhir ?? 0)))), 2) ?></p>
+                            <?php endif; ?>
+                        </div>
                     </div>
 
                     <div class="text-muted mb-4">

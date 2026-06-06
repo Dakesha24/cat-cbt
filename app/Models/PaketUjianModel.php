@@ -1,12 +1,11 @@
 <?php
-
 namespace App\Models;
 
 use CodeIgniter\Model;
 
 class PaketUjianModel extends Model
 {
-    protected $table = 'paket_ujian';
+    protected $table = 'paket_ujian_cbt';
     protected $primaryKey = 'paket_id';
     protected $allowedFields = [
         'ujian_id',
@@ -22,12 +21,12 @@ class PaketUjianModel extends Model
      */
     public function getByUjian($ujianId)
     {
-        return $this->select('paket_ujian.*')
-            ->selectCount('paket_ujian_item.soal_id', 'jumlah_soal')
-            ->join('paket_ujian_item', 'paket_ujian_item.paket_id = paket_ujian.paket_id', 'left')
-            ->where('paket_ujian.ujian_id', $ujianId)
-            ->groupBy('paket_ujian.paket_id')
-            ->orderBy('paket_ujian.nomor_paket', 'ASC')
+        return $this->select('paket_ujian_cbt.*')
+            ->selectCount('paket_ujian_item_cbt.soal_id', 'jumlah_soal')
+            ->join('paket_ujian_item_cbt', 'paket_ujian_item_cbt.paket_id = paket_ujian_cbt.paket_id', 'left')
+            ->where('paket_ujian_cbt.ujian_id', $ujianId)
+            ->groupBy('paket_ujian_cbt.paket_id')
+            ->orderBy('paket_ujian_cbt.nomor_paket', 'ASC')
             ->findAll();
     }
 
@@ -36,15 +35,15 @@ class PaketUjianModel extends Model
      */
     public function getSoalByPaket($paketId, $shuffle = false)
     {
-        $builder = $this->db->table('paket_ujian_item')
-            ->select('paket_ujian_item.nomor_urut, soal_ujian.*')
-            ->join('soal_ujian', 'soal_ujian.soal_id = paket_ujian_item.soal_id')
-            ->where('paket_ujian_item.paket_id', $paketId);
+        $builder = $this->db->table('paket_ujian_item_cbt')
+            ->select('paket_ujian_item_cbt.nomor_urut, soal_ujian.*')
+            ->join('soal_ujian', 'soal_ujian.soal_id = paket_ujian_item_cbt.soal_id')
+            ->where('paket_ujian_item_cbt.paket_id', $paketId);
 
         if ($shuffle) {
             $builder->orderBy('RAND()');
         } else {
-            $builder->orderBy('paket_ujian_item.nomor_urut', 'ASC');
+            $builder->orderBy('paket_ujian_item_cbt.nomor_urut', 'ASC');
         }
 
         return $builder->get()->getResultArray();

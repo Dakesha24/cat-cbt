@@ -73,6 +73,7 @@ class Auth extends Controller
 
     return view('auth/login', [
       'hideLandingNavbar' => true,
+      'hideFooter'        => true,
     ]);
   }
 
@@ -110,6 +111,7 @@ class Auth extends Controller
 
     return view('auth/register', [
       'hideLandingNavbar' => true,
+      'hideFooter'        => true,
     ]);
   }
 

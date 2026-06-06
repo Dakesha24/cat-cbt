@@ -1,5 +1,22 @@
 <?= $this->extend('templates/guru/guru_template') ?>
 <?= $this->section('content') ?>
+<?php
+$variabelMap = [];
+foreach (($variabel ?? []) as $item) {
+    $variabelMap[(string) $item['variabel_id']] = $item['nama_variabel'];
+}
+$indikatorMap = [];
+foreach (($indikator ?? []) as $item) {
+    $indikatorMap[(string) $item['indikator_id']] = [
+        'nama' => $item['nama_indikator'],
+        'variabel_id' => $item['variabel_id'] ?? null,
+    ];
+}
+$materiMap = [];
+foreach (($materi ?? []) as $item) {
+    $materiMap[(string) $item['materi_id']] = $item['nama_materi'];
+}
+?>
 
 <style>
 .breadcrumb { background: none; padding: 0; margin: 0; }
@@ -46,6 +63,10 @@
 .pilihan-item.correct { border-color: #10b981; background: #ecfdf5; }
 .pilihan-badge { flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; background: #e7f0ff; color: #0d6efd; font-size: 0.7rem; font-weight: 700; display: flex; align-items: center; justify-content: center; }
 .pilihan-item.correct .pilihan-badge { background: #10b981; color: #fff; }
+.meta-block { border: 1px solid #e9ecef; background: #fbfcfd; padding: 1rem; }
+.meta-block-title { color: #495057; font-size: 0.82rem; font-weight: 700; letter-spacing: .02em; margin-bottom: .85rem; text-transform: uppercase; }
+.meta-detail-list { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .35rem; }
+.meta-detail-pill { background: #f8fafc; border: 1px solid #dbe3ed; color: #475467; display: inline-flex; font-size: .72rem; font-weight: 500; padding: .25rem .55rem; }
 </style>
 
 <div class="container-fluid py-4">
@@ -224,6 +245,37 @@
                 </select>
               </div>
               <div class="col-12">
+                <div class="meta-block">
+                  <div class="meta-block-title">Metadata Soal</div>
+                  <div class="row g-3">
+                    <div class="col-md-4">
+                      <label class="form-label small fw-semibold">Variabel</label>
+                      <select name="variabel_id" id="variabelTambahSoal" class="form-select js-variabel-select" data-indikator-target="#indikatorTambahSoal" onchange="loadIndikatorBankGuru(this.value, 'indikatorTambahSoal')">
+                        <option value="">-- Tidak ada --</option>
+                        <?php foreach (($variabel ?? []) as $v): ?>
+                          <option value="<?= $v['variabel_id'] ?>"><?= esc($v['nama_variabel']) ?></option>
+                        <?php endforeach; ?>
+                      </select>
+                    </div>
+                    <div class="col-md-4">
+                      <label class="form-label small fw-semibold">Indikator</label>
+                      <select name="indikator_id" id="indikatorTambahSoal" class="form-select">
+                        <option value="">-- Pilih Variabel dulu --</option>
+                      </select>
+                    </div>
+                    <div class="col-md-4">
+                      <label class="form-label small fw-semibold">Materi</label>
+                      <select name="materi_id" id="materiTambahSoal" class="form-select">
+                        <option value="">-- Tidak ada --</option>
+                        <?php foreach (($materi ?? []) as $m): ?>
+                          <option value="<?= $m['materi_id'] ?>"><?= esc($m['nama_materi']) ?></option>
+                        <?php endforeach; ?>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-12">
                 <label class="form-label small fw-semibold">Pembahasan <span class="text-muted fw-normal">(opsional)</span></label>
                 <textarea name="pembahasan" id="pembahasan_tambah" class="form-control summernote" placeholder="Masukkan pembahasan soal..."></textarea>
                 <div class="form-text">Ditampilkan kepada siswa setelah ujian selesai</div>
@@ -287,6 +339,27 @@
           <?php if (!empty($soal['pembahasan'])): ?>
             <p class="detail-label mt-3">Pembahasan</p>
             <div class="detail-section"><?= $soal['pembahasan'] ?></div>
+          <?php endif; ?>
+
+          <?php
+          $metaBadges = [];
+          if (!empty($soal['variabel_id']) && isset($variabelMap[(string) $soal['variabel_id']])) {
+              $metaBadges[] = 'Variabel: ' . $variabelMap[(string) $soal['variabel_id']];
+          }
+          if (!empty($soal['indikator_id']) && isset($indikatorMap[(string) $soal['indikator_id']])) {
+              $metaBadges[] = 'Indikator: ' . $indikatorMap[(string) $soal['indikator_id']]['nama'];
+          }
+          if (!empty($soal['materi_id']) && isset($materiMap[(string) $soal['materi_id']])) {
+              $metaBadges[] = 'Materi: ' . $materiMap[(string) $soal['materi_id']];
+          }
+          ?>
+          <?php if (!empty($metaBadges)): ?>
+            <p class="detail-label mt-3">Metadata Soal</p>
+            <div class="meta-detail-list">
+              <?php foreach ($metaBadges as $badge): ?>
+                <span class="meta-detail-pill"><?= esc($badge) ?></span>
+              <?php endforeach; ?>
+            </div>
           <?php endif; ?>
         </div>
         <div class="modal-footer border-top px-4 py-3">
@@ -364,6 +437,41 @@
                   </select>
                 </div>
                 <div class="col-12">
+                  <div class="meta-block">
+                    <div class="meta-block-title">Metadata Soal</div>
+                    <div class="row g-3">
+                      <div class="col-md-4">
+                        <label class="form-label small fw-semibold">Variabel</label>
+                        <select name="variabel_id" id="variabelEdit<?= $soal['soal_id'] ?>" class="form-select js-variabel-select" data-indikator-target="#indikatorEdit<?= $soal['soal_id'] ?>" onchange="loadIndikatorBankGuru(this.value, 'indikatorEdit<?= $soal['soal_id'] ?>', '<?= (string) ($soal['indikator_id'] ?? '') ?>')">
+                          <option value="">-- Tidak ada --</option>
+                          <?php foreach (($variabel ?? []) as $v): ?>
+                            <option value="<?= $v['variabel_id'] ?>" <?= (string) ($soal['variabel_id'] ?? '') === (string) $v['variabel_id'] ? 'selected' : '' ?>><?= esc($v['nama_variabel']) ?></option>
+                          <?php endforeach; ?>
+                        </select>
+                      </div>
+                      <div class="col-md-4">
+                        <label class="form-label small fw-semibold">Indikator</label>
+                        <select name="indikator_id" id="indikatorEdit<?= $soal['soal_id'] ?>" class="form-select">
+                          <option value="">-- Pilih Variabel dulu --</option>
+                          <?php foreach (($indikator ?? []) as $i): ?>
+                            <?php if ((string) ($i['variabel_id'] ?? '') !== (string) ($soal['variabel_id'] ?? '')) continue; ?>
+                            <option value="<?= $i['indikator_id'] ?>" <?= (string) ($soal['indikator_id'] ?? '') === (string) $i['indikator_id'] ? 'selected' : '' ?>><?= esc($i['nama_indikator']) ?></option>
+                          <?php endforeach; ?>
+                        </select>
+                      </div>
+                      <div class="col-md-4">
+                        <label class="form-label small fw-semibold">Materi</label>
+                        <select name="materi_id" id="materiEdit<?= $soal['soal_id'] ?>" class="form-select">
+                          <option value="">-- Tidak ada --</option>
+                          <?php foreach (($materi ?? []) as $m): ?>
+                            <option value="<?= $m['materi_id'] ?>" <?= (string) ($soal['materi_id'] ?? '') === (string) $m['materi_id'] ? 'selected' : '' ?>><?= esc($m['nama_materi']) ?></option>
+                          <?php endforeach; ?>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-12">
                   <label class="form-label small fw-semibold">Pembahasan <span class="text-muted fw-normal">(opsional)</span></label>
                   <textarea name="pembahasan" id="pembahasan_edit_<?= $soal['soal_id'] ?>" class="form-control summernote"><?= isset($soal['pembahasan']) ? esc($soal['pembahasan']) : '' ?></textarea>
                 </div>
@@ -381,6 +489,7 @@
 <?php endif; ?>
 
 <script>
+  const indikatorByVariabelGuru = <?= json_encode(array_values($indikator ?? [])) ?>;
   const summernoteConfig = {
     height: 200,
     toolbar: [
@@ -500,6 +609,27 @@
     }
   }
 
+  function buildIndikatorOptionsGuru(variabelId, selectedValue) {
+    if (!variabelId) {
+      return '<option value="">-- Pilih Variabel dulu --</option>';
+    }
+    let options = '<option value="">-- Tidak ada --</option>';
+    indikatorByVariabelGuru
+      .filter(item => String(item.variabel_id || '') === String(variabelId))
+      .sort((a, b) => String(a.nama_indikator || '').localeCompare(String(b.nama_indikator || '')))
+      .forEach(item => {
+        const selected = String(selectedValue || '') === String(item.indikator_id) ? ' selected' : '';
+        options += '<option value="' + item.indikator_id + '"' + selected + '>' + item.nama_indikator + '</option>';
+      });
+    return options;
+  }
+
+  function loadIndikatorBankGuru(variabelId, targetId, selectedValue = '') {
+    const select = document.getElementById(targetId);
+    if (!select) return;
+    select.innerHTML = buildIndikatorOptionsGuru(variabelId, selectedValue);
+  }
+
   $(document).ready(function() {
     $('#modalTambahSoal').on('shown.bs.modal', function() { initSummernoteAdd(); });
     $('#modalTambahSoal').on('hidden.bs.modal', function() {
@@ -518,6 +648,16 @@
       $modal.find('.summernote, .summernote-small').each(function() {
         if ($(this).data('summernote')) $(this).val($(this).summernote('code'));
       });
+    });
+
+    $('.js-variabel-select').each(function() {
+      const targetSelector = $(this).data('indikator-target');
+      const variabelId = $(this).val();
+      const targetId = String(targetSelector || '').replace('#', '');
+      const selectedIndikator = $(targetSelector).val() || '';
+      if (targetId) {
+        loadIndikatorBankGuru(variabelId, targetId, selectedIndikator);
+      }
     });
   });
 </script>

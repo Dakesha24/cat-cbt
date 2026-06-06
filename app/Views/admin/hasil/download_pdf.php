@@ -65,22 +65,37 @@
             </div>
         </div>
 
+        <?php
+            $thetaPdf = $lastTheta ?? $thetaAkhir ?? null;
+            $totalPdf = (int) ($totalSoal ?? count($detailJawaban));
+            $benarPdf = (int) $jawabanBenar;
+            $salahPdf = max(0, $totalPdf - $benarPdf);
+            $akurasiRaw = $totalPdf > 0 ? round(($benarPdf / $totalPdf) * 100, 2) : 0;
+            $akurasiPdf = min(100, max(0, $akurasiRaw));
+        ?>
+
         <h2>Hasil Akhir</h2>
         <div class="row">
             <div class="col">
                 <table class="info">
-                    <tr><td>Total Soal</td><td><b><?= count($detailJawaban) ?></b> soal</td></tr>
-                    <tr><td>Jawaban Benar</td><td><b><?= $jawabanBenar ?></b> soal</td></tr>
+                    <tr><td>Total Soal</td><td><b><?= $totalPdf ?></b> soal</td></tr>
+                    <tr><td>Jawaban Benar</td><td><b><?= $benarPdf ?></b> soal</td></tr>
+                    <tr><td>Jawaban Salah</td><td><b><?= $salahPdf ?></b> soal</td></tr>
+                    <tr><td>Akurasi</td><td><b><?= number_format((float) $akurasiPdf, 2) ?>%</b></td></tr>
                     <?php if (!empty($isCatMode)): ?>
-                        <tr><td>Theta Akhir</td><td><b><?= number_format((float) $lastTheta, 3) ?></b></td></tr>
+                        <tr><td>Theta Akhir</td><td><b><?= number_format((float) ($thetaPdf ?? 0), 3) ?></b></td></tr>
                         <tr><td>SE Akhir</td><td><b><?= number_format((float) $seAkhir, 3) ?></b></td></tr>
                     <?php endif; ?>
                 </table>
             </div>
             <div class="col">
                 <table class="info">
-                    <tr><td><?= !empty($isCatMode) ? 'Skor' : 'Nilai' ?></td><td><span class="highlight"><?= number_format((float) $finalScore, 2) ?></span></td></tr>
-                    <tr><td>Nilai</td><td><span class="highlight"><?= number_format((float) $finalGrade, !empty($isCatMode) ? 0 : 2) ?></span></td></tr>
+                    <tr><td><?= !empty($isCatMode) ? 'Skor Kognitif' : 'Nilai Akhir CBT' ?></td><td><span class="highlight"><?= number_format((float) $finalScore, 2) ?></span></td></tr>
+                    <tr><td>Kategori</td><td><?= esc($klasifikasiKognitif['kategori']) ?></td></tr>
+                    <?php if (empty($isCatMode) && $thetaPdf !== null): ?>
+                        <tr><td>Theta EAP</td><td><?= number_format((float) $thetaPdf, 4) ?></td></tr>
+                        <tr><td>SEM</td><td><?= number_format((float) ($seAkhir ?? 0), 4) ?></td></tr>
+                    <?php endif; ?>
                 </table>
             </div>
         </div>
@@ -90,6 +105,16 @@
             <table class="info">
                 <tr><td>Skor Kognitif</td><td><?= $kemampuanKognitif['skor'] ?></td></tr>
                 <tr><td>Kategori</td><td><?= esc($klasifikasiKognitif['kategori']) ?></td></tr>
+            </table>
+        <?php else: ?>
+            <h2>Ringkasan CBT</h2>
+            <table class="info">
+                <tr><td>Nilai Akhir</td><td><b><?= number_format((float) $finalScore, 2) ?></b> - <?= esc($klasifikasiKognitif['kategori']) ?></td></tr>
+                <tr><td>Komposisi Jawaban</td><td><?= $benarPdf ?> benar, <?= $salahPdf ?> salah dari <?= $totalPdf ?> soal</td></tr>
+                <tr><td>Akurasi</td><td><?= number_format((float) $akurasiPdf, 2) ?>%</td></tr>
+                <?php if ($thetaPdf !== null): ?>
+                    <tr><td>Parameter Tambahan</td><td>Theta EAP <?= number_format((float) $thetaPdf, 4) ?>, SEM <?= number_format((float) ($seAkhir ?? 0), 4) ?></td></tr>
+                <?php endif; ?>
             </table>
         <?php endif; ?>
 
@@ -117,7 +142,14 @@
                     <th>Pertanyaan</th>
                     <th>Tingkat Kesulitan</th>
                     <th>Jawaban</th>
+                    <th>Kunci</th>
                     <th>Status</th>
+                    <?php if (empty($isCatMode)): ?>
+                        <th>Kategori</th>
+                        <th>P(&#952;)</th>
+                        <th>z</th>
+                        <th>Keterangan</th>
+                    <?php endif; ?>
                     <th>Waktu Jawab</th>
                     <th>Durasi</th>
                     <?php if (!empty($isCatMode)): ?>
@@ -139,7 +171,14 @@
                         <td><?= $jawaban['pertanyaan'] ?></td>
                         <td class="text-center"><?= number_format((float) $jawaban['tingkat_kesulitan'], 3) ?></td>
                         <td class="text-center"><?= esc($jawaban['jawaban_siswa']) ?></td>
+                        <td class="text-center"><?= esc($jawaban['jawaban_benar'] ?? '-') ?></td>
                         <td class="text-center <?= !empty($jawaban['is_correct']) ? 'text-success' : 'text-danger' ?>"><?= !empty($jawaban['is_correct']) ? 'Benar' : 'Salah' ?></td>
+                        <?php if (empty($isCatMode)): ?>
+                            <td class="text-center"><?= esc($jawaban['kategori_soal'] ?? '-') ?></td>
+                            <td class="text-center"><?= isset($jawaban['p_residu']) ? number_format((float) $jawaban['p_residu'], 3) : '-' ?></td>
+                            <td class="text-center"><?= isset($jawaban['z_score']) ? number_format((float) $jawaban['z_score'], 3) : '-' ?></td>
+                            <td class="text-center"><?= esc($jawaban['keterangan_residu'] ?? '-') ?></td>
+                        <?php endif; ?>
                         <td class="text-center"><?= esc($jawaban['waktu_menjawab_format']) ?></td>
                         <td class="text-center"><?= esc($jawaban['durasi_pengerjaan_format']) ?></td>
                         <?php if (!empty($isCatMode)): ?>

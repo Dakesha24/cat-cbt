@@ -3,7 +3,6 @@
 <?= $this->section('title') ?>Edit Sekolah<?= $this->endSection() ?>
 
 <?= $this->section('content') ?>
-<br><br><br>
 <div class="container-fluid">
     <div class="row">
         <div class="col-12">

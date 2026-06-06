@@ -212,14 +212,14 @@
         }
 
         .submenu .nav-link.active {
-            background: #dbeafe;
-            color: #1d4ed8;
+            background: var(--sidebar-active);
+            color: #fff;
             font-weight: 600;
-            box-shadow: none;
+            box-shadow: 0 3px 10px rgba(21, 101, 192, 0.22);
         }
 
         .submenu .nav-link.active i {
-            color: #1d4ed8 !important;
+            color: rgba(255, 255, 255, 0.92) !important;
         }
 
         /* Divider */
@@ -443,7 +443,7 @@
                         <span>Kelola Ujian</span>
                         <i class="bi bi-chevron-down toggle-icon"></i>
                     </a>
-                    <div class="collapse <?= (strpos(current_url(), 'admin/ujian') !== false || strpos(current_url(), 'admin/soal') !== false || strpos(current_url(), 'admin/jadwal') !== false || strpos(current_url(), 'admin/hasil') !== false) ? 'show' : '' ?>"
+                    <div class="collapse <?= (strpos(current_url(), 'admin/ujian') !== false || strpos(current_url(), 'admin/soal') !== false || strpos(current_url(), 'admin/jadwal') !== false || strpos(current_url(), 'admin/hasil-ujian') !== false) ? 'show' : '' ?>"
                         id="collapseUjian">
                         <ul class="nav flex-column submenu">
                             <li class="nav-item">
@@ -460,22 +460,33 @@
                             </li>
                             <li class="nav-item">
                                 <a href="<?= base_url('admin/hasil-ujian') ?>"
-                                    class="nav-link <?= (strpos(current_url(), 'admin/hasil-ujian') !== false && strpos(current_url(), 'admin/hasil-ujian/analitik') === false) ? 'active' : '' ?>">
+                                    class="nav-link <?= (strpos(current_url(), 'admin/hasil-ujian') !== false && strpos(current_url(), 'admin/hasil-ujian/analitik') === false && strpos(current_url(), 'admin/analisis-ujian') === false) ? 'active' : '' ?>">
                                     <i class="bi bi-bar-chart"></i>Hasil Ujian
-                                </a>
-                            </li>
-                            <li class="nav-item">
-                                <a href="<?= base_url('admin/hasil-ujian/analitik') ?>"
-                                    class="nav-link <?= (strpos(current_url(), 'admin/hasil-ujian/analitik') !== false) ? 'active' : '' ?>">
-                                    <i class="bi bi-graph-up-arrow"></i>Rekap Data Ujian
                                 </a>
                             </li>
                         </ul>
                     </div>
                 </li>
 
+                <!-- Analisis -->
+                <li class="sidebar-section">Analisis</li>
+                <li class="nav-item">
+                    <a href="<?= base_url('admin/analisis-ujian') ?>"
+                        class="nav-link <?= (strpos(current_url(), 'admin/analisis-ujian') !== false) ? 'active' : '' ?>">
+                        <i class="bi bi-bar-chart-line"></i>
+                        <span>Analisis Hasil Ujian</span>
+                    </a>
+                </li>
+
                 <!-- Lainnya -->
                 <li class="sidebar-section">Lainnya</li>
+                <li class="nav-item">
+                    <a href="<?= base_url('admin/form-builder') ?>"
+                        class="nav-link <?= (strpos(current_url(), 'admin/form-builder') !== false) ? 'active' : '' ?>">
+                        <i class="bi bi-ui-checks-grid"></i>
+                        <span>Biodata Tambahan</span>
+                    </a>
+                </li>
                 <li class="nav-item">
                     <a href="<?= base_url('admin/pengumuman') ?>"
                         class="nav-link <?= (strpos(current_url(), 'admin/pengumuman') !== false) ? 'active' : '' ?>">

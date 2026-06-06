@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Models;
 
 use CodeIgniter\Model;
@@ -30,10 +29,10 @@ class AttemptJawabanModel extends Model
     public function getByAttempt($attemptId)
     {
         return $this->select('attempt_jawaban.*')
-            ->select('COALESCE(attempt_soal.pertanyaan, soal_ujian.pertanyaan) as pertanyaan')
-            ->select('COALESCE(attempt_soal.jawaban_benar, soal_ujian.jawaban_benar) as jawaban_benar')
-            ->select('COALESCE(attempt_soal.pembahasan, soal_ujian.pembahasan) as pembahasan')
-            ->join('attempt_soal', 'attempt_soal.attempt_id = attempt_jawaban.attempt_id AND attempt_soal.original_soal_id = attempt_jawaban.soal_id', 'left')
+            ->select('COALESCE(attempt_soal_cbt.pertanyaan, soal_ujian.pertanyaan) as pertanyaan')
+            ->select('COALESCE(attempt_soal_cbt.jawaban_benar, soal_ujian.jawaban_benar) as jawaban_benar')
+            ->select('COALESCE(attempt_soal_cbt.pembahasan, soal_ujian.pembahasan) as pembahasan')
+            ->join('attempt_soal_cbt', 'attempt_soal_cbt.attempt_id = attempt_jawaban.attempt_id AND attempt_soal_cbt.original_soal_id = attempt_jawaban.soal_id', 'left')
             ->join('soal_ujian', 'soal_ujian.soal_id = attempt_jawaban.soal_id', 'left')
             ->where('attempt_jawaban.attempt_id', $attemptId)
             ->orderBy('attempt_jawaban.waktu_menjawab', 'ASC')

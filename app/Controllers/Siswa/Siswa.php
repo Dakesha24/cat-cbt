@@ -13,8 +13,14 @@ use App\Models\SekolahModel;
 use App\Models\PaketUjianModel;
 use App\Models\AttemptUjianModel;
 use App\Models\AttemptJawabanModel;
+use App\Models\AttemptJawabanCatModel;
+use App\Models\AttemptJawabanCbtModel;
+use App\Models\AttemptAnalisisCbtModel;
 use App\Models\AttemptSoalModel;
 use App\Models\UjianSoalCatModel;
+use App\Models\UjianCatParamModel;
+use App\Libraries\CatEngine;
+use App\Libraries\CbtEngine;
 
 
 class Siswa extends Controller
@@ -29,8 +35,12 @@ class Siswa extends Controller
   protected $paketUjianModel;
   protected $attemptUjianModel;
   protected $attemptJawabanModel;
+  protected $attemptJawabanCatModel;
+  protected $attemptJawabanCbtModel;
+  protected $attemptAnalisisCbtModel;
   protected $attemptSoalModel;
   protected $ujianSoalCatModel;
+  protected $ujianCatParamModel;
 
   // Inisialisasi semua model yang dibutuhkan controller ini
   public function __construct()
@@ -45,8 +55,12 @@ class Siswa extends Controller
     $this->paketUjianModel = new PaketUjianModel();
     $this->attemptUjianModel = new AttemptUjianModel();
     $this->attemptJawabanModel = new AttemptJawabanModel();
+    $this->attemptJawabanCatModel = new AttemptJawabanCatModel();
+    $this->attemptJawabanCbtModel = new AttemptJawabanCbtModel();
+    $this->attemptAnalisisCbtModel = new AttemptAnalisisCbtModel();
     $this->attemptSoalModel = new AttemptSoalModel();
     $this->ujianSoalCatModel = new UjianSoalCatModel();
+    $this->ujianCatParamModel = new UjianCatParamModel();
   }
 
   //dashboard
@@ -54,7 +68,61 @@ class Siswa extends Controller
   // Halaman utama siswa setelah login
   public function dashboard()
   {
+    $userId = session()->get('user_id');
+
+    if (!$this->isProfilLengkap((int) $userId)) {
+      session()->setFlashdata('profil_incomplete',
+        'Lengkapi profil Anda terlebih dahulu sebelum mengakses fitur ujian.'
+      );
+      return redirect()->to(base_url('siswa/profil'));
+    }
+
     return view('siswa/dashboard');
+  }
+
+  // Cek apakah profil siswa sudah lengkap (data dasar + field wajib form builder)
+  private function isProfilLengkap(int $userId): bool
+  {
+    $siswa = $this->siswaModel->where('user_id', $userId)->first();
+
+    // Data dasar belum diisi
+    if (!$siswa || empty($siswa['nama_lengkap']) || empty($siswa['nomor_peserta']) || empty($siswa['kelas_id'])) {
+      return false;
+    }
+
+    // Cek field wajib dari form builder
+    $template   = (new \App\Models\FormTemplateModel())->getSingle();
+    $fieldModel = new \App\Models\FormFieldModel();
+    $required   = array_filter(
+      $fieldModel->getByTemplate((int) $template['template_id']),
+      fn($f) => (int) $f['is_required'] === 1
+    );
+
+    if (empty($required)) {
+      return true;
+    }
+
+    $responseModel = new \App\Models\FormResponseModel();
+    $valueModel    = new \App\Models\FormResponseValueModel();
+    $response      = $responseModel->getBySiswaAndTemplate(
+      (int) $siswa['siswa_id'],
+      (int) $template['template_id']
+    );
+
+    if (!$response) {
+      return false;
+    }
+
+    $values = $valueModel->getByResponse((int) $response['response_id']);
+
+    foreach ($required as $field) {
+      $val = $values[$field['field_id']] ?? null;
+      if ($val === null || trim((string) $val) === '') {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   //pengumuman
@@ -72,66 +140,108 @@ class Siswa extends Controller
   {
     $userId = session()->get('user_id');
 
-    // Ambil data siswa dengan JOIN untuk mendapatkan sekolah_id dari kelas
     $siswa = $this->siswaModel
       ->select('siswa.*, kelas.sekolah_id')
       ->join('kelas', 'kelas.kelas_id = siswa.kelas_id', 'left')
       ->where('siswa.user_id', $userId)
       ->first();
 
-    $data = [
-      'siswa' => $siswa,
-      'sekolah' => $this->sekolahModel->findAll(),
-      'kelas' => [], // Kosongkan karena akan di-load via AJAX
-      'isNewUser' => !$this->siswaModel->checkSiswaExists($userId)
-    ];
+    // Load formulir aktif beserta field dan nilai siswa yang sudah tersimpan
+    $formTemplateModel = new \App\Models\FormTemplateModel();
+    $formFieldModel    = new \App\Models\FormFieldModel();
+    $formResponseModel = new \App\Models\FormResponseModel();
+    $formValueModel    = new \App\Models\FormResponseValueModel();
 
-    return view('siswa/profil', $data);
+    $template   = $formTemplateModel->getSingle();
+    $formFields = $formFieldModel->getWithOptions((int) $template['template_id']);
+    $formValues = [];
+
+    if ($siswa) {
+      $existing = $formResponseModel->getBySiswaAndTemplate(
+        (int) $siswa['siswa_id'],
+        (int) $template['template_id']
+      );
+      if ($existing) {
+        $formValues = $formValueModel->getByResponse((int) $existing['response_id']);
+      }
+    }
+
+    return view('siswa/profil', [
+      'siswa'        => $siswa,
+      'sekolah'      => $this->sekolahModel->findAll(),
+      'isNewUser'    => !$this->siswaModel->checkSiswaExists($userId),
+      'formTemplate' => $template,
+      'formFields'   => $formFields,
+      'formValues'   => $formValues,
+    ]);
   }
 
   // Simpan atau update data profil siswa; bedakan insert vs update berdasarkan keberadaan data sebelumnya
   public function saveProfil()
   {
     $userId = session()->get('user_id');
-    $data = [
-      'user_id' => $userId,
-      'nomor_peserta' => $this->request->getPost('nomor_peserta'),
-      'nama_lengkap' => $this->request->getPost('nama_lengkap'),
-      'jenis_kelamin' => $this->request->getPost('jenis_kelamin'),
-      'kelas_id' => $this->request->getPost('kelas_id') // HAPUS sekolah_id
-    ];
 
     $rules = [
       'nomor_peserta' => 'required|min_length[5]',
-      'nama_lengkap' => 'required|min_length[3]',
+      'nama_lengkap'  => 'required|min_length[3]',
       'jenis_kelamin' => 'required|in_list[Laki-laki,Perempuan]',
-      'sekolah_id' => 'required|numeric', // Tetap validasi untuk form
-      'kelas_id' => 'required|numeric'
+      'sekolah_id'    => 'required|numeric',
+      'kelas_id'      => 'required|numeric',
     ];
 
-    if (!$this->validate($rules)) {
-      return redirect()->back()
-        ->withInput()
-        ->with('errors', $this->validator->getErrors());
+    $formTemplateModel = new \App\Models\FormTemplateModel();
+    $formFieldModel    = new \App\Models\FormFieldModel();
+    $template          = $formTemplateModel->getSingle();
+    $formFields = $formFieldModel->getByTemplate((int) $template['template_id']);
+    foreach ($formFields as $field) {
+      if ($field['is_required']) {
+        $rules['form_field.' . $field['field_id']] = 'required';
+      }
     }
 
-    // Cek apakah update atau insert
+    if (!$this->validate($rules)) {
+      // Normalise error keys: form_field.123 → form_field_123
+      $rawErrors   = $this->validator->getErrors();
+      $cleanErrors = [];
+      foreach ($rawErrors as $key => $msg) {
+        $cleanKey = str_replace('.', '_', $key);
+        $cleanErrors[$cleanKey] = $msg;
+      }
+      return redirect()->back()->withInput()->with('errors', $cleanErrors);
+    }
+
+    $profileData = [
+      'user_id'       => $userId,
+      'nomor_peserta' => $this->request->getPost('nomor_peserta'),
+      'nama_lengkap'  => $this->request->getPost('nama_lengkap'),
+      'jenis_kelamin' => $this->request->getPost('jenis_kelamin'),
+      'kelas_id'      => $this->request->getPost('kelas_id'),
+    ];
+
     $existingSiswa = $this->siswaModel->where('user_id', $userId)->first();
 
     try {
       if ($existingSiswa) {
-        $this->siswaModel->update($existingSiswa['siswa_id'], $data);
-        session()->setFlashdata('success', 'Profil berhasil diperbarui!');
+        $this->siswaModel->update($existingSiswa['siswa_id'], $profileData);
+        $siswaId = (int) $existingSiswa['siswa_id'];
       } else {
-        $this->siswaModel->insert($data);
-        session()->setFlashdata('success', 'Profil berhasil disimpan!');
+        $siswaId = (int) $this->siswaModel->insert($profileData, true);
       }
+
+      // Simpan nilai field dinamis
+      if ($siswaId) {
+        $formResponseModel = new \App\Models\FormResponseModel();
+        $formValueModel    = new \App\Models\FormResponseValueModel();
+        $responseId        = $formResponseModel->getOrCreate($siswaId, (int) $template['template_id']);
+        $formInput         = $this->request->getPost('form_field') ?? [];
+        $formValueModel->saveAll($responseId, $formInput);
+      }
+
+      session()->setFlashdata('success', 'Profil berhasil disimpan!');
       return redirect()->to(base_url('siswa/profil'));
     } catch (\Exception $e) {
       log_message('error', $e->getMessage());
-      return redirect()->back()
-        ->withInput()
-        ->with('error', 'Terjadi kesalahan saat menyimpan data.');
+      return redirect()->back()->withInput()->with('error', 'Terjadi kesalahan saat menyimpan data.');
     }
   }
 
@@ -244,10 +354,6 @@ class Siswa extends Controller
         ujian.maksimal_attempt,
         ujian.acak_urutan_soal,
         ujian.acak_pilihan_jawaban,
-        ujian.se_awal,
-        ujian.se_minimum,
-        ujian.delta_se_minimum,
-        ujian.maksimal_soal_tampil,
         ujian.durasi,
         ujian.created_by,
         ujian.sekolah_id as ujian_sekolah_id,
@@ -262,8 +368,13 @@ class Siswa extends Controller
       return redirect()->to(base_url('siswa/ujian'));
     }
 
-    if (($ujianInfo['status'] ?? '') === 'selesai') {
-      session()->setFlashdata('error', 'Jadwal ujian sudah tidak tersedia.');
+    $jadwalStatus = $ujianInfo['status'] ?? '';
+    if ($jadwalStatus === 'selesai') {
+      session()->setFlashdata('error', 'Jadwal ujian sudah selesai.');
+      return redirect()->to(base_url('siswa/ujian'));
+    }
+    if ($jadwalStatus === 'belum_mulai') {
+      session()->setFlashdata('error', 'Jadwal ujian belum dibuka. Silakan tunggu hingga ujian dimulai.');
       return redirect()->to(base_url('siswa/ujian'));
     }
 
@@ -350,10 +461,6 @@ class Siswa extends Controller
         ujian.maksimal_attempt,
         ujian.acak_urutan_soal,
         ujian.acak_pilihan_jawaban,
-        ujian.se_awal,
-        ujian.se_minimum,
-        ujian.delta_se_minimum,
-        ujian.maksimal_soal_tampil,
         ujian.durasi,
         ujian.created_by,
         ujian.sekolah_id as ujian_sekolah_id,
@@ -474,27 +581,66 @@ class Siswa extends Controller
       ->first();
 
     $nilaiAkhir = 0;
+    $thetaAkhir = null;
+    $semAkhir = null;
     $totalSoal = 0;
     if ($attempt) {
-      $lastJawaban = $this->attemptJawabanModel
-        ->where('attempt_id', $attempt['attempt_id'])
-        ->orderBy('nomor_tampil', 'DESC')
-        ->first();
+      $isCat = ($ujianInfo['tipe_ujian'] ?? 'CAT') === 'CAT';
 
-      // CAT: pastikan attempt ditutup walau siswa keluar sebelum stopping rule terpenuhi
-      if (($ujianInfo['tipe_ujian'] ?? 'CAT') === 'CAT' && $attempt['status'] !== 'selesai') {
-        $attempt['status'] = 'selesai';
-        $attempt['waktu_selesai'] = date('Y-m-d H:i:s');
-        $attempt['nilai_akhir'] = $attempt['nilai_akhir'] ?? ($lastJawaban['theta_saat_ini'] ?? 0);
-        $this->attemptUjianModel->update($attempt['attempt_id'], [
-          'status' => 'selesai',
-          'waktu_selesai' => $attempt['waktu_selesai'],
-          'nilai_akhir' => $attempt['nilai_akhir'],
-        ]);
+      if ($isCat) {
+        $lastJawaban = $this->attemptJawabanCatModel
+          ->where('attempt_id', $attempt['attempt_id'])
+          ->orderBy('nomor_tampil', 'DESC')
+          ->first();
+        // CAT: pastikan attempt ditutup walau siswa keluar sebelum stopping rule terpenuhi
+        if ($attempt['status'] !== 'selesai') {
+          $attempt['nilai_akhir'] = $attempt['nilai_akhir'] ?? ($lastJawaban['theta_saat_ini'] ?? 0);
+          $this->attemptUjianModel->update($attempt['attempt_id'], [
+            'status' => 'selesai',
+            'waktu_selesai' => date('Y-m-d H:i:s'),
+            'nilai_akhir' => $attempt['nilai_akhir'],
+          ]);
+        }
+        $nilaiAkhir = $attempt['nilai_akhir'] ?? ($lastJawaban['theta_saat_ini'] ?? 0);
+        $thetaAkhir = $lastJawaban['theta_saat_ini'] ?? $attempt['nilai_akhir'] ?? null;
+        $semAkhir = $lastJawaban['se_saat_ini'] ?? null;
+        $totalSoal = $this->attemptJawabanCatModel->where('attempt_id', $attempt['attempt_id'])->countAllResults();
+      } else {
+        // CBT: jika waktu habis sebelum soal terakhir dijawab, jalankan EAP dari soal yang sudah terjawab
+        if ($attempt['status'] !== 'selesai') {
+          $responses = $this->ambilResponsesUntukEAP((int) $attempt['attempt_id']);
+          if (!empty($responses)) {
+            $eap = CbtEngine::estimasiEAP($responses);
+            $now = date('Y-m-d H:i:s');
+            $this->attemptUjianModel->update($attempt['attempt_id'], [
+              'status'       => 'selesai',
+              'waktu_selesai' => $now,
+              'nilai_akhir'  => $eap['NA'],
+              'theta_akhir'  => $eap['theta_final'],
+              'sem_akhir'    => $eap['SEM'],
+            ]);
+            $attempt['nilai_akhir']  = $eap['NA'];
+            $attempt['theta_akhir']  = $eap['theta_final'];
+            $attempt['sem_akhir']    = $eap['SEM'];
+          } else {
+            $this->attemptUjianModel->update($attempt['attempt_id'], [
+              'status'        => 'selesai',
+              'waktu_selesai' => date('Y-m-d H:i:s'),
+              'nilai_akhir'   => 50,
+              'theta_akhir'   => 0,
+              'sem_akhir'     => 0,
+            ]);
+            $attempt['nilai_akhir']  = 50;
+            $attempt['theta_akhir']  = 0;
+            $attempt['sem_akhir']    = 0;
+          }
+        }
+        $nilaiAkhir = $attempt['nilai_akhir'] ?? 0;
+        $thetaAkhir = $attempt['theta_akhir'] ?? null;
+        $semAkhir   = $attempt['sem_akhir'] ?? null;
+        $totalSoal  = $this->attemptJawabanCbtModel->where('attempt_id', $attempt['attempt_id'])->countAllResults();
       }
 
-      $nilaiAkhir = $attempt['nilai_akhir'] ?? ($lastJawaban['theta_saat_ini'] ?? 0);
-      $totalSoal = $this->attemptJawabanModel->where('attempt_id', $attempt['attempt_id'])->countAllResults();
       session()->remove($this->getCatSessionKey((int) $attempt['attempt_id']));
       session()->remove($this->getCbtSessionKey((int) $attempt['attempt_id']));
     }
@@ -503,6 +649,8 @@ class Siswa extends Controller
       'ujian' => $ujianInfo,
       'peserta' => $peserta,
       'nilai_akhir' => $nilaiAkhir,
+      'theta_akhir' => $thetaAkhir,
+      'sem_akhir' => $semAkhir,
       'total_soal' => $totalSoal
     ];
 
@@ -602,7 +750,7 @@ class Siswa extends Controller
 
     // Kalau belum ada paket yang terkunci, pilih satu secara acak dari paket yang tersedia
     if (!$paketId) {
-      $paket = db_connect()->table('paket_ujian')
+      $paket = db_connect()->table('paket_ujian_cbt')
         ->where('ujian_id', $ujianInfo['id_ujian'])
         ->orderBy('RAND()')
         ->get(1)
@@ -643,7 +791,7 @@ class Siswa extends Controller
       ]);
     }
 
-    // Load urutan soal dari session; kalau session hilang, rebuild dari tabel attempt_soal
+    // Load urutan soal dari session; kalau session hilang, rebuild dari tabel attempt_soal_cbt
     $sessionKey = $this->getCbtSessionKey((int) $attempt['attempt_id']);
     $cbtParams = session()->get($sessionKey);
     if (!$cbtParams || empty($cbtParams['attempt_soal_ids'])) {
@@ -746,8 +894,8 @@ class Siswa extends Controller
     $nomorTampil = $cbtParams['current_index'] + 1;
 
     // Insert jawaban hanya sekali; hindari duplikat kalau siswa reload halaman
-    if (!$this->attemptJawabanModel->where(['attempt_id' => $attempt['attempt_id'], 'soal_id' => $soalId])->first()) {
-      $this->attemptJawabanModel->insert([
+    if (!$this->attemptJawabanCbtModel->where(['attempt_id' => $attempt['attempt_id'], 'soal_id' => $soalId])->first()) {
+      $this->attemptJawabanCbtModel->insert([
         'attempt_id' => $attempt['attempt_id'],
         'soal_id' => $soalId,
         'nomor_tampil' => $nomorTampil,
@@ -755,36 +903,47 @@ class Siswa extends Controller
         'is_correct' => $isBenar ? 1 : 0,
         'waktu_menjawab' => date('Y-m-d H:i:s'),
       ]);
-
-      // CBT tidak pakai IRT, jadi semua nilai theta/pi/qi/II/SE di-set 0
-      $this->hasilUjianModel->insert([
-        'peserta_ujian_id' => $peserta['peserta_ujian_id'],
-        'soal_id' => $soalId,
-        'jawaban_siswa' => $jawaban,
-        'is_correct' => $isBenar ? 1 : 0,
-        'theta_saat_ini' => 0,
-        'pi_saat_ini' => 0,
-        'qi_saat_ini' => 0,
-        'ii_saat_ini' => 0,
-        'se_saat_ini' => 0,
-        'delta_se_saat_ini' => 0,
-      ]);
     }
 
-    // Maju ke soal berikutnya; kalau sudah habis, hitung nilai (% benar) dan selesaikan
+    // Maju ke soal berikutnya; kalau sudah habis, hitung EAP-IRT dan selesaikan.
     $cbtParams['current_index']++;
     if ($cbtParams['current_index'] >= count($cbtParams['attempt_soal_ids'])) {
-      $benar = $this->attemptJawabanModel->countCorrect($attempt['attempt_id']);
-      $nilai = count($cbtParams['attempt_soal_ids']) > 0 ? ($benar / count($cbtParams['attempt_soal_ids'])) * 100 : 0;
+      $attemptId = (int) $attempt['attempt_id'];
+      $responses = $this->ambilResponsesUntukEAP($attemptId);
+      $eap = CbtEngine::estimasiEAP($responses);
+      $residu = CbtEngine::analisisResidu($eap['theta_final'], $responses);
+      $now = date('Y-m-d H:i:s');
 
-      $this->attemptUjianModel->update($attempt['attempt_id'], [
+      $this->attemptUjianModel->update($attemptId, [
         'status' => 'selesai',
-        'waktu_selesai' => date('Y-m-d H:i:s'),
-        'nilai_akhir' => $nilai,
+        'waktu_selesai' => $now,
+        'nilai_akhir' => $eap['NA'],
+        'theta_akhir' => $eap['theta_final'],
+        'sem_akhir' => $eap['SEM'],
       ]);
+
+      $this->attemptAnalisisCbtModel->where('attempt_id', $attemptId)->delete();
+      $batch = [];
+      foreach ($residu as $row) {
+        $batch[] = [
+          'attempt_id' => $attemptId,
+          'soal_id' => $row['soal_id'],
+          'is_correct' => $row['jawab_id'],
+          'p_residu' => $row['p'],
+          'q_residu' => $row['q'],
+          'z_score' => $row['z'],
+          'kategori_soal' => $row['kategori_soal'],
+          'keterangan' => $row['keterangan'],
+          'created_at' => $now,
+        ];
+      }
+      if (!empty($batch)) {
+        $this->attemptAnalisisCbtModel->insertBatch($batch);
+      }
+
       $this->pesertaUjianModel->update($peserta['peserta_ujian_id'], [
         'status' => 'selesai',
-        'waktu_selesai' => date('Y-m-d H:i:s'),
+        'waktu_selesai' => $now,
       ]);
       session()->remove($sessionKey);
 
@@ -795,8 +954,39 @@ class Siswa extends Controller
     return redirect()->to(base_url('siswa/ujian/soal/' . $ujianInfo['jadwal_id']));
   }
 
-  // Buat snapshot soal CBT ke tabel attempt_soal; reuse dari attempt sebelumnya jika ada (paket sama)
-  // Kalau attempt pertama, ambil dari paket_ujian lalu shuffle jika diaktifkan
+  /**
+   * Ambil semua jawaban CBT satu attempt beserta parameter soal snapshot.
+   */
+  private function ambilResponsesUntukEAP(int $attemptId): array
+  {
+    $rows = $this->attemptJawabanCbtModel
+      ->select('attempt_jawaban_cbt.soal_id')
+      ->select('attempt_jawaban_cbt.is_correct')
+      ->select('COALESCE(attempt_soal_cbt.a, soal_ujian.a, 1.000) AS a', false)
+      ->select('COALESCE(attempt_soal_cbt.tingkat_kesulitan, soal_ujian.tingkat_kesulitan, 0.000) AS b', false)
+      ->select('COALESCE(attempt_soal_cbt.c, soal_ujian.c, 0.000) AS c', false)
+      ->join('attempt_soal_cbt', 'attempt_soal_cbt.attempt_id = attempt_jawaban_cbt.attempt_id AND attempt_soal_cbt.original_soal_id = attempt_jawaban_cbt.soal_id', 'left')
+      ->join('soal_ujian', 'soal_ujian.soal_id = attempt_jawaban_cbt.soal_id', 'left')
+      ->where('attempt_jawaban_cbt.attempt_id', $attemptId)
+      ->orderBy('attempt_jawaban_cbt.nomor_tampil', 'ASC')
+      ->findAll();
+
+    $responses = [];
+    foreach ($rows as $row) {
+      $responses[] = [
+        'soal_id' => (int) $row['soal_id'],
+        'a' => (float) $row['a'],
+        'b' => (float) $row['b'],
+        'c' => (float) $row['c'],
+        'u' => (int) $row['is_correct'],
+      ];
+    }
+
+    return $responses;
+  }
+
+  // Buat snapshot soal CBT ke tabel attempt_soal_cbt; reuse dari attempt sebelumnya jika ada (paket sama)
+  // Kalau attempt pertama, ambil dari paket_ujian_cbt lalu shuffle jika diaktifkan
   private function buatSnapshotAttemptCbt(array $attempt, $paketId, $pesertaId, bool $acakUrutan = false, bool $acakPilihan = false)
   {
     // Snapshot sudah ada, tidak perlu dibuat ulang
@@ -826,13 +1016,13 @@ class Siswa extends Controller
       }
     }
 
-    // Tidak ada attempt sebelumnya: ambil soal dari paket dan optionally shuffle
-    $soals = $this->paketUjianModel->getSoalByPaket($paketId, true);
+    // Tidak ada attempt sebelumnya: ambil soal dari paket dengan urutan nomor_urut (false = tidak acak di DB)
+    $soals = $this->paketUjianModel->getSoalByPaket($paketId, false);
     if (empty($soals)) {
       return false;
     }
 
-    // CBT: shuffle urutan soal sebelum disimpan ke snapshot jika diaktifkan
+    // Acak urutan soal di PHP hanya jika fitur diaktifkan
     if ($acakUrutan) {
       shuffle($soals);
     }
@@ -856,6 +1046,8 @@ class Siswa extends Controller
         'pilihan_e' => $soal['pilihan_e'] ?? null,
         'jawaban_benar' => $soal['jawaban_benar'] ?? 'A',
         'tingkat_kesulitan' => $soal['tingkat_kesulitan'] ?? null,
+        'a' => $soal['a'] ?? 1.000,
+        'c' => $soal['c'] ?? 0.000,
         'pembahasan' => $soal['pembahasan'] ?? null,
         'media' => $soal['media'] ?? ($soal['foto'] ?? null),
         'created_at' => date('Y-m-d H:i:s'),
@@ -1041,36 +1233,32 @@ class Siswa extends Controller
 
     try {
       $theta = (float) ($catParams['theta'] ?? 0);
-      $b = (float) ($soal['tingkat_kesulitan'] ?? 0);
+      $b     = (float) ($soal['tingkat_kesulitan'] ?? 0);
 
-      // Hitung Pi, Qi, Ii menggunakan model Rasch (1PL): P(θ) = e^(θ-b) / (1+e^(θ-b))
-      $e = 2.71828;
-      $Pi = pow($e, ($theta - $b)) / (1 + pow($e, ($theta - $b)));
-      $Qi = 1 - $Pi;
-      $Ii = $Pi * $Qi; // Fisher Information untuk soal ini
+      // Hitung Pi, Qi, Ii soal ini menggunakan CatEngine (Rasch 1PL)
+      $Pi = CatEngine::hitungPi($theta, $b);
+      $Qi = CatEngine::hitungQi($Pi);
+      $Ii = CatEngine::hitungIi($Pi, $Qi);
 
-      // Akumulasi total Fisher Information dari semua soal yang sudah dijawab
-      $totalIi = 0;
+      // Kumpulkan snapshot soal-soal yang sudah dijawab untuk akumulasi Fisher Information
+      $soalYangDijawab = [];
       foreach (($catParams['answered_questions'] ?? []) as $answeredAttemptSoalId) {
         $answeredSoal = $this->attemptSoalModel->find((int) $answeredAttemptSoalId);
-        if (!$answeredSoal) {
-          continue;
+        if ($answeredSoal) {
+          $soalYangDijawab[] = $answeredSoal;
         }
-
-        $bi = (float) ($answeredSoal['tingkat_kesulitan'] ?? 0);
-        $PiAnswered = pow($e, ($theta - $bi)) / (1 + pow($e, ($theta - $bi)));
-        $QiAnswered = 1 - $PiAnswered;
-        $totalIi += ($PiAnswered * $QiAnswered);
       }
 
-      // SE = 1/sqrt(totalInformasi); makin banyak soal, SE makin kecil
-      $totalIi += $Ii;
-      $SEOld = (float) ($catParams['SE'] ?? 1);
-      $SENew = $totalIi > 0 ? (1 / sqrt($totalIi)) : $SEOld;
+      // Akumulasi total Fisher Information lalu hitung SE baru
+      $totalIi = CatEngine::hitungTotalIi($soalYangDijawab, $theta, $Ii);
+      $SEOld   = (float) ($catParams['SE'] ?? 1);
+      $SENew   = CatEngine::hitungSE($totalIi, $SEOld);
       $deltaSE = $SEOld - $SENew;
 
-      // Update theta ke kesulitan soal terakhir (pendekatan sederhana CAT tanpa MLE)
-      $theta = $b;
+      // Update theta menggunakan MLE Newton-Raphson atas seluruh respons
+      $responses   = $catParams['responses'] ?? [];
+      $responses[] = ['b' => $b, 'correct' => $isBenar ? 1 : 0];
+      $theta       = CatEngine::estimateThetaMLE($responses, $theta);
       $answeredQuestions = array_map('intval', $catParams['answered_questions'] ?? []);
       if (!in_array((int) $attemptSoalId, $answeredQuestions, true)) {
         $answeredQuestions[] = (int) $attemptSoalId;
@@ -1086,12 +1274,13 @@ class Siswa extends Controller
       $catParams['theta'] = $theta;
       $catParams['SE'] = $SENew;
       $catParams['answered_questions'] = $answeredQuestions;
+      $catParams['responses'] = $responses;
       $catParams['current_question'] = $nextQuestion ? $this->formatSnapshotSoalForView($nextQuestion) : null;
       $catParams['total_questions'] = count($answeredQuestions);
 
       $nomorTampil = count($answeredQuestions);
-      if (!$this->attemptJawabanModel->where(['attempt_id' => $attempt['attempt_id'], 'soal_id' => $soalId])->first()) {
-        $this->attemptJawabanModel->insert([
+      if (!$this->attemptJawabanCatModel->where(['attempt_id' => $attempt['attempt_id'], 'soal_id' => $soalId])->first()) {
+        $this->attemptJawabanCatModel->insert([
           'attempt_id' => $attempt['attempt_id'],
           'soal_id' => $soalId,
           'nomor_tampil' => $nomorTampil,
@@ -1105,30 +1294,15 @@ class Siswa extends Controller
           'qi_saat_ini' => $Qi,
           'ii_saat_ini' => $Ii,
         ]);
-
-        $this->hasilUjianModel->insert([
-          'peserta_ujian_id' => $peserta['peserta_ujian_id'],
-          'soal_id' => $soalId,
-          'jawaban_siswa' => $jawaban,
-          'is_correct' => $isBenar ? 1 : 0,
-          'theta_saat_ini' => $theta,
-          'pi_saat_ini' => $Pi,
-          'qi_saat_ini' => $Qi,
-          'ii_saat_ini' => $Ii,
-          'se_saat_ini' => $SENew,
-          'delta_se_saat_ini' => $deltaSE,
-        ]);
       }
 
-      // Stopping rule CAT: SE sudah cukup kecil, perubahan SE stagnan, atau soal pool habis
-      $shouldStop = false;
-      if ($SENew < (float) $ujianInfo['se_minimum']) {
-        $shouldStop = true; // SE di bawah ambang batas minimum, estimasi sudah cukup akurat
-      } elseif (abs($deltaSE) < (float) $ujianInfo['delta_se_minimum']) {
-        $shouldStop = true; // Penambahan soal sudah tidak banyak mengurangi SE (konvergen)
-      } elseif (!$nextQuestion) {
-        $shouldStop = true; // Pool soal habis, tidak ada soal yang bisa dipilih lagi
-      }
+      // Load CAT params dari ujian_param_cat untuk stopping rule
+      $catParam = $this->ujianCatParamModel->getByUjian((int) $ujianInfo['id_ujian']);
+      $seMinimum = (float) ($catParam['se_minimum'] ?? 0.25);
+      $deltaSeMinimum = (float) ($catParam['delta_se_minimum'] ?? 0.01);
+
+      // Stopping rule CAT via CatEngine
+      $shouldStop = CatEngine::shouldStop($SENew, $deltaSE, (bool) $nextQuestion, $seMinimum, $deltaSeMinimum);
 
       session()->set($sessionKey, $catParams);
 
@@ -1248,25 +1422,39 @@ class Siswa extends Controller
       return null;
     }
 
-    $jawabanRows = $this->attemptJawabanModel
+    $jawabanRows = $this->attemptJawabanCatModel
       ->where('attempt_id', $attempt['attempt_id'])
       ->orderBy('nomor_tampil', 'ASC')
       ->findAll();
 
-    $answeredAttemptSoalIds = [];
-    $theta = 0;
-    $SE = 1;
+    // Ambil se_awal dari konfigurasi ujian untuk inisialisasi SE yang benar
+    $catParam = $this->ujianCatParamModel->getByUjian($ujianId);
+    $seAwal   = (float) ($catParam['se_awal'] ?? 1.0);
 
-    // Rekonstruksi daftar soal yang sudah dijawab dan ambil theta/SE terakhir yang tersimpan
+    $answeredAttemptSoalIds = [];
+    $responses = [];
+    $theta = 0;
+    $SE    = $seAwal;
+
+    // Rekonstruksi daftar soal yang sudah dijawab, ambil theta/SE terakhir, dan rebuild responses untuk MLE
     foreach ($jawabanRows as $jawaban) {
       foreach ($snapshotSoal as $snapshot) {
         if ((int) $snapshot['original_soal_id'] === (int) $jawaban['soal_id']) {
           $answeredAttemptSoalIds[] = (int) $snapshot['attempt_soal_id'];
+          $responses[] = [
+            'b'       => (float) ($snapshot['tingkat_kesulitan'] ?? 0),
+            'correct' => (int) ($jawaban['is_correct'] ?? 0),
+          ];
           break;
         }
       }
       $theta = (float) ($jawaban['theta_saat_ini'] ?? $theta);
-      $SE = (float) ($jawaban['se_saat_ini'] ?? $SE);
+      $SE    = (float) ($jawaban['se_saat_ini']    ?? $SE);
+    }
+
+    // Re-estimasi theta dari seluruh respons yang sudah dijawab
+    if (!empty($responses)) {
+      $theta = CatEngine::estimateThetaMLE($responses, $theta);
     }
 
     $currentQuestion = null;
@@ -1295,12 +1483,13 @@ class Siswa extends Controller
     }
 
     return [
-      'attempt_id' => $attempt['attempt_id'],
-      'theta' => $theta,
-      'SE' => $SE,
+      'attempt_id'         => $attempt['attempt_id'],
+      'theta'              => $theta,
+      'SE'                 => $SE,
       'answered_questions' => $answeredAttemptSoalIds,
-      'current_question' => $currentQuestion ? $this->formatSnapshotSoalForView($currentQuestion) : null,
-      'total_questions' => count($answeredAttemptSoalIds),
+      'responses'          => $responses,
+      'current_question'   => $currentQuestion ? $this->formatSnapshotSoalForView($currentQuestion) : null,
+      'total_questions'    => count($answeredAttemptSoalIds),
     ];
   }
 
@@ -1320,86 +1509,51 @@ class Siswa extends Controller
   private function hitungDurasiPerSoal($detailJawaban, $waktuMulaiUjian)
   {
     $hasilDenganDurasi = [];
-    $waktuSebelumnya = $waktuMulaiUjian;
+    $tsSebelumnya = $waktuMulaiUjian ? strtotime($waktuMulaiUjian) : null;
 
     foreach ($detailJawaban as $index => $jawaban) {
-      $waktuMenjawab = $jawaban['waktu_menjawab'];
+      $waktuMenjawab = $jawaban['waktu_menjawab'] ?? null;
+      $tsMenjawab    = $waktuMenjawab ? strtotime($waktuMenjawab) : null;
 
-      // Hitung durasi dalam detik
-      $durasiDetik = strtotime($waktuMenjawab) - strtotime($waktuSebelumnya);
+      if ($tsSebelumnya !== null && $tsMenjawab !== null && $tsMenjawab > $tsSebelumnya) {
+        $durasiDetik = $tsMenjawab - $tsSebelumnya;
+        $menit = (int) floor($durasiDetik / 60);
+        $detik = $durasiDetik % 60;
+        $jawaban['durasi_pengerjaan_detik']  = $durasiDetik;
+        $jawaban['durasi_pengerjaan_format'] = sprintf('%d menit %d detik', $menit, $detik);
+      } else {
+        $jawaban['durasi_pengerjaan_detik']  = 0;
+        $jawaban['durasi_pengerjaan_format'] = '-';
+      }
 
-      // Konversi ke menit dan detik
-      $menit = floor($durasiDetik / 60);
-      $detik = $durasiDetik % 60;
-
-      $jawaban['durasi_pengerjaan_detik'] = $durasiDetik;
-      $jawaban['durasi_pengerjaan_format'] = sprintf('%d menit %d detik', $menit, $detik);
       $jawaban['nomor_soal'] = $index + 1;
-
-      $hasilDenganDurasi[] = $jawaban;
-      $waktuSebelumnya = $waktuMenjawab;
+      $hasilDenganDurasi[]  = $jawaban;
+      $tsSebelumnya = $tsMenjawab ?? $tsSebelumnya;
     }
 
     return $hasilDenganDurasi;
   }
 
-  // Pilih soal awal CAT: cari soal dengan tingkat kesulitan paling dekat ke 0 (b ≈ 0 = soal tengah)
+  // Pilih soal awal CAT via CatEngine
   private function pilihSoalAwalCat(int $attemptId): ?array
   {
-    $pool = $this->attemptSoalModel->getByAttempt($attemptId);
-    if (empty($pool)) {
-      return null;
-    }
-
-    // Urutkan berdasarkan |b| ascending; soal dengan b paling dekat ke 0 jadi prioritas
-    usort($pool, static function (array $a, array $b): int {
-      $distanceA = abs((float) ($a['tingkat_kesulitan'] ?? 0));
-      $distanceB = abs((float) ($b['tingkat_kesulitan'] ?? 0));
-      if ($distanceA === $distanceB) {
-        return strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? ''));
-      }
-      return $distanceA <=> $distanceB;
-    });
-
-    return $pool[0] ?? null;
+    return CatEngine::pilihSoalAwal($this->attemptSoalModel->getByAttempt($attemptId));
   }
 
-  // Pilih soal berikutnya: naik ke soal lebih sulit jika benar, turun jika salah
-  // Ambil soal dengan b paling dekat ke currentDifficulty dari arah yang sesuai
+  // Pilih soal berikutnya CAT via CatEngine
   private function pilihSoalBerikutnyaCat(int $attemptId, float $currentDifficulty, array $answeredIds, bool $naik): ?array
   {
-    $answeredLookup = array_map('intval', $answeredIds);
-    $pool = array_filter(
+    return CatEngine::pilihSoalBerikutnya(
       $this->attemptSoalModel->getByAttempt($attemptId),
-      static function (array $row) use ($answeredLookup, $currentDifficulty, $naik): bool {
-        $soalId = (int) ($row['attempt_soal_id'] ?? 0);
-        $difficulty = (float) ($row['tingkat_kesulitan'] ?? 0);
-        // Soal yang sudah dijawab langsung dilewati
-        if (in_array($soalId, $answeredLookup, true)) {
-          return false;
-        }
-
-        // Naik: cari soal lebih sulit; turun: cari soal lebih mudah
-        return $naik ? $difficulty > $currentDifficulty : $difficulty < $currentDifficulty;
-      }
+      $answeredIds,
+      $currentDifficulty,
+      $naik
     );
-
-    if (empty($pool)) {
-      return null;
-    }
-
-    // Ambil soal terdekat: naik = sort ascending ambil paling kecil; turun = sort descending ambil paling besar
-    usort($pool, static function (array $a, array $b) use ($naik): int {
-      $difficultyA = (float) ($a['tingkat_kesulitan'] ?? 0);
-      $difficultyB = (float) ($b['tingkat_kesulitan'] ?? 0);
-      return $naik ? ($difficultyA <=> $difficultyB) : ($difficultyB <=> $difficultyA);
-    });
-
-    return array_values($pool)[0] ?? null;
   }
 
   // Ambil detail jawaban per soal: prioritaskan dari attempt_jawaban (sistem baru),
-  // fallback ke hasil_ujian (data lama sebelum sistem attempt)
+  // fallback ke hasil_ujian (data lama sebelum sistem attempt).
+  // CBT: di-JOIN dengan attempt_analisis_cbt untuk data residual (p_residu, z_score, keterangan).
   private function getAttemptAwareDetailJawaban($pesertaUjianId, ?int $attemptId = null): array
   {
     $db = db_connect();
@@ -1417,20 +1571,35 @@ class Siswa extends Controller
       ->getRowArray();
 
     if ($attempt) {
-      // COALESCE: prefer data dari snapshot attempt_soal (mungkin sudah di-shuffle), fallback ke soal_ujian asli
-      $rows = $db->table('attempt_jawaban aj')
+      $isCbt        = $attempt['paket_id'] !== null;
+      $jawabanTable = $isCbt ? 'attempt_jawaban_cbt' : 'attempt_jawaban_cat';
+
+      $builder = $db->table($jawabanTable . ' aj')
         ->select('
           aj.*,
           COALESCE(ats.pertanyaan, su.pertanyaan) as pertanyaan,
           COALESCE(ats.kode_soal, su.kode_soal) as kode_soal,
+          COALESCE(ats.pilihan_a, su.pilihan_a) as pilihan_a,
+          COALESCE(ats.pilihan_b, su.pilihan_b) as pilihan_b,
+          COALESCE(ats.pilihan_c, su.pilihan_c) as pilihan_c,
+          COALESCE(ats.pilihan_d, su.pilihan_d) as pilihan_d,
+          COALESCE(ats.pilihan_e, su.pilihan_e) as pilihan_e,
           COALESCE(ats.jawaban_benar, su.jawaban_benar) as jawaban_benar,
           COALESCE(ats.tingkat_kesulitan, su.tingkat_kesulitan) as tingkat_kesulitan,
           COALESCE(ats.pembahasan, su.pembahasan) as pembahasan,
           COALESCE(ats.media, su.media) as foto,
           DATE_FORMAT(aj.waktu_menjawab, "%H:%i:%s") as waktu_menjawab_format
         ')
-        ->join('attempt_soal ats', 'ats.attempt_id = aj.attempt_id AND ats.original_soal_id = aj.soal_id', 'left')
-        ->join('soal_ujian su', 'su.soal_id = aj.soal_id', 'left')
+        ->join('attempt_soal_cbt ats', 'ats.attempt_id = aj.attempt_id AND ats.original_soal_id = aj.soal_id', 'left')
+        ->join('soal_ujian su', 'su.soal_id = aj.soal_id', 'left');
+
+      if ($isCbt) {
+        $builder
+          ->select('aac.p_residu, aac.q_residu, aac.z_score, aac.kategori_soal, aac.keterangan as keterangan_residu', false)
+          ->join('attempt_analisis_cbt aac', 'aac.attempt_id = aj.attempt_id AND aac.soal_id = aj.soal_id', 'left');
+      }
+
+      $rows = $builder
         ->where('aj.attempt_id', $attempt['attempt_id'])
         ->orderBy('aj.nomor_tampil', 'ASC')
         ->orderBy('aj.waktu_menjawab', 'ASC')
@@ -1528,10 +1697,10 @@ class Siswa extends Controller
     // Kelompokkan semua attempt per peserta_ujian_id agar bisa ditampilkan per ujian
     $groupedRiwayat = [];
     foreach ($rows as $ujian) {
-      $jumlahSoal = $this->attemptJawabanModel
-        ->where('attempt_id', $ujian['attempt_id'])
-        ->countAllResults();
-      $ujian['jumlah_soal'] = $jumlahSoal;
+      $jawabanModel = ($ujian['tipe_ujian'] ?? 'CAT') === 'CAT'
+        ? $this->attemptJawabanCatModel
+        : $this->attemptJawabanCbtModel;
+      $ujian['jumlah_soal'] = $jawabanModel->where('attempt_id', $ujian['attempt_id'])->countAllResults();
 
       if ($ujian['durasi_detik']) {
         $jam = floor($ujian['durasi_detik'] / 3600);
@@ -1614,9 +1783,10 @@ class Siswa extends Controller
     }
 
     foreach ($rows as &$attempt) {
-      $attempt['jumlah_soal'] = $this->attemptJawabanModel
-        ->where('attempt_id', $attempt['attempt_id'])
-        ->countAllResults();
+      $jawabanModelHasil = ($attempt['tipe_ujian'] ?? 'CAT') === 'CAT'
+        ? $this->attemptJawabanCatModel
+        : $this->attemptJawabanCbtModel;
+      $attempt['jumlah_soal'] = $jawabanModelHasil->where('attempt_id', $attempt['attempt_id'])->countAllResults();
 
       if ($attempt['durasi_detik']) {
         $jam = floor($attempt['durasi_detik'] / 3600);
@@ -1627,7 +1797,7 @@ class Siswa extends Controller
         $attempt['durasi_format'] = '00:00:00';
       }
 
-      // CBT: nilai_akhir langsung (% benar); CAT: konversi theta ke skala kognitif 0-100
+      // CBT: nilai_akhir = NA (sudah skala 0-100 dari EAP); CAT: konversi theta → skor kognitif
       $attempt['nilai_tampil'] = ($attempt['tipe_ujian'] ?? 'CAT') === 'CBT'
         ? round((float) ($attempt['nilai_akhir'] ?? 0), 2)
         : $this->hitungKemampuanKognitif((float) ($attempt['nilai_akhir'] ?? 0));
@@ -1653,16 +1823,9 @@ class Siswa extends Controller
   //fungsi kemampuan kognitif
 
   // Konversi theta IRT ke skor skala 0-100 menggunakan rumus: skor = 50 + (16.67 × θ)
-  private function hitungKemampuanKognitif($theta)
+  private function hitungKemampuanKognitif($theta): float
   {
-    // Rumus baru: skor akhir siswa (x) = 50 + (16.67 * tetha)
-    $skor_akhir = 50 + (16.67 * $theta);
-
-    // Pastikan skor tidak negatif
-    $skor_akhir = max(0, $skor_akhir);
-
-    // Mengembalikan skor yang sudah dibulatkan
-    return round($skor_akhir, 2);
+    return round(CatEngine::hitungKemampuanKognitif((float) $theta), 2);
   }
 
   // Klasifikasikan skor ke kategori: Sangat Rendah / Rendah / Cukup / Baik / Sangat Baik
@@ -1760,6 +1923,7 @@ class Siswa extends Controller
     $isCatMode = ($hasil['tipe_ujian'] ?? 'CAT') === 'CAT';
 
     $data = [
+      'detailRole'         => 'siswa',
       'hasil'              => $hasil,
       'detailJawaban'      => $detailJawabanDenganDurasi,
       'totalSoal'          => $totalSoal,

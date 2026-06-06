@@ -1,16 +1,16 @@
 <?= $this->extend('templates/admin/admin_template') ?>
 
 <?= $this->section('content') ?>
-<br><br>
-<div class="container">
-    <div class="row mb-4 py-4">
-        <div class="col">
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <h2>Kelola Siswa</h2>
-                <a href="<?= base_url('admin/siswa/tambah') ?>" class="btn btn-success">
-                    <i class="bi bi-plus-circle me-2"></i>Tambah Siswa
-                </a>
-            </div>
+<div class="container-fluid py-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold text-dark mb-1">Kelola Siswa</h2>
+            <p class="text-muted mb-0">Kelola data siswa dari seluruh sekolah</p>
+        </div>
+        <a href="<?= base_url('admin/siswa/tambah') ?>" class="btn btn-primary shadow-sm">
+            <i class="bi bi-plus-lg me-2"></i>Tambah Siswa
+        </a>
+    </div>
 
             <!-- Flash Messages -->
             <?php if (session()->getFlashdata('success')): ?>
@@ -180,8 +180,6 @@
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
 </div>
 
 <script>

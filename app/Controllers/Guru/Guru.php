@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Controllers\Guru;
 
 use CodeIgniter\Controller;
@@ -18,6 +17,7 @@ use App\Models\MateriModel;
 use App\Models\UjianBankModel;
 use App\Models\PaketUjianModel;
 use App\Models\UjianSoalCatModel;
+use App\Models\UjianCatParamModel;
 
 class Guru extends Controller
 {
@@ -36,6 +36,7 @@ class Guru extends Controller
     protected $ujianBankModel;
     protected $paketUjianModel;
     protected $ujianSoalCatModel;
+    protected $ujianCatParamModel;
     protected $db;
 
     // Inisialisasi semua model yang dibutuhkan controller ini sekaligus
@@ -56,6 +57,7 @@ class Guru extends Controller
         $this->ujianBankModel = new UjianBankModel();
         $this->paketUjianModel = new PaketUjianModel();
         $this->ujianSoalCatModel = new UjianSoalCatModel();
+        $this->ujianCatParamModel = new UjianCatParamModel();
         $this->db = \Config\Database::connect();
     }
 
@@ -108,7 +110,7 @@ class Guru extends Controller
             'sekolah_id' => 'required|numeric',
             'jenis_ujian_id' => 'required|numeric',
             'nama_ujian' => 'required|min_length[3]|max_length[255]',
-            'kode_ujian' => 'required|alpha_numeric_punct|min_length[3]|max_length[50]',
+            'kode_ujian' => 'required|alpha_numeric_punct|min_length[3]|max_length[50]|is_unique[ujian.kode_ujian]',
             'deskripsi' => 'required|min_length[10]',
             'tipe_ujian' => 'required|in_list[CAT,CBT]',
             'tampilkan_pembahasan' => 'permit_empty',
@@ -118,12 +120,19 @@ class Guru extends Controller
             'acak_urutan_soal' => 'permit_empty',
             'acak_pilihan_jawaban' => 'permit_empty',
             'maksimal_soal_tampil' => 'permit_empty|numeric',
-            'se_awal' => 'required|decimal',
-            'se_minimum' => 'required|decimal',
-            'delta_se_minimum' => 'required|decimal',
+            'se_awal' => 'permit_empty|decimal',
+            'se_minimum' => 'permit_empty|decimal',
+            'delta_se_minimum' => 'permit_empty|decimal',
             'durasi' => 'required|regex_match[/^([0-1][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/]',
             'kelas_id' => 'permit_empty|numeric'
         ];
+
+        $tipeUjian = $this->request->getPost('tipe_ujian') ?: 'CAT';
+        if ($tipeUjian === 'CAT') {
+            $rules['se_awal'] = 'required|decimal';
+            $rules['se_minimum'] = 'required|decimal';
+            $rules['delta_se_minimum'] = 'required|decimal';
+        }
 
         if (!$this->validate($rules)) {
             $errors = $this->validator->getErrors();
@@ -171,24 +180,28 @@ class Guru extends Controller
             'nama_ujian' => $this->request->getPost('nama_ujian'),
             'kode_ujian' => $this->request->getPost('kode_ujian'),
             'deskripsi' => $this->request->getPost('deskripsi'),
-            'tipe_ujian' => $this->request->getPost('tipe_ujian') ?: 'CAT',
+            'tipe_ujian' => $tipeUjian,
             'tampilkan_pembahasan' => $this->request->getPost('tampilkan_pembahasan') ? 1 : 0,
             'visibilitas' => $this->request->getPost('visibilitas') ?: 'terbuka',
             'pengulangan_aktif' => $this->request->getPost('pengulangan_aktif') ? 1 : 0,
             'maksimal_attempt' => $this->request->getPost('maksimal_attempt') ?: 1,
             'acak_urutan_soal' => $this->request->getPost('acak_urutan_soal') ? 1 : 0,
             'acak_pilihan_jawaban' => $this->request->getPost('acak_pilihan_jawaban') ? 1 : 0,
-            'maksimal_soal_tampil' => $this->request->getPost('maksimal_soal_tampil') ?: 20,
-            'se_awal' => $this->request->getPost('se_awal'),
-            'se_minimum' => $this->request->getPost('se_minimum'),
-            'delta_se_minimum' => $this->request->getPost('delta_se_minimum'),
             'durasi' => $this->request->getPost('durasi'),
             'kelas_id' => $kelasId,
             'created_by' => $userId
         ];
 
         try {
-            $this->ujianModel->insert($data);
+            $ujianId = $this->ujianModel->insert($data, true);
+            if ($tipeUjian === 'CAT') {
+                $this->ujianCatParamModel->saveParam((int) $ujianId, [
+                    'se_awal'              => $this->request->getPost('se_awal'),
+                    'se_minimum'           => $this->request->getPost('se_minimum'),
+                    'delta_se_minimum'     => $this->request->getPost('delta_se_minimum'),
+                    'maksimal_soal_tampil' => $this->request->getPost('maksimal_soal_tampil') ?: 20,
+                ]);
+            }
             if ($isAjax) {
                 return $this->response->setJSON(['success' => true, 'redirect' => base_url('guru/ujian')]);
             }
@@ -217,7 +230,7 @@ class Guru extends Controller
             'sekolah_id' => 'required|numeric',
             'jenis_ujian_id' => 'required|numeric',
             'nama_ujian' => 'required|min_length[3]|max_length[255]',
-            'kode_ujian' => 'required|alpha_numeric_punct|min_length[3]|max_length[50]',
+            'kode_ujian' => "required|alpha_numeric_punct|min_length[3]|max_length[50]|is_unique[ujian.kode_ujian,id_ujian,{$id}]",
             'deskripsi' => 'required|min_length[10]',
             'tipe_ujian' => 'required|in_list[CAT,CBT]',
             'tampilkan_pembahasan' => 'permit_empty',
@@ -227,12 +240,19 @@ class Guru extends Controller
             'acak_urutan_soal' => 'permit_empty',
             'acak_pilihan_jawaban' => 'permit_empty',
             'maksimal_soal_tampil' => 'permit_empty|numeric',
-            'se_awal' => 'required|decimal',
-            'se_minimum' => 'required|decimal',
-            'delta_se_minimum' => 'required|decimal',
+            'se_awal' => 'permit_empty|decimal',
+            'se_minimum' => 'permit_empty|decimal',
+            'delta_se_minimum' => 'permit_empty|decimal',
             'durasi' => 'required|regex_match[/^([0-1][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/]',
             'kelas_id' => 'permit_empty|numeric'
         ];
+
+        $tipeUjianEdit = $this->request->getPost('tipe_ujian') ?: 'CAT';
+        if ($tipeUjianEdit === 'CAT') {
+            $rules['se_awal'] = 'required|decimal';
+            $rules['se_minimum'] = 'required|decimal';
+            $rules['delta_se_minimum'] = 'required|decimal';
+        }
 
         if (!$this->validate($rules)) {
             return redirect()->back()->withInput()->with('error', $this->validator->getErrors());
@@ -279,23 +299,27 @@ class Guru extends Controller
             'nama_ujian' => $this->request->getPost('nama_ujian'),
             'kode_ujian' => $this->request->getPost('kode_ujian'),
             'deskripsi' => $this->request->getPost('deskripsi'),
-            'tipe_ujian' => $this->request->getPost('tipe_ujian') ?: 'CAT',
+            'tipe_ujian' => $tipeUjianEdit,
             'tampilkan_pembahasan' => $this->request->getPost('tampilkan_pembahasan') ? 1 : 0,
             'visibilitas' => $this->request->getPost('visibilitas') ?: 'terbuka',
             'pengulangan_aktif' => $this->request->getPost('pengulangan_aktif') ? 1 : 0,
             'maksimal_attempt' => $this->request->getPost('maksimal_attempt') ?: 1,
             'acak_urutan_soal' => $this->request->getPost('acak_urutan_soal') ? 1 : 0,
             'acak_pilihan_jawaban' => $this->request->getPost('acak_pilihan_jawaban') ? 1 : 0,
-            'maksimal_soal_tampil' => $this->request->getPost('maksimal_soal_tampil') ?: 20,
-            'se_awal' => $this->request->getPost('se_awal'),
-            'se_minimum' => $this->request->getPost('se_minimum'),
-            'delta_se_minimum' => $this->request->getPost('delta_se_minimum'),
             'durasi' => $this->request->getPost('durasi'),
             'kelas_id' => $kelasId
         ];
 
         try {
             $this->ujianModel->update($id, $data);
+            if ($tipeUjianEdit === 'CAT') {
+                $this->ujianCatParamModel->saveParam((int) $id, [
+                    'se_awal'              => $this->request->getPost('se_awal'),
+                    'se_minimum'           => $this->request->getPost('se_minimum'),
+                    'delta_se_minimum'     => $this->request->getPost('delta_se_minimum'),
+                    'maksimal_soal_tampil' => $this->request->getPost('maksimal_soal_tampil') ?: 20,
+                ]);
+            }
             return redirect()->to('guru/ujian')->with('success', 'Ujian berhasil diupdate');
         } catch (\Exception $e) {
             return redirect()->to('guru/ujian')->with('error', 'Gagal mengupdate ujian: ' . $e->getMessage());
@@ -376,7 +400,7 @@ class Guru extends Controller
         }
         $data['totalSoal'] = $totalSoal;
         $data['attemptCount'] = $this->db->table('attempt_ujian au')
-            ->join('paket_ujian pu', 'pu.paket_id = au.paket_id')
+            ->join('paket_ujian_cbt pu', 'pu.paket_id = au.paket_id')
             ->where('pu.ujian_id', $ujian_id)
             ->countAllResults();
         $data['paketSudahDipakai'] = $data['attemptCount'] > 0;
@@ -756,6 +780,25 @@ class Guru extends Controller
         $userId = session()->get('user_id');
         $guru = $this->guruModel->where('user_id', $userId)->first();
 
+        $rules = [
+            'ujian_id'       => 'required|numeric',
+            'kelas_id'       => 'required|numeric',
+            'tanggal_mulai'  => 'required',
+            'tanggal_selesai'=> 'required',
+            'kode_akses'     => 'required|min_length[4]|max_length[20]',
+        ];
+        if (!$this->validate($rules)) {
+            return redirect()->to('guru/jadwal-ujian')
+                ->with('error', implode(' ', array_values($this->validator->getErrors())));
+        }
+
+        $tglMulai   = $this->request->getPost('tanggal_mulai');
+        $tglSelesai = $this->request->getPost('tanggal_selesai');
+        if (strtotime($tglMulai) >= strtotime($tglSelesai)) {
+            return redirect()->to('guru/jadwal-ujian')
+                ->with('error', 'Tanggal mulai harus lebih awal dari tanggal selesai.');
+        }
+
         $ujian_id = $this->request->getPost('ujian_id');
         $kelas_id = $this->request->getPost('kelas_id');
         $guru_pengawas_id = $this->request->getPost('guru_id');
@@ -952,24 +995,26 @@ class Guru extends Controller
     private function hitungDurasiPerSoal($detailJawaban, $waktuMulaiUjian)
     {
         $hasilDenganDurasi = [];
-        $waktuSebelumnya = $waktuMulaiUjian;
+        $tsSebelumnya = $waktuMulaiUjian ? strtotime($waktuMulaiUjian) : null;
 
         foreach ($detailJawaban as $index => $jawaban) {
-            $waktuMenjawab = $jawaban['waktu_menjawab'];
+            $waktuMenjawab = $jawaban['waktu_menjawab'] ?? null;
+            $tsMenjawab    = $waktuMenjawab ? strtotime($waktuMenjawab) : null;
 
-            // Hitung durasi dalam detik
-            $durasiDetik = strtotime($waktuMenjawab) - strtotime($waktuSebelumnya);
+            if ($tsSebelumnya !== null && $tsMenjawab !== null && $tsMenjawab > $tsSebelumnya) {
+                $durasiDetik = $tsMenjawab - $tsSebelumnya;
+                $menit = (int) floor($durasiDetik / 60);
+                $detik = $durasiDetik % 60;
+                $jawaban['durasi_pengerjaan_detik']  = $durasiDetik;
+                $jawaban['durasi_pengerjaan_format'] = sprintf('%d menit %d detik', $menit, $detik);
+            } else {
+                $jawaban['durasi_pengerjaan_detik']  = 0;
+                $jawaban['durasi_pengerjaan_format'] = '-';
+            }
 
-            // Konversi ke menit dan detik
-            $menit = floor($durasiDetik / 60);
-            $detik = $durasiDetik % 60;
-
-            $jawaban['durasi_pengerjaan_detik'] = $durasiDetik;
-            $jawaban['durasi_pengerjaan_format'] = sprintf('%d menit %d detik', $menit, $detik);
             $jawaban['nomor_soal'] = $index + 1;
-
-            $hasilDenganDurasi[] = $jawaban;
-            $waktuSebelumnya = $waktuMenjawab;
+            $hasilDenganDurasi[]  = $jawaban;
+            $tsSebelumnya = $tsMenjawab ?? $tsSebelumnya;
         }
 
         return $hasilDenganDurasi;
@@ -981,10 +1026,8 @@ class Guru extends Controller
         // Rumus baru: skor akhir siswa (x) = 50 + (16.67 * tetha)
         $skor_akhir = 50 + (16.67 * (float)$theta);
 
-        // Pastikan skor tidak negatif
-        $skor_akhir = max(0, $skor_akhir);
+        $skor_akhir = max(0, min(100, $skor_akhir));
 
-        // Mengembalikan skor yang sudah dibulatkan
         return round($skor_akhir, 2);
     }
 
@@ -1054,22 +1097,22 @@ class Guru extends Controller
             ->getResultArray();
     }
 
-    // Bangun ringkasan hasil ujian; CAT: theta akhir dikonversi ke skor, CBT: langsung pakai nilai_akhir dari attempt
-    // theta_saat_ini diambil dari baris terakhir detail jawaban (titik akhir estimasi CAT)
+    // Bangun ringkasan hasil ujian; CAT memakai theta jawaban terakhir, CBT memakai hasil EAP final dari attempt.
     private function buildResultSummary(array $context, array $detailJawaban, ?array $attempt = null): array
     {
         $isCatMode = ($context['tipe_ujian'] ?? 'CAT') === 'CAT';
         $lastResult = !empty($detailJawaban) ? end($detailJawaban) : null;
-        // Theta final diambil dari jawaban terakhir karena CAT mengupdate theta setiap soal dijawab
-        $thetaAkhir = $lastResult ? (float) ($lastResult['theta_saat_ini'] ?? 0) : 0.0;
-        $seAkhir = $lastResult && isset($lastResult['se_saat_ini']) ? (float) $lastResult['se_saat_ini'] : null;
 
         if ($isCatMode) {
+            $thetaAkhir = $lastResult ? (float) ($lastResult['theta_saat_ini'] ?? 0) : 0.0;
+            $seAkhir = $lastResult && isset($lastResult['se_saat_ini']) ? (float) $lastResult['se_saat_ini'] : null;
             // CAT: konversi theta ke skor 0-100 lalu clamp supaya tidak melewati batas
             $skorAkhir = $this->hitungKemampuanKognitif($thetaAkhir);
             $nilaiAkhir = min(100, max(0, round($skorAkhir)));
         } else {
-            // CBT: nilai_akhir sudah tersimpan di tabel attempt_ujian
+            $thetaAkhir = isset($attempt['theta_akhir']) ? (float) $attempt['theta_akhir'] : null;
+            $seAkhir = isset($attempt['sem_akhir']) ? (float) $attempt['sem_akhir'] : null;
+            // CBT: nilai_akhir sudah tersimpan sebagai skor EAP-IRT 0-100.
             $skorAkhir = round((float) ($attempt['nilai_akhir'] ?? $context['nilai_akhir'] ?? 0), 2);
             $nilaiAkhir = $skorAkhir;
         }
@@ -1159,14 +1202,31 @@ class Guru extends Controller
         $filters = $this->getAnalitikFiltersFromRequest();
         $filters['sekolah_id'] = (int) ($guru['sekolah_id'] ?? 0);
 
+        $biodataFilters = [];
+        foreach ($this->request->getGet() as $key => $val) {
+            if (str_starts_with($key, 'biodata_') && $val !== '') {
+                $fieldId = (int) str_replace('biodata_', '', $key);
+                if ($fieldId > 0) $biodataFilters[$fieldId] = $val;
+            }
+        }
+        $filters['biodata'] = $biodataFilters;
+
         $pesertaRows = $this->getAnalitikPesertaRows($filters, (int) $guru['guru_id']);
         $overallStats = $this->getAnalitikOverallJawaban($filters, (int) $guru['guru_id']);
         $studentRows = $this->getAnalitikStudentRows($filters, (int) $guru['guru_id']);
+
+        $formTemplateModel = new \App\Models\FormTemplateModel();
+        $formFieldModel    = new \App\Models\FormFieldModel();
+        $template    = $formTemplateModel->getSingle();
+        $allFields   = $formFieldModel->getWithOptions((int)($template['template_id'] ?? 0));
+        $selectFields = array_values(array_filter($allFields, fn($f) => $f['tipe'] === 'select'));
 
         $data = [
             'pageRole' => 'guru',
             'basePath' => 'guru/hasil-ujian',
             'filters' => $filters,
+            'biodataFilters' => $biodataFilters,
+            'selectFields' => $selectFields,
             'filterOptions' => [
                 'sekolah' => !empty($guru['sekolah_id'])
                     ? $this->db->table('sekolah')->where('sekolah_id', $guru['sekolah_id'])->get()->getResultArray()
@@ -1254,10 +1314,22 @@ class Guru extends Controller
         try {
             $this->db->transStart();
 
-            // 1. Hapus semua hasil ujian (jawaban) siswa ini
-            $this->hasilUjianModel->where('peserta_ujian_id', $pesertaUjianId)->delete();
+            // Ambil semua attempt milik peserta ini
+            $attempts = $this->attemptUjianModel
+                ->where('peserta_ujian_id', $pesertaUjianId)
+                ->findAll();
 
-            // 2. Hapus record peserta ujian
+            foreach ($attempts as $attempt) {
+                $aid = (int) $attempt['attempt_id'];
+                $this->db->table('attempt_jawaban_cat')->where('attempt_id', $aid)->delete();
+                $this->db->table('attempt_jawaban_cbt')->where('attempt_id', $aid)->delete();
+                $this->db->table('attempt_soal')->where('attempt_id', $aid)->delete();
+                $this->db->table('attempt_soal_cbt')->where('attempt_id', $aid)->delete();
+                $this->db->table('attempt_analisis_cbt')->where('attempt_id', $aid)->delete();
+            }
+
+            $this->attemptUjianModel->where('peserta_ujian_id', $pesertaUjianId)->delete();
+            $this->hasilUjianModel->where('peserta_ujian_id', $pesertaUjianId)->delete();
             $this->pesertaUjianModel->delete($pesertaUjianId);
 
             $this->db->transComplete();
@@ -1288,6 +1360,7 @@ class Guru extends Controller
             'variabel_id' => $this->normalizeNullableInt($this->request->getGet('variabel_id')),
             'indikator_id' => $this->normalizeNullableInt($this->request->getGet('indikator_id')),
             'materi_id' => $this->normalizeNullableInt($this->request->getGet('materi_id')),
+            'jenis_kelamin' => $this->request->getGet('jenis_kelamin') ?: null,
         ];
     }
 
@@ -1311,6 +1384,26 @@ class Guru extends Controller
         $value = strtoupper((string) $value);
 
         return in_array($value, ['CAT', 'CBT'], true) ? $value : null;
+    }
+
+    private function getFilteredSiswaIds(array $filters): ?array
+    {
+        if (empty($filters['jenis_kelamin']) && empty($filters['biodata'])) {
+            return null;
+        }
+        $builder = $this->db->table('siswa s')->select('s.siswa_id');
+        if (!empty($filters['jenis_kelamin'])) {
+            $builder->where('s.jenis_kelamin', $filters['jenis_kelamin']);
+        }
+        if (!empty($filters['biodata'])) {
+            $builder->join('form_responses fr', 'fr.siswa_id = s.siswa_id', 'inner');
+            foreach ($filters['biodata'] as $fieldId => $nilai) {
+                $alias = 'frv_' . $fieldId;
+                $builder->join("form_response_values {$alias}", "{$alias}.response_id = fr.response_id AND {$alias}.field_id = {$fieldId}", 'inner', false)
+                        ->where("{$alias}.nilai", $nilai);
+            }
+        }
+        return array_column($builder->get()->getResultArray(), 'siswa_id');
     }
 
     // Bangun subquery untuk attempt: jika ada filter nomor_attempt tertentu, gunakan itu; jika tidak, ambil attempt terbaru per peserta
@@ -1376,11 +1469,17 @@ class Guru extends Controller
 
         if (!empty($filters['variabel_id']) || !empty($filters['indikator_id']) || !empty($filters['materi_id'])) {
             $builder
-                ->join('attempt_soal ats', 'ats.attempt_id = au.attempt_id', 'inner')
+                ->join('attempt_soal_cbt ats', 'ats.attempt_id = au.attempt_id', 'inner')
                 ->join('soal_ujian sq', 'sq.soal_id = ats.original_soal_id', 'left');
         }
 
         $this->applyAnalitikScopeFilters($builder, $filters, $guruId);
+
+        $siswaIds = $this->getFilteredSiswaIds($filters);
+        if ($siswaIds !== null) {
+            if (empty($siswaIds)) return [];
+            $builder->whereIn('pu.siswa_id', $siswaIds);
+        }
 
         $rows = $builder
             ->groupBy('pu.peserta_ujian_id, u.tipe_ujian, au.nilai_akhir, au.waktu_mulai, au.waktu_selesai')
@@ -1453,7 +1552,7 @@ class Guru extends Controller
             ->join('kelas k', 'k.kelas_id = ju.kelas_id', 'left')
             ->join($this->getAnalitikAttemptSubquery($filters), 'la.peserta_ujian_id = pu.peserta_ujian_id', 'inner', false)
             ->join('attempt_ujian au', 'au.peserta_ujian_id = la.peserta_ujian_id AND au.nomor_attempt = la.max_attempt', 'inner', false)
-            ->join('attempt_soal ats', 'ats.attempt_id = au.attempt_id', 'inner')
+            ->join('attempt_soal_cbt ats', 'ats.attempt_id = au.attempt_id', 'inner')
             ->join('soal_ujian sq', 'sq.soal_id = ats.original_soal_id', 'left')
             ->join('attempt_jawaban aj', 'aj.attempt_id = ats.attempt_id AND aj.soal_id = ats.original_soal_id', 'left', false)
             ->where('pu.status', 'selesai');
@@ -1510,7 +1609,7 @@ class Guru extends Controller
             ->join('kelas k', 'k.kelas_id = ju.kelas_id', 'left')
             ->join($this->getAnalitikAttemptSubquery($filters), 'la.peserta_ujian_id = pu.peserta_ujian_id', 'inner', false)
             ->join('attempt_ujian au', 'au.peserta_ujian_id = la.peserta_ujian_id AND au.nomor_attempt = la.max_attempt', 'inner', false)
-            ->join('attempt_soal ats', 'ats.attempt_id = au.attempt_id', 'inner')
+            ->join('attempt_soal_cbt ats', 'ats.attempt_id = au.attempt_id', 'inner')
             ->join('soal_ujian sq', 'sq.soal_id = ats.original_soal_id', 'left')
             ->join('variabel v', 'v.variabel_id = sq.variabel_id', 'left')
             ->join('indikator i', 'i.indikator_id = sq.indikator_id', 'left')
@@ -1555,7 +1654,7 @@ class Guru extends Controller
 
         if (!empty($filters['variabel_id']) || !empty($filters['indikator_id']) || !empty($filters['materi_id'])) {
             $builder
-                ->join('attempt_soal ats', 'ats.attempt_id = au.attempt_id', 'inner')
+                ->join('attempt_soal_cbt ats', 'ats.attempt_id = au.attempt_id', 'inner')
                 ->join('soal_ujian sq', 'sq.soal_id = ats.original_soal_id', 'left');
         }
 
@@ -1606,7 +1705,7 @@ class Guru extends Controller
             ->join('siswa', 'siswa.siswa_id = pu.siswa_id', 'left')
             ->join($this->getAnalitikAttemptSubquery($filters), 'la.peserta_ujian_id = pu.peserta_ujian_id', 'inner', false)
             ->join('attempt_ujian au', 'au.peserta_ujian_id = la.peserta_ujian_id AND au.nomor_attempt = la.max_attempt', 'inner', false)
-            ->join('attempt_soal ats', 'ats.attempt_id = au.attempt_id', 'inner')
+            ->join('attempt_soal_cbt ats', 'ats.attempt_id = au.attempt_id', 'inner')
             ->join('soal_ujian sq', 'sq.soal_id = ats.original_soal_id', 'left')
             ->join('variabel v', 'v.variabel_id = sq.variabel_id', 'left')
             ->join('indikator i', 'i.indikator_id = sq.indikator_id', 'left')
@@ -1616,6 +1715,12 @@ class Guru extends Controller
             ->where('au.waktu_selesai IS NOT NULL', null, false);
 
         $this->applyAnalitikScopeFilters($builder, $filters, $guruId);
+
+        $siswaIds = $this->getFilteredSiswaIds($filters);
+        if ($siswaIds !== null) {
+            if (empty($siswaIds)) return [];
+            $builder->whereIn('siswa.siswa_id', $siswaIds);
+        }
 
         $rows = $builder
             ->groupBy('pu.peserta_ujian_id, siswa.nama_lengkap, sekolah.nama_sekolah, kelas.nama_kelas, u.tipe_ujian, u.nama_ujian, au.waktu_mulai, au.waktu_selesai')
@@ -1767,10 +1872,10 @@ class Guru extends Controller
                 $detailJawaban = $this->getAttemptAwareDetailJawaban((int) $siswa['peserta_ujian_id'], $attempt['attempt_id'] ?? null);
                 $summary = $this->buildResultSummary($ujian, $detailJawaban, $attempt);
 
-                $siswa['theta_akhir'] = $summary['is_cat_mode'] ? $summary['theta_akhir'] : null;
+                $siswa['theta_akhir'] = $summary['theta_akhir'];
                 $siswa['skor'] = $summary['skor_akhir'];
                 $siswa['nilai'] = $summary['nilai_akhir'];
-                $siswa['se_akhir'] = $summary['is_cat_mode'] ? $summary['se_akhir'] : null;
+                $siswa['se_akhir'] = $summary['se_akhir'];
                 $siswa['is_cat_mode'] = $summary['is_cat_mode'];
 
                 $jawabanBenar = count(array_filter($detailJawaban, static fn($item) => (int) ($item['is_correct'] ?? 0) === 1));
@@ -1973,6 +2078,7 @@ class Guru extends Controller
         $rataRataDetik = $rataRataWaktu % 60;
 
         return view('guru/detail_hasil', [
+            'detailRole' => 'guru',
             'hasil' => $hasil,
             'detailJawaban' => $detailJawabanDenganDurasi,
             'totalSoal' => $totalSoal,
@@ -2047,7 +2153,6 @@ class Guru extends Controller
     {
         $userId = session()->get('user_id');
 
-        // Ambil data guru dengan join ke users dan sekolah
         $guru = $this->guruModel
             ->select('guru.*, users.username, users.email, sekolah.nama_sekolah')
             ->join('users', 'users.user_id = guru.user_id')
@@ -2055,9 +2160,21 @@ class Guru extends Controller
             ->where('guru.user_id', $userId)
             ->first();
 
+        // Ambil daftar kelas yang diajar guru ini
+        $kelasDiajar = $this->db->table('kelas_guru kg')
+            ->select('k.kelas_id, k.nama_kelas, k.tahun_ajaran, COUNT(s.siswa_id) as jumlah_siswa')
+            ->join('kelas k', 'k.kelas_id = kg.kelas_id')
+            ->join('siswa s', 's.kelas_id = k.kelas_id', 'left')
+            ->where('kg.guru_id', $guru['guru_id'])
+            ->groupBy('k.kelas_id, k.nama_kelas, k.tahun_ajaran')
+            ->orderBy('k.tahun_ajaran', 'DESC')
+            ->orderBy('k.nama_kelas', 'ASC')
+            ->get()->getResultArray();
+
         $data = [
-            'guru' => $guru,
-            'validation' => \Config\Services::validation()
+            'guru'        => $guru,
+            'kelasDiajar' => $kelasDiajar,
+            'validation'  => \Config\Services::validation(),
         ];
 
         return view('guru/profil', $data);
@@ -2674,7 +2791,10 @@ class Guru extends Controller
             'kategori' => $kategori,
             'bankUjian' => $bankUjian,
             'soalList' => $soalList,
-            'canEdit' => ($bankUjian['created_by'] == $userId || $kategori === 'umum')
+            'canEdit' => ($bankUjian['created_by'] == $userId || $kategori === 'umum'),
+            'variabel' => $this->variabelModel->orderBy('nama_variabel', 'ASC')->findAll(),
+            'indikator' => $this->indikatorModel->orderBy('nama_indikator', 'ASC')->findAll(),
+            'materi' => $this->materiModel->orderBy('nama_materi', 'ASC')->findAll(),
         ];
 
         return view('guru/bank_soal/ujian', $data);
@@ -3133,13 +3253,19 @@ class Guru extends Controller
     public function importSoalDariBank()
     {
         $ujianId = $this->request->getPost('ujian_id');
-        $soalIds = $this->request->getPost('soal_ids'); // Array of soal IDs
+        $soalIds = $this->request->getPost('soal_ids');
 
         if (!$ujianId || empty($soalIds)) {
             return redirect()->back()->with('error', 'Data tidak lengkap');
         }
 
         $userId = session()->get('user_id');
+
+        // Validasi kepemilikan ujian — guru hanya boleh import ke ujian miliknya sendiri
+        $guru = $this->guruModel->where('user_id', $userId)->first();
+        if (!$guru || !$this->ujianModel->hasAccess($ujianId, $guru['guru_id'])) {
+            return redirect()->back()->with('error', 'Akses ditolak: ujian tidak ditemukan atau bukan milik Anda.');
+        }
         $berhasilImport = 0;
         $gagalImport = 0;
 
@@ -3653,6 +3779,110 @@ class Guru extends Controller
         return $this->response->setJSON($indikator);
     }
 
+    public function tambahVariabelInline()
+    {
+        $rules = [
+            'nama_variabel' => 'required|min_length[3]|max_length[200]',
+        ];
+
+        if (!$this->validate($rules)) {
+            return $this->response->setStatusCode(422)->setJSON([
+                'success' => false,
+                'message' => implode(' ', $this->validator->getErrors()),
+            ]);
+        }
+
+        try {
+            $variabelId = $this->variabelModel->insert([
+                'nama_variabel' => trim((string) $this->request->getPost('nama_variabel')),
+                'deskripsi' => $this->request->getPost('deskripsi'),
+            ], true);
+
+            $variabel = $this->variabelModel->find($variabelId);
+
+            return $this->response->setJSON([
+                'success' => true,
+                'message' => 'Variabel berhasil ditambahkan.',
+                'item' => $variabel,
+            ]);
+        } catch (\Throwable $e) {
+            return $this->response->setStatusCode(500)->setJSON([
+                'success' => false,
+                'message' => 'Gagal menyimpan variabel.',
+            ]);
+        }
+    }
+
+    public function tambahIndikatorInline()
+    {
+        $rules = [
+            'variabel_id' => 'required|numeric',
+            'nama_indikator' => 'required|min_length[3]|max_length[200]',
+        ];
+
+        if (!$this->validate($rules)) {
+            return $this->response->setStatusCode(422)->setJSON([
+                'success' => false,
+                'message' => implode(' ', $this->validator->getErrors()),
+            ]);
+        }
+
+        try {
+            $indikatorId = $this->indikatorModel->insert([
+                'variabel_id' => $this->request->getPost('variabel_id'),
+                'nama_indikator' => trim((string) $this->request->getPost('nama_indikator')),
+                'deskripsi' => $this->request->getPost('deskripsi'),
+            ], true);
+
+            $indikator = $this->indikatorModel->find($indikatorId);
+
+            return $this->response->setJSON([
+                'success' => true,
+                'message' => 'Indikator berhasil ditambahkan.',
+                'item' => $indikator,
+            ]);
+        } catch (\Throwable $e) {
+            return $this->response->setStatusCode(500)->setJSON([
+                'success' => false,
+                'message' => 'Gagal menyimpan indikator.',
+            ]);
+        }
+    }
+
+    public function tambahMateriInline()
+    {
+        $rules = [
+            'nama_materi' => 'required|min_length[2]|max_length[200]',
+        ];
+
+        if (!$this->validate($rules)) {
+            return $this->response->setStatusCode(422)->setJSON([
+                'success' => false,
+                'message' => implode(' ', $this->validator->getErrors()),
+            ]);
+        }
+
+        try {
+            $materiId = $this->materiModel->insert([
+                'nama_materi' => trim((string) $this->request->getPost('nama_materi')),
+                'deskripsi' => $this->request->getPost('deskripsi'),
+            ], true);
+
+            $materi = $this->materiModel->find($materiId);
+
+            return $this->response->setJSON([
+                'success' => true,
+                'message' => 'Materi berhasil ditambahkan.',
+                'item' => $materi,
+            ]);
+        } catch (\Throwable $e) {
+            return $this->response->setStatusCode(500)->setJSON([
+                'success' => false,
+                'message' => 'Gagal menyimpan materi.',
+            ]);
+        }
+    }
+
     // =============================================
     //  MULTI-BANK & GENERATE PAKET
     // =============================================
@@ -3700,7 +3930,7 @@ class Guru extends Controller
         $jumlahPaket = (int) $this->request->getPost('jumlah_paket') ?: 3;
         $soalPerPaket = (int) $this->request->getPost('soal_per_paket') ?: 25;
         $attemptCount = $this->db->table('attempt_ujian au')
-            ->join('paket_ujian pu', 'pu.paket_id = au.paket_id')
+            ->join('paket_ujian_cbt pu', 'pu.paket_id = au.paket_id')
             ->where('pu.ujian_id', $ujianId)
             ->countAllResults();
 
@@ -3741,7 +3971,7 @@ class Guru extends Controller
         }
 
         $attemptCount = $this->db->table('attempt_ujian au')
-            ->join('paket_ujian pu', 'pu.paket_id = au.paket_id')
+            ->join('paket_ujian_cbt pu', 'pu.paket_id = au.paket_id')
             ->where('pu.ujian_id', $ujianId)
             ->countAllResults();
         if ($attemptCount > 0) {
@@ -3752,7 +3982,7 @@ class Guru extends Controller
         try {
             $this->paketUjianModel->deleteByUjian($ujianId);
             foreach ($draft['packages'] as $package) {
-                $this->paketUjianModel->db->table('paket_ujian')->insert([
+                $this->paketUjianModel->db->table('paket_ujian_cbt')->insert([
                     'ujian_id' => $ujianId,
                     'nama_paket' => $package['nama_paket'],
                     'nomor_paket' => $package['nomor_paket'],
@@ -3761,7 +3991,7 @@ class Guru extends Controller
                 $paketId = $this->paketUjianModel->db->insertID();
                 $urut = 1;
                 foreach ($package['soal_ids'] as $soalId) {
-                    $r = $this->paketUjianModel->db->table('paket_ujian_item')->insert([
+                    $r = $this->paketUjianModel->db->table('paket_ujian_item_cbt')->insert([
                         'paket_id' => $paketId,
                         'soal_id' => $soalId,
                         'nomor_urut' => $urut++,
@@ -3797,7 +4027,7 @@ class Guru extends Controller
     public function hapusPaket($ujianId, $paketId)
     {
         $attemptCount = $this->db->table('attempt_ujian au')
-            ->join('paket_ujian pu', 'pu.paket_id = au.paket_id')
+            ->join('paket_ujian_cbt pu', 'pu.paket_id = au.paket_id')
             ->where('pu.ujian_id', $ujianId)
             ->countAllResults();
         if ($attemptCount > 0) {
@@ -3805,7 +4035,7 @@ class Guru extends Controller
             return redirect()->back();
         }
 
-        $this->db->table('paket_ujian')->where('paket_id', $paketId)->delete();
+        $this->db->table('paket_ujian_cbt')->where('paket_id', $paketId)->delete();
         session()->setFlashdata('success', 'Paket dihapus.');
         return redirect()->back();
     }
@@ -3814,7 +4044,7 @@ class Guru extends Controller
     public function hapusSemuaPaket($ujianId)
     {
         $attemptCount = $this->db->table('attempt_ujian au')
-            ->join('paket_ujian pu', 'pu.paket_id = au.paket_id')
+            ->join('paket_ujian_cbt pu', 'pu.paket_id = au.paket_id')
             ->where('pu.ujian_id', $ujianId)
             ->countAllResults();
         if ($attemptCount > 0) {
@@ -3933,18 +4163,30 @@ class Guru extends Controller
         $attempt = $attemptQuery->get()->getRowArray();
 
         if ($attempt) {
-            $rows = $this->db->table('attempt_jawaban aj')
+            $jawabanTable = empty($attempt['paket_id']) ? 'attempt_jawaban_cat' : 'attempt_jawaban_cbt';
+            $rows = $this->db->table($jawabanTable . ' aj')
                 ->select('
                     aj.*,
                     COALESCE(ats.pertanyaan, su.pertanyaan) as pertanyaan,
                     COALESCE(ats.kode_soal, su.kode_soal) as kode_soal,
+                    COALESCE(ats.pilihan_a, su.pilihan_a) as pilihan_a,
+                    COALESCE(ats.pilihan_b, su.pilihan_b) as pilihan_b,
+                    COALESCE(ats.pilihan_c, su.pilihan_c) as pilihan_c,
+                    COALESCE(ats.pilihan_d, su.pilihan_d) as pilihan_d,
+                    COALESCE(ats.pilihan_e, su.pilihan_e) as pilihan_e,
                     COALESCE(ats.jawaban_benar, su.jawaban_benar) as jawaban_benar,
                     COALESCE(ats.tingkat_kesulitan, su.tingkat_kesulitan) as tingkat_kesulitan,
                     COALESCE(ats.pembahasan, su.pembahasan) as pembahasan,
                     COALESCE(ats.media, su.media) as foto,
+                    aac.p_residu,
+                    aac.q_residu,
+                    aac.z_score,
+                    aac.kategori_soal,
+                    aac.keterangan as keterangan_residu,
                     DATE_FORMAT(aj.waktu_menjawab, "%H:%i:%s") as waktu_menjawab_format
                 ')
-                ->join('attempt_soal ats', 'ats.attempt_id = aj.attempt_id AND ats.original_soal_id = aj.soal_id', 'left')
+                ->join('attempt_soal_cbt ats', 'ats.attempt_id = aj.attempt_id AND ats.original_soal_id = aj.soal_id', 'left')
+                ->join('attempt_analisis_cbt aac', 'aac.attempt_id = aj.attempt_id AND aac.soal_id = aj.soal_id', 'left')
                 ->join('soal_ujian su', 'su.soal_id = aj.soal_id', 'left')
                 ->where('aj.attempt_id', $attempt['attempt_id'])
                 ->orderBy('aj.nomor_tampil', 'ASC')
@@ -4015,5 +4257,241 @@ class Guru extends Controller
         }
 
         return $ordered;
+    }
+
+    // ── Analisis Hasil Ujian (grafik) ────────────────────────────────────────
+    public function analisisUjian()
+    {
+        $guruUserId = session()->get('user_id');
+        $filters = $this->getAnalitikFiltersFromRequest();
+        $filters['nilai_min']         = $this->request->getGet('nilai_min') !== null ? (int)$this->request->getGet('nilai_min') : null;
+        $filters['nilai_max']         = $this->request->getGet('nilai_max') !== null ? (int)$this->request->getGet('nilai_max') : null;
+        $filters['kategori']          = $this->request->getGet('kategori') ?: null;
+        $filters['theta_min']         = $this->request->getGet('theta_min') !== null ? (float)$this->request->getGet('theta_min') : null;
+        $filters['theta_max']         = $this->request->getGet('theta_max') !== null ? (float)$this->request->getGet('theta_max') : null;
+        $filters['keterangan_residu'] = $this->request->getGet('keterangan_residu') ?: null;
+        $filters['jenis_kelamin']     = $this->request->getGet('jenis_kelamin') ?: null;
+
+        $biodataFilters = [];
+        foreach ($this->request->getGet() as $key => $val) {
+            if (str_starts_with($key, 'biodata_') && $val !== '') {
+                $fieldId = (int) str_replace('biodata_', '', $key);
+                if ($fieldId > 0) $biodataFilters[$fieldId] = $val;
+            }
+        }
+        $filters['biodata'] = $biodataFilters;
+        $isCbt = false; // akan di-set setelah rows di-fetch
+
+        $formTemplateModel = new \App\Models\FormTemplateModel();
+        $formFieldModel    = new \App\Models\FormFieldModel();
+        $template     = $formTemplateModel->getSingle();
+        $allFields    = $formFieldModel->getWithOptions((int) $template['template_id']);
+        $selectFields = array_values(array_filter($allFields, fn($f) => $f['tipe'] === 'select'));
+
+        $attemptSub = !empty($filters['nomor_attempt'])
+            ? '(SELECT peserta_ujian_id, nomor_attempt AS max_attempt FROM attempt_ujian WHERE status="selesai" AND nomor_attempt=' . (int)$filters['nomor_attempt'] . ') la'
+            : '(SELECT peserta_ujian_id, MAX(nomor_attempt) AS max_attempt FROM attempt_ujian WHERE status="selesai" GROUP BY peserta_ujian_id) la';
+
+        $builder = $this->db->table('peserta_ujian pu')
+            ->select('pu.peserta_ujian_id, siswa.siswa_id, siswa.nama_lengkap, siswa.nomor_peserta, u.tipe_ujian, u.nama_ujian, au.nilai_akhir, au.theta_akhir, au.sem_akhir, au.waktu_mulai, au.waktu_selesai, sekolah.nama_sekolah, kelas.nama_kelas')
+            ->join('jadwal_ujian ju', 'ju.jadwal_id = pu.jadwal_id')
+            ->join('ujian u', 'u.id_ujian = ju.ujian_id')
+            ->join('kelas', 'kelas.kelas_id = ju.kelas_id', 'left')
+            ->join('sekolah', 'sekolah.sekolah_id = kelas.sekolah_id', 'left')
+            ->join('siswa', 'siswa.siswa_id = pu.siswa_id', 'left')
+            ->join('guru g', 'g.guru_id = ju.guru_id')
+            ->join('users us', 'us.user_id = g.user_id')
+            ->join($attemptSub, 'la.peserta_ujian_id = pu.peserta_ujian_id', 'inner', false)
+            ->join('attempt_ujian au', 'au.peserta_ujian_id = la.peserta_ujian_id AND au.nomor_attempt = la.max_attempt', 'inner', false)
+            ->where('us.user_id', $guruUserId)
+            ->where('pu.status', 'selesai');
+
+        if (!empty($filters['tipe_ujian']))    $builder->where('u.tipe_ujian',        $filters['tipe_ujian']);
+        if (!empty($filters['jadwal_id']))    $builder->where('ju.jadwal_id',         $filters['jadwal_id']);
+        if (!empty($filters['kelas_id']))     $builder->where('ju.kelas_id',          $filters['kelas_id']);
+        if (!empty($filters['jenis_kelamin'])) $builder->where('siswa.jenis_kelamin', $filters['jenis_kelamin']);
+
+        if (!empty($biodataFilters)) {
+            $builder->join('form_responses fr', 'fr.siswa_id = siswa.siswa_id', 'inner');
+            foreach ($biodataFilters as $fieldId => $nilai) {
+                $alias = 'frv_' . $fieldId;
+                $builder->join("form_response_values {$alias}", "{$alias}.response_id = fr.response_id AND {$alias}.field_id = {$fieldId}", 'inner', false)
+                        ->where("{$alias}.nilai", $nilai);
+            }
+        }
+
+        $rows = $builder->groupBy('pu.peserta_ujian_id, siswa.siswa_id, siswa.nama_lengkap, siswa.nomor_peserta, u.tipe_ujian, u.nama_ujian, au.nilai_akhir, au.theta_akhir, au.sem_akhir, au.waktu_mulai, au.waktu_selesai, sekolah.nama_sekolah, kelas.nama_kelas')
+            ->orderBy('siswa.nama_lengkap', 'ASC')
+            ->get()->getResultArray();
+
+        foreach ($rows as &$row) {
+            $raw = (float)($row['nilai_akhir'] ?? 0);
+            $row['skor_akhir']   = ($row['tipe_ujian'] ?? 'CAT') === 'CAT' ? $this->hitungKemampuanKognitif($raw) : round($raw, 2);
+            $durasi              = strtotime($row['waktu_selesai'] ?? '') - strtotime($row['waktu_mulai'] ?? '');
+            $row['durasi_menit'] = $durasi > 0 ? round($durasi / 60, 1) : 0;
+        }
+        unset($row);
+
+        // Post-filter: rentang nilai
+        if ($filters['nilai_min'] !== null || $filters['nilai_max'] !== null) {
+            $rows = array_values(array_filter($rows, function($r) use ($filters) {
+                $s = $r['skor_akhir'];
+                if ($filters['nilai_min'] !== null && $s < $filters['nilai_min']) return false;
+                if ($filters['nilai_max'] !== null && $s > $filters['nilai_max']) return false;
+                return true;
+            }));
+        }
+        if (!empty($filters['kategori'])) {
+            $rows = array_values(array_filter($rows, fn($r) =>
+                $this->getKlasifikasiKognitif($r['skor_akhir'])['kategori'] === $filters['kategori']
+            ));
+        }
+
+        if ($filters['theta_min'] !== null || $filters['theta_max'] !== null) {
+            $rows = array_values(array_filter($rows, function($r) use ($filters) {
+                $t = (float)($r['theta_akhir'] ?? 0);
+                if ($filters['theta_min'] !== null && $t < $filters['theta_min']) return false;
+                if ($filters['theta_max'] !== null && $t >= $filters['theta_max']) return false;
+                return true;
+            }));
+        }
+
+        if (!empty($filters['keterangan_residu'])) {
+            $db = \Config\Database::connect();
+            $targetKet = $filters['keterangan_residu'];
+            $pesertaIds = array_column($rows, 'peserta_ujian_id');
+            if (!empty($pesertaIds)) {
+                $matchIds = $db->table('attempt_analisis_cbt aac')
+                    ->select('DISTINCT pu.peserta_ujian_id')
+                    ->join('attempt_ujian au', 'au.attempt_id = aac.attempt_id')
+                    ->join('peserta_ujian pu', 'pu.peserta_ujian_id = au.peserta_ujian_id')
+                    ->where('aac.keterangan', $targetKet)
+                    ->whereIn('pu.peserta_ujian_id', $pesertaIds)
+                    ->get()->getResultArray();
+                $matchSet = array_flip(array_column($matchIds, 'peserta_ujian_id'));
+                $rows = array_values(array_filter($rows, fn($r) => isset($matchSet[$r['peserta_ujian_id']])));
+            }
+        }
+
+        // Tampilkan grafik CBT jika ada data CBT dalam hasil
+        $isCbt = !empty(array_filter($rows, fn($r) => ($r['tipe_ujian'] ?? '') === 'CBT'));
+
+        $data = [
+            'pageRole'       => 'guru',
+            'basePath'       => 'guru/hasil-ujian',
+            'filters'        => $filters,
+            'biodataFilters' => $biodataFilters,
+            'selectFields'   => $selectFields,
+            'filterOptions'  => [
+                'jenis_ujian' => [['value' => 'CAT', 'label' => 'CAT'], ['value' => 'CBT', 'label' => 'CBT']],
+                'ujian'       => $this->db->table('jadwal_ujian ju')->select('ju.jadwal_id,u.tipe_ujian,u.nama_ujian,u.kode_ujian,k.nama_kelas')->join('ujian u','u.id_ujian=ju.ujian_id')->join('kelas k','k.kelas_id=ju.kelas_id','left')->join('guru g','g.guru_id=ju.guru_id')->join('users us','us.user_id=g.user_id')->where('us.user_id',$guruUserId)->orderBy('ju.tanggal_mulai','DESC')->get()->getResultArray(),
+                'kelas'       => $this->db->table('kelas k')->select('k.kelas_id,k.nama_kelas')->join('jadwal_ujian ju','ju.kelas_id=k.kelas_id')->join('guru g','g.guru_id=ju.guru_id')->join('users us','us.user_id=g.user_id')->where('us.user_id',$guruUserId)->groupBy('k.kelas_id')->orderBy('k.nama_kelas','ASC')->get()->getResultArray(),
+                'variabel'    => $this->variabelModel->orderBy('nama_variabel','ASC')->findAll(),
+                'indikator'   => $this->indikatorModel->select('indikator.*')->orderBy('nama_indikator','ASC')->findAll(),
+                'materi'      => $this->materiModel->orderBy('nama_materi','ASC')->findAll(),
+            ],
+            'chartData'    => $this->buildAnalisisChartDataGuru($rows, $isCbt),
+            'totalPeserta' => count($rows),
+            'isCbt'        => $isCbt,
+            'studentRows'  => $this->mergeResiduCountsGuru($rows),
+        ];
+
+        return view('guru/analisis_ujian', $data);
+    }
+
+    private function mergeResiduCountsGuru(array $rows): array
+    {
+        if (empty($rows)) return $rows;
+
+        $pesertaIds = array_column($rows, 'peserta_ujian_id');
+        $residuRaw  = $this->db->table('attempt_analisis_cbt aac')
+            ->select('pu.peserta_ujian_id, aac.keterangan, COUNT(*) as jumlah')
+            ->join('attempt_ujian au', 'au.attempt_id = aac.attempt_id')
+            ->join('peserta_ujian pu', 'pu.peserta_ujian_id = au.peserta_ujian_id')
+            ->whereIn('pu.peserta_ujian_id', $pesertaIds)
+            ->whereIn('aac.keterangan', ['Lucky Guess', 'Ceroboh'])
+            ->groupBy('pu.peserta_ujian_id, aac.keterangan')
+            ->get()->getResultArray();
+
+        $residuMap = [];
+        foreach ($residuRaw as $r) {
+            $pid = (int)$r['peserta_ujian_id'];
+            $residuMap[$pid][$r['keterangan']] = (int)$r['jumlah'];
+        }
+
+        foreach ($rows as &$row) {
+            $pid = (int)$row['peserta_ujian_id'];
+            $row['lucky_guess_count'] = $residuMap[$pid]['Lucky Guess'] ?? 0;
+            $row['ceroboh_count']     = $residuMap[$pid]['Ceroboh']     ?? 0;
+        }
+        unset($row);
+
+        return $rows;
+    }
+
+    private function buildAnalisisChartDataGuru(array $rows, bool $isCbt): array
+    {
+        $buckets = ['0–20' => 0, '21–40' => 0, '41–60' => 0, '61–80' => 0, '81–100' => 0];
+        foreach ($rows as $r) { $s = $r['skor_akhir']; if ($s<=20) $buckets['0–20']++; elseif($s<=40) $buckets['21–40']++; elseif($s<=60) $buckets['41–60']++; elseif($s<=80) $buckets['61–80']++; else $buckets['81–100']++; }
+        $chart1 = ['labels' => array_keys($buckets), 'data' => array_values($buckets)];
+
+        $kat = ['Sangat Rendah' => 0, 'Rendah' => 0, 'Cukup' => 0, 'Baik' => 0, 'Sangat Baik' => 0];
+        foreach ($rows as $r) { $k = $this->getKlasifikasiKognitif($r['skor_akhir'])['kategori']; if (isset($kat[$k])) $kat[$k]++; }
+        $chart2 = ['labels' => array_keys($kat), 'data' => array_values($kat)];
+
+        $groups = []; $groupIds = [];
+        foreach ($rows as $r) {
+            $key = $r['nama_kelas'] ?? '-';
+            $id  = $r['kelas_id'] ?? null;
+            if (!isset($groups[$key])) { $groups[$key] = ['total'=>0,'count'=>0]; $groupIds[$key] = $id; }
+            $groups[$key]['total'] += $r['skor_akhir']; $groups[$key]['count']++;
+        }
+        $chart3 = ['labels'=>[],'data'=>[],'counts'=>[],'ids'=>[],'groupBy'=>'kelas'];
+        foreach ($groups as $label => $g) {
+            $chart3['labels'][] = $label;
+            $chart3['data'][]   = round($g['total']/$g['count'],2);
+            $chart3['counts'][] = $g['count'];
+            $chart3['ids'][]    = $groupIds[$label];
+        }
+
+        $chart4 = $chart5 = $chart6 = $chart7 = null;
+
+        if ($isCbt) {
+            $tb = ['< -2' => 0, '-2..-1' => 0, '-1..0' => 0, '0..1' => 0, '1..2' => 0, '> 2' => 0];
+            foreach ($rows as $r) { $t = (float)($r['theta_akhir'] ?? 0); if($t<-2)$tb['< -2']++; elseif($t<-1)$tb['-2..-1']++; elseif($t<0)$tb['-1..0']++; elseif($t<1)$tb['0..1']++; elseif($t<=2)$tb['1..2']++; else$tb['> 2']++; }
+            $chart4 = ['labels' => array_keys($tb), 'data' => array_values($tb)];
+
+            $scatter = [];
+            foreach ($rows as $r) { if ($r['durasi_menit'] > 0) $scatter[] = ['x' => $r['durasi_menit'], 'y' => $r['skor_akhir']]; }
+            $chart5 = $scatter;
+
+            $rB = ['0–20' => ['Lucky Guess' => 0, 'Ceroboh' => 0, 'Normal' => 0], '21–40' => ['Lucky Guess' => 0, 'Ceroboh' => 0, 'Normal' => 0], '41–60' => ['Lucky Guess' => 0, 'Ceroboh' => 0, 'Normal' => 0], '61–80' => ['Lucky Guess' => 0, 'Ceroboh' => 0, 'Normal' => 0], '81–100' => ['Lucky Guess' => 0, 'Ceroboh' => 0, 'Normal' => 0]];
+            $pids = array_column($rows, 'peserta_ujian_id');
+            if (!empty($pids)) {
+                $rRows = $this->db->table('attempt_analisis_cbt aac')->select('aac.keterangan,au.nilai_akhir')->join('attempt_ujian au','au.attempt_id=aac.attempt_id')->join('peserta_ujian pu','pu.peserta_ujian_id=au.peserta_ujian_id')->whereIn('pu.peserta_ujian_id', $pids)->get()->getResultArray();
+                foreach ($rRows as $rr) { $s = round((float)($rr['nilai_akhir'] ?? 0), 2); $b = $s<=20?'0–20':($s<=40?'21–40':($s<=60?'41–60':($s<=80?'61–80':'81–100'))); $ket = $rr['keterangan'] ?? 'Normal'; if (isset($rB[$b][$ket])) $rB[$b][$ket]++; }
+            }
+            $chart6 = ['labels' => array_keys($rB), 'luckyGuess' => array_column(array_values($rB), 'Lucky Guess'), 'ceroboh' => array_column(array_values($rB), 'Ceroboh'), 'normal' => array_column(array_values($rB), 'Normal')];
+
+            $sG = ['0–20' => ['total' => 0, 'count' => 0], '21–40' => ['total' => 0, 'count' => 0], '41–60' => ['total' => 0, 'count' => 0], '61–80' => ['total' => 0, 'count' => 0], '81–100' => ['total' => 0, 'count' => 0]];
+            foreach ($rows as $r) { $s=$r['skor_akhir']; $b=$s<=20?'0–20':($s<=40?'21–40':($s<=60?'41–60':($s<=80?'61–80':'81–100'))); $sem=(float)($r['sem_akhir']??0); if($sem>0){$sG[$b]['total']+=$sem;$sG[$b]['count']++;} }
+            $chart7 = ['labels' => array_keys($sG), 'data' => array_map(fn($g) => $g['count'] > 0 ? round($g['total'] / $g['count'], 3) : 0, $sG)];
+        }
+
+        $durBuckets = ['< 10 mnt'=>0,'10–20 mnt'=>0,'20–30 mnt'=>0,'30–45 mnt'=>0,'45–60 mnt'=>0,'> 60 mnt'=>0];
+        foreach ($rows as $r) {
+            $d = $r['durasi_menit'] ?? 0;
+            if ($d <= 0) continue;
+            if ($d < 10)     $durBuckets['< 10 mnt']++;
+            elseif ($d < 20) $durBuckets['10–20 mnt']++;
+            elseif ($d < 30) $durBuckets['20–30 mnt']++;
+            elseif ($d < 45) $durBuckets['30–45 mnt']++;
+            elseif ($d < 60) $durBuckets['45–60 mnt']++;
+            else             $durBuckets['> 60 mnt']++;
+        }
+        $avgMenit = count($rows) > 0 ? round(array_sum(array_column($rows, 'durasi_menit')) / count($rows), 1) : 0;
+        $chart8 = ['labels' => array_keys($durBuckets), 'data' => array_values($durBuckets), 'avg' => $avgMenit];
+
+        return compact('chart1', 'chart2', 'chart3', 'chart4', 'chart5', 'chart6', 'chart7', 'chart8');
     }
 }

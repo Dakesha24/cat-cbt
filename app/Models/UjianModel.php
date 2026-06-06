@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Models;
 
 use CodeIgniter\Model;
@@ -13,8 +12,7 @@ class UjianModel extends Model
     'tipe_ujian', 'tampilkan_pembahasan', 'visibilitas',
     'pengulangan_aktif', 'maksimal_attempt',
     'acak_urutan_soal', 'acak_pilihan_jawaban',
-    'se_awal', 'se_minimum', 'delta_se_minimum',
-    'maksimal_soal_tampil', 'durasi', 'sekolah_id', 'kelas_id', 'created_by'
+    'durasi', 'sekolah_id', 'kelas_id', 'created_by'
   ];
   protected $useTimestamps = true;
   protected $createdField = 'created_at';
@@ -28,11 +26,13 @@ class UjianModel extends Model
     $guruId = (int) $guruId;
 
     return $this->select('ujian.*, kelas.nama_kelas, jenis_ujian.nama_jenis, sekolah.nama_sekolah')
+      ->select('ucp.se_awal, ucp.se_minimum, ucp.delta_se_minimum, ucp.maksimal_soal_tampil')
       ->join('kelas', 'kelas.kelas_id = ujian.kelas_id', 'left')
       ->join('jenis_ujian', 'jenis_ujian.jenis_ujian_id = ujian.jenis_ujian_id', 'left')
       ->join('sekolah', 'sekolah.sekolah_id = COALESCE(kelas.sekolah_id, ujian.sekolah_id)', 'left', false)
       ->join('kelas_guru', 'kelas_guru.kelas_id = ujian.kelas_id', 'left')
       ->join('guru guru_access', 'guru_access.guru_id = ' . $guruId, 'inner', false)
+      ->join('ujian_param_cat ucp', 'ucp.ujian_id = ujian.id_ujian', 'left')
       ->groupStart()
         ->where('kelas_guru.guru_id', $guruId)
         ->orGroupStart()
@@ -84,11 +84,13 @@ class UjianModel extends Model
     $guruId = (int) $guruId;
 
     return $this->select('ujian.*, kelas.nama_kelas, jenis_ujian.nama_jenis, sekolah.nama_sekolah')
+      ->select('ucp.se_awal, ucp.se_minimum, ucp.delta_se_minimum, ucp.maksimal_soal_tampil')
       ->join('kelas', 'kelas.kelas_id = ujian.kelas_id', 'left')
       ->join('jenis_ujian', 'jenis_ujian.jenis_ujian_id = ujian.jenis_ujian_id')
       ->join('sekolah', 'sekolah.sekolah_id = COALESCE(kelas.sekolah_id, ujian.sekolah_id)', 'left', false)
       ->join('kelas_guru', 'kelas_guru.kelas_id = ujian.kelas_id', 'left')
       ->join('guru guru_access', 'guru_access.guru_id = ' . $guruId, 'inner', false)
+      ->join('ujian_param_cat ucp', 'ucp.ujian_id = ujian.id_ujian', 'left')
       ->groupStart()
         ->where('kelas_guru.guru_id', $guruId)
         ->orGroupStart()

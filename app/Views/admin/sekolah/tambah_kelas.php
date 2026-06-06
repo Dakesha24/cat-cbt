@@ -3,7 +3,6 @@
 <?= $this->section('title') ?>Tambah Kelas - <?= esc($sekolah['nama_sekolah']) ?><?= $this->endSection() ?>
 
 <?= $this->section('content') ?>
-<br><br><br>
 <div class="container-fluid">
   <div class="row">
     <div class="col-12">
