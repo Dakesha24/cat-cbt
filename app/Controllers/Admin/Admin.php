@@ -3124,12 +3124,52 @@ class Admin extends Controller
             ->get()
             ->getResultArray();
 
+        // Ambil semua attempt + detail jawaban untuk peserta selesai dalam batch (hindari N+1 query)
+        $pesertaIdsSelesai = array_values(array_map(
+            static fn($s) => (int) $s['peserta_ujian_id'],
+            array_filter($hasilSiswa, static fn($s) => $s['status'] === 'selesai')
+        ));
+
+        $attemptsByPeserta = [];
+        $lastAttemptByPeserta = [];
+        $catAttemptIds = [];
+        $cbtAttemptIds = [];
+
+        if (!empty($pesertaIdsSelesai)) {
+            $allAttempts = $db->table('attempt_ujian')
+                ->whereIn('peserta_ujian_id', $pesertaIdsSelesai)
+                ->orderBy('peserta_ujian_id', 'ASC')
+                ->orderBy('nomor_attempt', 'ASC')
+                ->get()
+                ->getResultArray();
+
+            foreach ($allAttempts as $att) {
+                $attemptsByPeserta[(int) $att['peserta_ujian_id']][] = $att;
+            }
+
+            foreach ($attemptsByPeserta as $pid => $attempts) {
+                $last = end($attempts);
+                $lastAttemptByPeserta[$pid] = $last;
+                if (empty($last['paket_id'])) {
+                    $catAttemptIds[] = (int) $last['attempt_id'];
+                } else {
+                    $cbtAttemptIds[] = (int) $last['attempt_id'];
+                }
+            }
+        }
+
+        $jawabanByAttempt = $this->getDetailJawabanBatch($catAttemptIds, $cbtAttemptIds);
+
         // Proses setiap siswa untuk melengkapi data yang dibutuhkan view
         foreach ($hasilSiswa as &$siswa) {
             if ($siswa['status'] === 'selesai') {
-                $attempts = $this->getAttemptsForPeserta((int) $siswa['peserta_ujian_id']);
-                $attempt = !empty($attempts) ? end($attempts) : null;
-                $detailJawaban = $this->getAttemptAwareDetailJawaban((int) $siswa['peserta_ujian_id'], $attempt['attempt_id'] ?? null);
+                $pid = (int) $siswa['peserta_ujian_id'];
+                $attempts = $attemptsByPeserta[$pid] ?? [];
+                $attempt = $lastAttemptByPeserta[$pid] ?? null;
+                $detailJawaban = $attempt ? ($jawabanByAttempt[(int) $attempt['attempt_id']] ?? []) : [];
+                if (empty($detailJawaban)) {
+                    $detailJawaban = $this->getAttemptAwareDetailJawaban($pid, $attempt['attempt_id'] ?? null);
+                }
                 $summary = $this->buildResultSummary($ujian, $detailJawaban, $attempt);
 
                 $siswa['theta_akhir'] = $summary['theta_akhir'];
@@ -3593,7 +3633,6 @@ class Admin extends Controller
                 $db->table('attempt_jawaban_cbt')->where('attempt_id', $aid)->delete();
                 $db->table('attempt_soal_cbt')->where('attempt_id', $aid)->delete();
                 $db->table('attempt_analisis_cbt')->where('attempt_id', $aid)->delete();
-                $db->table('attempt_soal')->where('attempt_id', $aid)->delete();
             }
             $db->table('attempt_ujian')->where('peserta_ujian_id', $pesertaUjianId)->delete();
 
@@ -5672,6 +5711,57 @@ class Admin extends Controller
             ->getResultArray();
     }
 
+    // Ambil detail jawaban untuk banyak attempt sekaligus (batch) — dipakai agar daftar hasil siswa tidak N+1 query
+    private function getDetailJawabanBatch(array $catAttemptIds, array $cbtAttemptIds): array
+    {
+        $select = '
+            aj.*,
+            COALESCE(ats.pertanyaan, s.pertanyaan) as pertanyaan,
+            COALESCE(ats.kode_soal, s.kode_soal) as kode_soal,
+            COALESCE(ats.pilihan_a, s.pilihan_a) as pilihan_a,
+            COALESCE(ats.pilihan_b, s.pilihan_b) as pilihan_b,
+            COALESCE(ats.pilihan_c, s.pilihan_c) as pilihan_c,
+            COALESCE(ats.pilihan_d, s.pilihan_d) as pilihan_d,
+            COALESCE(ats.pilihan_e, s.pilihan_e) as pilihan_e,
+            COALESCE(ats.jawaban_benar, s.jawaban_benar) as jawaban_benar,
+            COALESCE(ats.tingkat_kesulitan, s.tingkat_kesulitan) as tingkat_kesulitan,
+            COALESCE(ats.pembahasan, s.pembahasan) as pembahasan,
+            COALESCE(ats.media, s.media) as foto,
+            aac.p_residu,
+            aac.q_residu,
+            aac.z_score,
+            aac.kategori_soal,
+            aac.keterangan as keterangan_residu,
+            DATE_FORMAT(aj.waktu_menjawab, "%H:%i:%s") as waktu_menjawab_format
+        ';
+
+        $jawabanByAttempt = [];
+
+        foreach (['attempt_jawaban_cat' => $catAttemptIds, 'attempt_jawaban_cbt' => $cbtAttemptIds] as $table => $attemptIds) {
+            if (empty($attemptIds)) {
+                continue;
+            }
+
+            $rows = $this->db->table($table . ' aj')
+                ->select($select)
+                ->join('attempt_soal_cbt ats', 'ats.attempt_id = aj.attempt_id AND ats.original_soal_id = aj.soal_id', 'left')
+                ->join('attempt_analisis_cbt aac', 'aac.attempt_id = aj.attempt_id AND aac.soal_id = aj.soal_id', 'left')
+                ->join('soal_ujian s', 's.soal_id = aj.soal_id', 'left')
+                ->whereIn('aj.attempt_id', $attemptIds)
+                ->orderBy('aj.attempt_id', 'ASC')
+                ->orderBy('aj.nomor_tampil', 'ASC')
+                ->orderBy('aj.waktu_menjawab', 'ASC')
+                ->get()
+                ->getResultArray();
+
+            foreach ($rows as $row) {
+                $jawabanByAttempt[(int) $row['attempt_id']][] = $row;
+            }
+        }
+
+        return $jawabanByAttempt;
+    }
+
     private function buildDraftPaket($ujianId, $bankId, $jumlahPaket, $soalPerPaket)
     {
         $packages = [];
@@ -5788,6 +5878,9 @@ class Admin extends Controller
         // Tampilkan grafik CBT jika ada data CBT — baik filter eksplisit maupun campuran
         $isCbt = !empty(array_filter($pesertaRows, fn($r) => ($r['tipe_ujian'] ?? '') === 'CBT'));
 
+        // Attempt id peserta hasil filter — dipakai untuk grafik rata-rata per variabel/indikator/materi
+        $attemptIds = array_column($pesertaRows, 'attempt_id');
+
         // Biodata form fields (hanya tipe select)
         $formTemplateModel = new \App\Models\FormTemplateModel();
         $formFieldModel    = new \App\Models\FormFieldModel();
@@ -5810,7 +5903,7 @@ class Admin extends Controller
                 'indikator'  => $this->indikatorModel->select('indikator.*,variabel.nama_variabel')->join('variabel','variabel.variabel_id=indikator.variabel_id','left')->orderBy('variabel.nama_variabel','ASC')->findAll(),
                 'materi'     => $this->materiModel->orderBy('nama_materi','ASC')->findAll(),
             ],
-            'chartData'    => $this->buildAnalisisChartData($pesertaRows, $filters, $isCbt),
+            'chartData'    => $this->buildAnalisisChartData($pesertaRows, $filters, $isCbt, $attemptIds),
             'totalPeserta' => count($pesertaRows),
             'isCbt'        => $isCbt,
             'studentRows'  => $this->mergeResiduCounts($pesertaRows),
@@ -5870,11 +5963,11 @@ class Admin extends Controller
     private function getAnalisisUjianPesertaRows(array $filters): array
     {
         $builder = $this->db->table('peserta_ujian pu')
-            ->select('pu.peserta_ujian_id, siswa.siswa_id, siswa.nama_lengkap, siswa.nomor_peserta, u.tipe_ujian, u.nama_ujian, au.nilai_akhir, au.theta_akhir, au.sem_akhir, au.waktu_mulai, au.waktu_selesai, sekolah.nama_sekolah, kelas.nama_kelas')
+            ->select('pu.peserta_ujian_id, au.attempt_id, siswa.siswa_id, siswa.nama_lengkap, siswa.nomor_peserta, siswa.jenis_kelamin, u.tipe_ujian, u.nama_ujian, au.nilai_akhir, au.theta_akhir, au.sem_akhir, au.waktu_mulai, au.waktu_selesai, sekolah.nama_sekolah, k.nama_kelas')
             ->join('jadwal_ujian ju', 'ju.jadwal_id = pu.jadwal_id')
             ->join('ujian u', 'u.id_ujian = ju.ujian_id')
-            ->join('kelas', 'kelas.kelas_id = ju.kelas_id', 'left')
-            ->join('sekolah', 'sekolah.sekolah_id = kelas.sekolah_id', 'left')
+            ->join('kelas k', 'k.kelas_id = ju.kelas_id', 'left')
+            ->join('sekolah', 'sekolah.sekolah_id = k.sekolah_id', 'left')
             ->join('siswa', 'siswa.siswa_id = pu.siswa_id', 'left')
             ->join($this->getAnalitikAttemptSubquery($filters), 'la.peserta_ujian_id = pu.peserta_ujian_id', 'inner', false)
             ->join('attempt_ujian au', 'au.peserta_ujian_id = la.peserta_ujian_id AND au.nomor_attempt = la.max_attempt', 'inner', false)
@@ -5902,7 +5995,7 @@ class Admin extends Controller
             }
         }
 
-        $rows = $builder->groupBy('pu.peserta_ujian_id, siswa.siswa_id, siswa.nama_lengkap, siswa.nomor_peserta, u.tipe_ujian, u.nama_ujian, au.nilai_akhir, au.theta_akhir, au.sem_akhir, au.waktu_mulai, au.waktu_selesai, sekolah.nama_sekolah, kelas.nama_kelas')
+        $rows = $builder->groupBy('pu.peserta_ujian_id, au.attempt_id, siswa.siswa_id, siswa.nama_lengkap, siswa.nomor_peserta, siswa.jenis_kelamin, u.tipe_ujian, u.nama_ujian, au.nilai_akhir, au.theta_akhir, au.sem_akhir, au.waktu_mulai, au.waktu_selesai, sekolah.nama_sekolah, k.nama_kelas')
             ->orderBy('siswa.nama_lengkap', 'ASC')
             ->get()->getResultArray();
 
@@ -5919,7 +6012,7 @@ class Admin extends Controller
         return $rows;
     }
 
-    private function buildAnalisisChartData(array $rows, array $filters, bool $isCbt): array
+    private function buildAnalisisChartData(array $rows, array $filters, bool $isCbt, array $attemptIds = []): array
     {
         // 1. Distribusi nilai (histogram)
         $buckets = ['0–20'=>0,'21–40'=>0,'41–60'=>0,'61–80'=>0,'81–100'=>0];
@@ -5988,13 +6081,13 @@ class Admin extends Controller
 
             // 6. Residu: Lucky Guess & Ceroboh per rentang nilai
             $residuBuckets = ['0–20'=>['Lucky Guess'=>0,'Ceroboh'=>0,'Normal'=>0],'21–40'=>['Lucky Guess'=>0,'Ceroboh'=>0,'Normal'=>0],'41–60'=>['Lucky Guess'=>0,'Ceroboh'=>0,'Normal'=>0],'61–80'=>['Lucky Guess'=>0,'Ceroboh'=>0,'Normal'=>0],'81–100'=>['Lucky Guess'=>0,'Ceroboh'=>0,'Normal'=>0]];
-            $attemptIds = array_column($rows, 'peserta_ujian_id');
-            if (!empty($attemptIds)) {
+            $pesertaUjianIds = array_column($rows, 'peserta_ujian_id');
+            if (!empty($pesertaUjianIds)) {
                 $residuRows = $this->db->table('attempt_analisis_cbt aac')
                     ->select('aac.keterangan, au.nilai_akhir')
                     ->join('attempt_ujian au', 'au.attempt_id = aac.attempt_id')
                     ->join('peserta_ujian pu', 'pu.peserta_ujian_id = au.peserta_ujian_id')
-                    ->whereIn('pu.peserta_ujian_id', $attemptIds)
+                    ->whereIn('pu.peserta_ujian_id', $pesertaUjianIds)
                     ->get()->getResultArray();
                 foreach ($residuRows as $rr) {
                     $s = round((float)($rr['nilai_akhir'] ?? 0), 2);
@@ -6031,6 +6124,368 @@ class Admin extends Controller
         $avgMenit = count($rows) > 0 ? round(array_sum(array_column($rows, 'durasi_menit')) / count($rows), 1) : 0;
         $chart8 = ['labels' => array_keys($durBuckets), 'data' => array_values($durBuckets), 'avg' => $avgMenit];
 
-        return compact('chart1','chart2','chart3','chart4','chart5','chart6','chart7','chart8');
+        // 9. Rata-rata nilai per jenis kelamin — berlaku untuk CAT & CBT
+        $genderGroups = ['Laki-laki' => ['total'=>0,'count'=>0], 'Perempuan' => ['total'=>0,'count'=>0]];
+        foreach ($rows as $r) {
+            $g = $r['jenis_kelamin'] ?? null;
+            if (!isset($genderGroups[$g])) continue;
+            $genderGroups[$g]['total'] += $r['skor_akhir'];
+            $genderGroups[$g]['count']++;
+        }
+        $chart9 = [
+            'labels' => array_keys($genderGroups),
+            'data'   => array_map(fn($g) => $g['count'] > 0 ? round($g['total']/$g['count'], 2) : 0, array_values($genderGroups)),
+            'counts' => array_map(fn($g) => $g['count'], array_values($genderGroups)),
+        ];
+
+        // 10-12. Rata-rata nilai (% jawaban benar) per Variabel/Indikator/Materi — gabungan CAT & CBT
+        $chart10 = $this->buildAnalisisMetadataChart($attemptIds, 'variabel');
+        $chart11 = $this->buildAnalisisMetadataChart($attemptIds, 'indikator');
+        $chart12 = $this->buildAnalisisMetadataChart($attemptIds, 'materi');
+
+        return compact('chart1','chart2','chart3','chart4','chart5','chart6','chart7','chart8','chart9','chart10','chart11','chart12');
     }
+
+    // Bangun data chart rata-rata nilai (% jawaban benar) per variabel/indikator/materi
+    private function buildAnalisisMetadataChart(array $attemptIds, string $mode): array
+    {
+        $rows = $this->getAnalisisMetadataAvgRows($attemptIds, $mode);
+
+        return [
+            'labels' => array_column($rows, 'group_label'),
+            'data'   => array_column($rows, 'rata_rata'),
+            'ids'    => array_column($rows, 'group_id'),
+        ];
+    }
+
+    // Hitung rata-rata persentase jawaban benar per variabel/indikator/materi — gabungan jawaban CAT & CBT,
+    // di-scope ke daftar attempt_id hasil filter agar konsisten dengan tabel rekap & grafik lain
+    private function getAnalisisMetadataAvgRows(array $attemptIds, string $mode): array
+    {
+        $meta = [
+            'variabel'  => ['su.variabel_id', 'variabel v', 'v.variabel_id = su.variabel_id', 'v.nama_variabel', 'Tanpa Variabel'],
+            'indikator' => ['su.indikator_id', 'indikator i', 'i.indikator_id = su.indikator_id', 'i.nama_indikator', 'Tanpa Indikator'],
+            'materi'    => ['su.materi_id', 'materi m', 'm.materi_id = su.materi_id', 'm.nama_materi', 'Tanpa Materi'],
+        ];
+
+        if (empty($attemptIds) || !isset($meta[$mode])) {
+            return [];
+        }
+
+        [$groupCol, $joinTable, $joinCond, $nameCol, $defaultLabel] = $meta[$mode];
+        $idsIn = implode(',', array_map('intval', $attemptIds));
+
+        $sql = "
+            SELECT {$groupCol} AS group_id, COALESCE({$nameCol}, '{$defaultLabel}') AS group_label,
+                   COUNT(*) AS total_soal,
+                   SUM(CASE WHEN jb.is_correct = 1 THEN 1 ELSE 0 END) AS total_benar
+            FROM (
+                SELECT attempt_id, soal_id, is_correct FROM attempt_jawaban_cat WHERE attempt_id IN ({$idsIn})
+                UNION ALL
+                SELECT ats.attempt_id, ats.original_soal_id AS soal_id, aj.is_correct
+                FROM attempt_soal_cbt ats
+                LEFT JOIN attempt_jawaban aj ON aj.attempt_id = ats.attempt_id AND aj.soal_id = ats.original_soal_id
+                WHERE ats.attempt_id IN ({$idsIn})
+            ) jb
+            LEFT JOIN soal_ujian su ON su.soal_id = jb.soal_id
+            LEFT JOIN {$joinTable} ON {$joinCond}
+            GROUP BY {$groupCol}, {$nameCol}
+            ORDER BY group_label ASC
+        ";
+
+        $rows = $this->db->query($sql)->getResultArray();
+
+        foreach ($rows as &$row) {
+            $total = (int) ($row['total_soal'] ?? 0);
+            $row['rata_rata'] = $total > 0 ? round(((int) ($row['total_benar'] ?? 0) / $total) * 100, 2) : 0;
+        }
+        unset($row);
+
+        return $rows;
+    }
+
+    // =========================================================
+    // 1. HALAMAN UTAMA: PERKEMBANGAN SISWA
+    // =========================================================
+    public function perkembanganSiswa()
+    {
+        $filters = $this->getAnalitikFiltersFromRequest();
+        $biodataFilters = $this->getBiodataFiltersFromRequest();
+        $filters['biodata'] = $biodataFilters;
+
+        $pivot = $this->getPerkembanganPivotData($filters);
+
+        // Biodata form fields (hanya tipe select) — sama seperti filter Analisis Hasil Ujian
+        $formTemplateModel = new \App\Models\FormTemplateModel();
+        $formFieldModel    = new \App\Models\FormFieldModel();
+        $template     = $formTemplateModel->getSingle();
+        $allFields    = $formFieldModel->getWithOptions((int) $template['template_id']);
+        $selectFields = array_filter($allFields, fn($f) => $f['tipe'] === 'select');
+
+        $data = [
+            'pageRole'      => 'admin',
+            'basePath'      => 'admin/hasil-ujian',
+            'filters'       => $filters,
+            'biodataFilters' => $biodataFilters,
+            'selectFields'  => array_values($selectFields),
+            'filterOptions' => [
+                'sekolah'     => $this->sekolahModel->orderBy('nama_sekolah', 'ASC')->findAll(),
+                'kelas'       => $this->db->table('kelas k')->select('k.kelas_id,k.sekolah_id,k.nama_kelas,s.nama_sekolah')->join('sekolah s','s.sekolah_id=k.sekolah_id','left')->orderBy('s.nama_sekolah','ASC')->orderBy('k.nama_kelas','ASC')->get()->getResultArray(),
+                'jenis_ujian' => [['value'=>'CAT','label'=>'CAT'],['value'=>'CBT','label'=>'CBT']],
+                'ujian'       => $this->db->table('jadwal_ujian ju')->select('ju.jadwal_id,ju.kelas_id,u.tipe_ujian,u.nama_ujian,u.kode_ujian,k.sekolah_id,k.nama_kelas')->join('ujian u','u.id_ujian=ju.ujian_id')->join('kelas k','k.kelas_id=ju.kelas_id','left')->orderBy('ju.tanggal_mulai','DESC')->get()->getResultArray(),
+                'variabel'    => $this->variabelModel->orderBy('nama_variabel','ASC')->findAll(),
+                'indikator'   => $this->indikatorModel->select('indikator.*,variabel.nama_variabel')->join('variabel','variabel.variabel_id=indikator.variabel_id','left')->orderBy('variabel.nama_variabel','ASC')->findAll(),
+                'materi'      => $this->materiModel->orderBy('nama_materi','ASC')->findAll(),
+            ],
+            'pivotData'      => $pivot['pivotData'],
+            'globalAverages' => $pivot['globalAverages'],
+            'maxAttempt'     => $pivot['maxAttempt'],
+        ];
+
+        return view('admin/perkembangan_siswa', $data);
+    }
+
+    // Ambil data matriks skor siswa per pengulangan (semua attempt) — gabungan CAT & CBT,
+    // dipakai untuk Tren Global, kartu rata-rata global, dan tabel matriks di halaman Perkembangan Siswa
+    private function getPerkembanganPivotData(array $filters): array
+    {
+        $builder = $this->db->table('peserta_ujian pu')
+            ->select('pu.peserta_ujian_id, siswa.siswa_id, siswa.nama_lengkap, sekolah.nama_sekolah, k.nama_kelas, au.attempt_id, au.nomor_attempt, au.nilai_akhir, au.theta_akhir, u.tipe_ujian')
+            ->join('jadwal_ujian ju', 'ju.jadwal_id = pu.jadwal_id')
+            ->join('ujian u', 'u.id_ujian = ju.ujian_id')
+            ->join('kelas k', 'k.kelas_id = ju.kelas_id', 'left')
+            ->join('sekolah', 'sekolah.sekolah_id = k.sekolah_id', 'left')
+            ->join('siswa', 'siswa.siswa_id = pu.siswa_id', 'left')
+            ->join('attempt_ujian au', 'au.peserta_ujian_id = pu.peserta_ujian_id', 'inner')
+            ->where('pu.status', 'selesai');
+
+        if (!empty($filters['sekolah_id']))   $builder->where('k.sekolah_id', $filters['sekolah_id']);
+        if (!empty($filters['kelas_id']))     $builder->where('ju.kelas_id', $filters['kelas_id']);
+        if (!empty($filters['tipe_ujian']))   $builder->where('u.tipe_ujian', $filters['tipe_ujian']);
+        if (!empty($filters['jadwal_id']))    $builder->where('ju.jadwal_id', $filters['jadwal_id']);
+
+        // Filter jenis kelamin & biodata dinamis (sama seperti Analisis Hasil Ujian)
+        $siswaIds = $this->getFilteredSiswaIds($filters);
+        if ($siswaIds !== null) {
+            if (empty($siswaIds)) {
+                return ['pivotData' => [], 'globalAverages' => [], 'maxAttempt' => 0];
+            }
+            $builder->whereIn('siswa.siswa_id', $siswaIds);
+        }
+
+        $rows = $builder->orderBy('siswa.nama_lengkap', 'ASC')->orderBy('au.nomor_attempt', 'ASC')->get()->getResultArray();
+
+        $hasSubFilter = !empty($filters['variabel_id']) || !empty($filters['indikator_id']) || !empty($filters['materi_id']);
+        $scoreMap = [];
+        if ($hasSubFilter) {
+            $attemptIds = array_unique(array_column($rows, 'attempt_id'));
+            $scoreMap   = $this->getAttemptSubFilterScores($attemptIds, $filters);
+        }
+
+        $pivotData    = [];
+        $globalSums   = [];
+        $globalCounts = [];
+        $maxAttempt   = 0;
+
+        foreach ($rows as $row) {
+            $attempt = (int) $row['nomor_attempt'];
+
+            if ($hasSubFilter) {
+                if (!isset($scoreMap[$row['attempt_id']])) {
+                    continue;
+                }
+                $skor = $scoreMap[$row['attempt_id']];
+            } else {
+                $raw  = (float) ($row['nilai_akhir'] ?? 0);
+                $skor = ($row['tipe_ujian'] ?? 'CAT') === 'CAT'
+                    ? $this->hitungKemampuanKognitif($row['theta_akhir'] ?? $raw)
+                    : round($raw, 2);
+            }
+
+            $sId = $row['siswa_id'];
+            if (!isset($pivotData[$sId])) {
+                $pivotData[$sId] = [
+                    'nama'    => $row['nama_lengkap'],
+                    'sekolah' => $row['nama_sekolah'],
+                    'kelas'   => $row['nama_kelas'],
+                    'skor'    => [],
+                ];
+            }
+            $pivotData[$sId]['skor'][$attempt] = round($skor, 2);
+
+            $globalSums[$attempt]   = ($globalSums[$attempt] ?? 0) + $skor;
+            $globalCounts[$attempt] = ($globalCounts[$attempt] ?? 0) + 1;
+
+            if ($attempt > $maxAttempt) {
+                $maxAttempt = $attempt;
+            }
+        }
+
+        $globalAverages = [];
+        for ($i = 1; $i <= $maxAttempt; $i++) {
+            $globalAverages[$i] = isset($globalCounts[$i]) && $globalCounts[$i] > 0
+                ? round($globalSums[$i] / $globalCounts[$i], 2)
+                : 0;
+        }
+
+        return compact('pivotData', 'globalAverages', 'maxAttempt');
+    }
+
+    // Hitung rata-rata persentase jawaban benar per attempt_id untuk soal yang cocok filter variabel/indikator/materi —
+    // gabungan CAT (attempt_jawaban_cat) & CBT (attempt_soal_cbt + attempt_jawaban)
+    private function getAttemptSubFilterScores(array $attemptIds, array $filters): array
+    {
+        if (empty($attemptIds)) {
+            return [];
+        }
+
+        $idsIn = implode(',', array_map('intval', $attemptIds));
+
+        $where = [];
+        if (!empty($filters['variabel_id']))  $where[] = 'su.variabel_id = ' . (int) $filters['variabel_id'];
+        if (!empty($filters['indikator_id'])) $where[] = 'su.indikator_id = ' . (int) $filters['indikator_id'];
+        if (!empty($filters['materi_id']))    $where[] = 'su.materi_id = ' . (int) $filters['materi_id'];
+        $whereSql = $where ? ('AND ' . implode(' AND ', $where)) : '';
+
+        $sql = "
+            SELECT jb.attempt_id,
+                   ROUND(AVG(CASE WHEN jb.is_correct = 1 THEN 100 ELSE 0 END), 2) AS skor
+            FROM (
+                SELECT attempt_id, soal_id, is_correct FROM attempt_jawaban_cat WHERE attempt_id IN ({$idsIn})
+                UNION ALL
+                SELECT ats.attempt_id, ats.original_soal_id AS soal_id, aj.is_correct
+                FROM attempt_soal_cbt ats
+                LEFT JOIN attempt_jawaban aj ON aj.attempt_id = ats.attempt_id AND aj.soal_id = ats.original_soal_id
+                WHERE ats.attempt_id IN ({$idsIn})
+            ) jb
+            LEFT JOIN soal_ujian su ON su.soal_id = jb.soal_id
+            WHERE 1=1 {$whereSql}
+            GROUP BY jb.attempt_id
+        ";
+
+        $rows = $this->db->query($sql)->getResultArray();
+
+        $map = [];
+        foreach ($rows as $row) {
+            $map[(int) $row['attempt_id']] = (float) $row['skor'];
+        }
+
+        return $map;
+    }
+
+    // =========================================================
+    // 2. ENDPOINT AJAX: AMBIL DATA GRAFIK BERDASARKAN PENGULANGAN
+    // =========================================================
+    public function getGrafikPerkembanganAjax()
+    {
+        $siswaId      = $this->request->getGet('siswa_id');
+        $jadwalId     = $this->request->getGet('jadwal_id');
+        $sekolahId    = $this->request->getGet('sekolah_id');
+        $kelasId      = $this->request->getGet('kelas_id');
+        $tipeUjian    = $this->normalizeNullableExamType($this->request->getGet('tipe_ujian'));
+        $jenisKelamin = $this->request->getGet('jenis_kelamin') ?: null;
+        $variabelId   = $this->request->getGet('variabel_id');
+        $indikatorId  = $this->request->getGet('indikator_id');
+        $materiId     = $this->request->getGet('materi_id');
+        $biodataFilters = $this->getBiodataFiltersFromRequest();
+
+        $db = \Config\Database::connect();
+        $hasSubFilter = (!empty($variabelId) || !empty($indikatorId) || !empty($materiId));
+
+        $where  = [];
+        $params = [];
+
+        if (!empty($jadwalId))     { $where[] = 'ju.jadwal_id = ?';    $params[] = $jadwalId; }
+        if (!empty($siswaId))      { $where[] = 'pu.siswa_id = ?';     $params[] = $siswaId; }
+        if (!empty($sekolahId))    { $where[] = 'k.sekolah_id = ?';    $params[] = $sekolahId; }
+        if (!empty($kelasId))      { $where[] = 'ju.kelas_id = ?';     $params[] = $kelasId; }
+        if (!empty($tipeUjian))    { $where[] = 'u.tipe_ujian = ?';    $params[] = $tipeUjian; }
+        if (!empty($jenisKelamin)) { $where[] = 's.jenis_kelamin = ?'; $params[] = $jenisKelamin; }
+
+        // Filter biodata dinamis (sama seperti Analisis Hasil Ujian)
+        if (!empty($biodataFilters)) {
+            $siswaIds = $this->getFilteredSiswaIds(['biodata' => $biodataFilters]);
+            if ($siswaIds !== null) {
+                if (empty($siswaIds)) {
+                    return $this->response->setJSON(['status' => 'success', 'labels' => [], 'data' => []]);
+                }
+                $where[] = 'pu.siswa_id IN (' . implode(',', array_map('intval', $siswaIds)) . ')';
+            }
+        }
+
+        $baseFrom = "
+            FROM attempt_ujian att
+            JOIN peserta_ujian pu ON pu.peserta_ujian_id = att.peserta_ujian_id
+            JOIN jadwal_ujian ju ON ju.jadwal_id = pu.jadwal_id
+            JOIN ujian u ON u.id_ujian = ju.ujian_id
+            LEFT JOIN kelas k ON k.kelas_id = ju.kelas_id
+            JOIN siswa s ON s.siswa_id = pu.siswa_id
+        ";
+
+        try {
+            if ($hasSubFilter) {
+                if (!empty($variabelId))  { $where[] = 'su.variabel_id = ?';  $params[] = $variabelId; }
+                if (!empty($indikatorId)) { $where[] = 'su.indikator_id = ?'; $params[] = $indikatorId; }
+                if (!empty($materiId))    { $where[] = 'su.materi_id = ?';    $params[] = $materiId; }
+
+                $whereSql = $where ? ('AND ' . implode(' AND ', $where)) : '';
+
+                $sql = "
+                    SELECT att.nomor_attempt,
+                           ROUND(AVG(CASE WHEN jb.is_correct = 1 THEN 100 ELSE 0 END), 2) AS rata_rata_skor
+                    {$baseFrom}
+                    JOIN (
+                        SELECT attempt_id, soal_id, is_correct FROM attempt_jawaban_cat
+                        UNION ALL
+                        SELECT ats.attempt_id, ats.original_soal_id AS soal_id, aj.is_correct
+                        FROM attempt_soal_cbt ats
+                        LEFT JOIN attempt_jawaban aj ON aj.attempt_id = ats.attempt_id AND aj.soal_id = ats.original_soal_id
+                    ) jb ON jb.attempt_id = att.attempt_id
+                    LEFT JOIN soal_ujian su ON su.soal_id = jb.soal_id
+                    WHERE 1=1 {$whereSql}
+                    GROUP BY att.nomor_attempt
+                    ORDER BY att.nomor_attempt ASC
+                ";
+            } else {
+                $whereSql = $where ? ('AND ' . implode(' AND ', $where)) : '';
+
+                $sql = "
+                    SELECT att.nomor_attempt,
+                           ROUND(AVG(
+                               CASE WHEN u.tipe_ujian = 'CAT'
+                                    THEN GREATEST(0, LEAST(100, 50 + (16.67 * att.theta_akhir)))
+                                    ELSE att.nilai_akhir
+                               END
+                           ), 2) AS rata_rata_skor
+                    {$baseFrom}
+                    WHERE 1=1 {$whereSql}
+                    GROUP BY att.nomor_attempt
+                    ORDER BY att.nomor_attempt ASC
+                ";
+            }
+
+            $query = $db->query($sql, $params)->getResultArray();
+            $labels = [];
+            $data   = [];
+
+            foreach ($query as $row) {
+                $labels[] = "Pengulangan " . $row['nomor_attempt'];
+                $data[]   = round((float)$row['rata_rata_skor'], 2);
+            }
+
+            return $this->response->setJSON([
+                'status'  => 'success',
+                'labels'  => $labels,
+                'data'    => $data
+            ]);
+        } catch (\Exception $e) {
+            return $this->response->setJSON([
+                'status'  => 'error',
+                'message' => $e->getMessage(),
+                'labels'  => [],
+                'data'    => []
+            ]);
+        }
+    }
+
 }

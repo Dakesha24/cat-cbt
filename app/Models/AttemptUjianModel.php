@@ -55,4 +55,18 @@ class AttemptUjianModel extends Model
             'status'           => 'sedang_mengerjakan',
         ])->first();
     }
+
+    /**
+     * Ambil paket_id yang sudah pernah dipakai peserta ini pada attempt sebelumnya,
+     * agar attempt berikutnya memakai paket CBT yang sama.
+     */
+    public function getPaketIdTerpakai($pesertaUjianId)
+    {
+        $attempt = $this->where('peserta_ujian_id', $pesertaUjianId)
+            ->where('paket_id IS NOT NULL')
+            ->orderBy('nomor_attempt', 'ASC')
+            ->first();
+
+        return $attempt['paket_id'] ?? null;
+    }
 }

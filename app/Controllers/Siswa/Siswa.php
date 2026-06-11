@@ -748,7 +748,12 @@ class Siswa extends Controller
       $paketId = (int) $attempt['paket_id'];
     }
 
-    // Kalau belum ada paket yang terkunci, pilih satu secara acak dari paket yang tersedia
+    // Kalau belum ada paket yang terkunci pada attempt aktif, pakai paket dari attempt sebelumnya
+    if (!$paketId) {
+      $paketId = $this->attemptUjianModel->getPaketIdTerpakai($pesertaId);
+    }
+
+    // Attempt pertama: belum pernah ada paket sama sekali, pilih satu secara acak
     if (!$paketId) {
       $paket = db_connect()->table('paket_ujian_cbt')
         ->where('ujian_id', $ujianInfo['id_ujian'])
@@ -1998,6 +2003,23 @@ class Siswa extends Controller
     $rataRataMenit = floor($rataRataWaktu / 60);
     $rataRataDetik = $rataRataWaktu % 60;
 
+    // Grafik perkembangan nilai antar percobaan (sama seperti halaman Riwayat Percobaan)
+    $semuaAttempt = $this->attemptUjianModel
+      ->where('peserta_ujian_id', $hasil['peserta_ujian_id'])
+      ->where('status', 'selesai')
+      ->orderBy('nomor_attempt', 'ASC')
+      ->findAll();
+
+    $chartLabels = [];
+    $chartData = [];
+    foreach ($semuaAttempt as $att) {
+      $nilaiTampil = ($hasil['tipe_ujian'] ?? 'CAT') === 'CBT'
+        ? round((float) ($att['nilai_akhir'] ?? 0), 2)
+        : $this->hitungKemampuanKognitif((float) ($att['nilai_akhir'] ?? 0));
+      $chartLabels[] = 'Perc. ' . $att['nomor_attempt'];
+      $chartData[] = $nilaiTampil;
+    }
+
     $data = [
       'hasil' => $hasil,
       'detailJawaban' => $detailJawabanDenganDurasi,
@@ -2007,9 +2029,104 @@ class Siswa extends Controller
       'skor' => $skor_akhir, // Gunakan skor baru yang konsisten
       'kemampuanKognitif' => $kemampuanKognitif,
       'klasifikasiKognitif' => $klasifikasiKognitif,
-      'rataRataWaktuFormat' => sprintf('%d menit %d detik', $rataRataMenit, $rataRataDetik)
+      'rataRataWaktuFormat' => sprintf('%d menit %d detik', $rataRataMenit, $rataRataDetik),
+      'chartLabels' => $chartLabels,
+      'chartData' => $chartData,
     ];
 
     return view('siswa/cetak_hasil_ujian', $data);
+  }
+
+  // Generate halaman cetak laporan keseluruhan (rekap semua percobaan + grafik perkembangan) untuk diunduh/print
+  public function unduhKeseluruhan($pesertaUjianId)
+  {
+    if (!session()->get('user_id')) {
+      return redirect()->to(base_url('login'));
+    }
+
+    $userId = session()->get('user_id');
+    $siswa = $this->siswaModel->where('user_id', $userId)->first();
+
+    $rows = db_connect()->table('attempt_ujian au')
+      ->select('
+            au.*,
+            peserta_ujian.peserta_ujian_id,
+            peserta_ujian.jadwal_id,
+            ujian.nama_ujian,
+            ujian.kode_ujian,
+            ujian.deskripsi,
+            ujian.durasi,
+            ujian.tipe_ujian,
+            jenis_ujian.nama_jenis,
+            TIME_TO_SEC(TIMEDIFF(au.waktu_selesai, au.waktu_mulai)) as durasi_detik,
+            DATE_FORMAT(au.waktu_mulai, "%d/%m/%Y %H:%i:%s") as waktu_mulai_format,
+            DATE_FORMAT(au.waktu_selesai, "%d/%m/%Y %H:%i:%s") as waktu_selesai_format
+        ')
+      ->join('peserta_ujian', 'peserta_ujian.peserta_ujian_id = au.peserta_ujian_id')
+      ->join('jadwal_ujian', 'jadwal_ujian.jadwal_id = peserta_ujian.jadwal_id')
+      ->join('ujian', 'ujian.id_ujian = jadwal_ujian.ujian_id')
+      ->join('jenis_ujian', 'jenis_ujian.jenis_ujian_id = ujian.jenis_ujian_id')
+      ->where('peserta_ujian.siswa_id', $siswa['siswa_id'])
+      ->where('peserta_ujian.peserta_ujian_id', $pesertaUjianId)
+      ->where('au.status', 'selesai')
+      ->orderBy('au.nomor_attempt', 'ASC')
+      ->get()
+      ->getResultArray();
+
+    if (empty($rows)) {
+      session()->setFlashdata('error', 'Riwayat ujian tidak ditemukan.');
+      return redirect()->to(base_url('siswa/hasil'));
+    }
+
+    $isCbt = ($rows[0]['tipe_ujian'] ?? 'CAT') === 'CBT';
+
+    foreach ($rows as &$attempt) {
+      $jawabanModelHasil = $isCbt ? $this->attemptJawabanCbtModel : $this->attemptJawabanCatModel;
+      $jumlahSoal = $jawabanModelHasil->where('attempt_id', $attempt['attempt_id'])->countAllResults();
+      $jawabanBenar = $jawabanModelHasil->where('attempt_id', $attempt['attempt_id'])->where('is_correct', 1)->countAllResults();
+
+      $attempt['jumlah_soal'] = $jumlahSoal;
+      $attempt['jawaban_benar'] = $jawabanBenar;
+      $attempt['jawaban_salah'] = $jumlahSoal - $jawabanBenar;
+
+      if ($attempt['durasi_detik']) {
+        $jam = floor($attempt['durasi_detik'] / 3600);
+        $menit = floor(($attempt['durasi_detik'] % 3600) / 60);
+        $detik = $attempt['durasi_detik'] % 60;
+        $attempt['durasi_format'] = sprintf('%02d:%02d:%02d', $jam, $menit, $detik);
+      } else {
+        $attempt['durasi_format'] = '00:00:00';
+      }
+
+      $attempt['nilai_tampil'] = $isCbt
+        ? round((float) ($attempt['nilai_akhir'] ?? 0), 2)
+        : $this->hitungKemampuanKognitif((float) ($attempt['nilai_akhir'] ?? 0));
+
+      $attempt['klasifikasi'] = $this->getKlasifikasiKognitif($attempt['nilai_tampil']);
+    }
+    unset($attempt);
+
+    $chartLabels = [];
+    $chartData = [];
+    foreach ($rows as $att) {
+      $chartLabels[] = 'Perc. ' . $att['nomor_attempt'];
+      $chartData[] = $att['nilai_tampil'];
+    }
+
+    $data = [
+      'ujian' => [
+        'nama_ujian' => $rows[0]['nama_ujian'],
+        'kode_ujian' => $rows[0]['kode_ujian'],
+        'tipe_ujian' => $rows[0]['tipe_ujian'],
+        'nama_jenis' => $rows[0]['nama_jenis'],
+      ],
+      'siswa' => $siswa,
+      'attempts' => $rows,
+      'isCbt' => $isCbt,
+      'chartLabels' => $chartLabels,
+      'chartData' => $chartData,
+    ];
+
+    return view('siswa/cetak_hasil_keseluruhan', $data);
   }
 }

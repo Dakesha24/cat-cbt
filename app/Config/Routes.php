@@ -16,6 +16,7 @@ $routes->post('login', 'Auth::login');
 $routes->get('register', 'Auth::register');
 $routes->post('register', 'Auth::register');
 $routes->get('logout', 'Auth::logout');
+$routes->post('forgot-password', 'Auth::forgotPassword');
 
 // Admin routes
 $routes->group('admin', ['namespace' => 'App\Controllers\Admin'], function ($routes) {
@@ -170,6 +171,8 @@ $routes->group('admin', ['namespace' => 'App\Controllers\Admin'], function ($rou
 
   // Analisis Hasil Ujian
   $routes->get('analisis-ujian', 'Admin::analisisUjian');
+  $routes->get('perkembangan-siswa', 'Admin::perkembanganSiswa');
+  $routes->get('grafik-perkembangan-ajax', 'Admin::getGrafikPerkembanganAjax');
 
   // Biodata Tambahan (Form Builder)
   $routes->get ('form-builder',                   'FormBuilder::index');
@@ -193,7 +196,8 @@ $routes->group('guru', ['namespace' => 'App\Controllers\Guru'], function ($route
   $routes->get('ujian', 'Guru::ujian');
   $routes->get('jadwal-ujian', 'Guru::jadwalUjian');
   $routes->get('analisis-ujian', 'Guru::analisisUjian');
-  $routes->get('hasil-ujian', 'Guru::hasilUjian');
+  $routes->get('perkembangan-siswa', 'Guru::perkembanganSiswa');
+  $routes->get('grafik-perkembangan-ajax', 'Guru::getGrafikPerkembanganAjax');
   $routes->get('pengumuman', 'Guru::pengumuman');
 
   $routes->post('jenis-ujian/tambah', 'Guru::tambahJenisUjian');
@@ -305,6 +309,7 @@ $routes->group('siswa', ['namespace' => 'App\Controllers\Siswa'], function ($rou
   $routes->get('hasil/ujian/(:num)', 'Siswa::hasilUjian/$1');
   $routes->get('hasil/detail/(:num)', 'Siswa::detailHasil/$1');
   $routes->get('hasil/unduh/(:num)', 'Siswa::unduh/$1');
+  $routes->get('hasil/unduh-keseluruhan/(:num)', 'Siswa::unduhKeseluruhan/$1');
   $routes->get('profil', 'Siswa::profil');
   $routes->post('profil/save', 'Siswa::saveProfil');
   $routes->post('ujian/mulai', 'Siswa::mulaiUjian');

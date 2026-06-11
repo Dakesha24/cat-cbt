@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Admin - Phy-FA-CAT</title>
+    <title>Dashboard Admin - Platform Asesmen Digital</title>
 
     <link rel="icon" type="image/png" href="<?= base_url('assets/images/icon-cat.png') ?>">
     <link rel="apple-touch-icon" href="<?= base_url('assets/images/icon-cat.png') ?>">
@@ -308,7 +308,7 @@
                 </button>
                 <a class="navbar-brand" href="<?= base_url('admin/dashboard') ?>">
                     <i class="bi bi-mortarboard-fill me-2"></i>
-                    Phy-FA-CAT
+                    Platform Asesmen Digital
                 </a>
             </div>
 
@@ -375,6 +375,13 @@
                                 </a>
                             </li>
                             <li class="nav-item">
+                                <a href="<?= base_url('admin/jenis-ujian') ?>"
+                                    class="nav-link <?= (strpos(current_url(), 'admin/jenis-ujian') !== false) ? 'active' : '' ?>">
+                                    <i class="bi bi-journal"></i>Mata Pelajaran
+                                </a>
+                            </li>
+                            
+                            <li class="nav-item">
                                 <a href="<?= base_url('admin/guru') ?>"
                                     class="nav-link <?= (strpos(current_url(), 'admin/guru') !== false) ? 'active' : '' ?>">
                                     <i class="bi bi-person-workspace"></i>Guru
@@ -386,12 +393,7 @@
                                     <i class="bi bi-people"></i>Siswa
                                 </a>
                             </li>
-                            <li class="nav-item">
-                                <a href="<?= base_url('admin/jenis-ujian') ?>"
-                                    class="nav-link <?= (strpos(current_url(), 'admin/jenis-ujian') !== false) ? 'active' : '' ?>">
-                                    <i class="bi bi-journal"></i>Mata Pelajaran
-                                </a>
-                            </li>
+                            
                         </ul>
                     </div>
                 </li>
@@ -407,12 +409,7 @@
                     <div class="collapse <?= (strpos(current_url(), 'admin/bank-soal') !== false || strpos(current_url(), 'admin/variabel') !== false || strpos(current_url(), 'admin/indikator') !== false || strpos(current_url(), 'admin/materi') !== false) ? 'show' : '' ?>"
                         id="collapseBank">
                         <ul class="nav flex-column submenu">
-                            <li class="nav-item">
-                                <a href="<?= base_url('admin/bank-soal') ?>"
-                                    class="nav-link <?= (strpos(current_url(), 'admin/bank-soal') !== false) ? 'active' : '' ?>">
-                                    <i class="bi bi-database"></i>Bank Soal
-                                </a>
-                            </li>
+                            
                             <li class="nav-item">
                                 <a href="<?= base_url('admin/variabel') ?>"
                                     class="nav-link <?= (strpos(current_url(), 'admin/variabel') !== false) ? 'active' : '' ?>">
@@ -429,6 +426,13 @@
                                 <a href="<?= base_url('admin/materi') ?>"
                                     class="nav-link <?= (strpos(current_url(), 'admin/materi') !== false) ? 'active' : '' ?>">
                                     <i class="bi bi-book"></i>Materi
+                                </a>
+                            </li>
+
+                            <li class="nav-item">
+                                <a href="<?= base_url('admin/bank-soal') ?>"
+                                    class="nav-link <?= (strpos(current_url(), 'admin/bank-soal') !== false) ? 'active' : '' ?>">
+                                    <i class="bi bi-database"></i>Bank Soal
                                 </a>
                             </li>
                         </ul>
@@ -475,6 +479,14 @@
                         class="nav-link <?= (strpos(current_url(), 'admin/analisis-ujian') !== false) ? 'active' : '' ?>">
                         <i class="bi bi-bar-chart-line"></i>
                         <span>Analisis Hasil Ujian</span>
+                    </a>
+                </li>
+                
+                <li class="nav-item">
+                    <a href="<?= base_url('admin/perkembangan-siswa') ?>"
+                        class="nav-link <?= (strpos(current_url(), 'admin/perkembangan-siswa') !== false) ? 'active' : '' ?>">
+                        <i class="bi bi-graph-up-arrow"></i>
+                        <span>Perkembangan Siswa</span>
                     </a>
                 </li>
 

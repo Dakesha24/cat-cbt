@@ -9,7 +9,7 @@
                     <div class="card-body p-4">
                         <div class="text-center mb-4">
                             <h2 class="login-title"><i>Sign In</i></h2>
-                            <p class="text-muted"><i>Welcome back to</i> PHY-FA-CAT</p>
+                            <p class="text-muted">Welcome to Platform Asesmen Digital</p>
                         </div>
 
                         <?php if(session()->getFlashdata('error')): ?>
@@ -88,11 +88,16 @@
                             <button type="submit" class="btn btn-primary w-100 mb-3">
                                 <i>Sign In</i> <i class="bi bi-box-arrow-in-right ms-1"></i>
                             </button>
+
+                            <div class="text-center mt-3 mb-2">
+                            <a href="#" data-bs-toggle="modal" data-bs-target="#forgotPasswordModal" class="forgot-link"><i>Forgot Password?</i></a>
+                        </div>
+
                         </form>
                         
-                        <div class="text-center">
+                        <!-- <div class="text-center">
                             <p class="mb-0"><i>Don't have an account?</i> <a href="<?= base_url('register') ?>" class="register-link"><i>Sign Up</i></a></p>
-                        </div>
+                        </div> -->
                     </div>
                 </div>
             </div>
@@ -197,5 +202,50 @@
         margin: 10px;
     }
 }
+
+.forgot-link {
+    color: #481F64;
+    text-decoration: none;
+    font-size: 0.95rem;
+    transition: color 0.3s ease;
+}
+
+.forgot-link:hover {
+    color: #17376E;
+    text-decoration: underline;
+}
+
 </style>
+
+<div class="modal fade" id="forgotPasswordModal" tabindex="-1" aria-labelledby="forgotPasswordModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title login-title" id="forgotPasswordModalLabel"><i>Reset Password</i></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="<?= base_url('forgot-password') ?>" method="post">
+                <?= csrf_field() ?>
+                <div class="modal-body">
+                    <p class="text-muted small mb-4">Masukkan username Anda. Jika ditemukan, password akan direset dan disamakan dengan username Anda.</p>
+                    
+                    <div class="form-group mb-3">
+                        <label for="forgot_username" class="form-label"><i>Username</i></label>
+                        <div class="input-group">
+                            <span class="input-group-text">
+                                <i class="bi bi-person"></i>
+                            </span>
+                            <input type="text" class="form-control" name="username" id="forgot_username" placeholder="Enter your username" required>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal"><i>Cancel</i></button>
+                    <button type="submit" class="btn btn-primary"><i>Reset Password</i></button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <?= $this->endSection() ?>

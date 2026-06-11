@@ -90,6 +90,8 @@
             display: block;
         }
 
+        .chart-container { position: relative; height: 300px; width: 100%; }
+
         @media print {
             body { padding: 0; background-color: white; }
             .report-container { box-shadow: none; padding: 0; }
@@ -311,6 +313,16 @@
             </div>
         </div>
 
+        <?php if (count($chartLabels) > 1): ?>
+        <!-- ===== Grafik Perkembangan Nilai ===== -->
+        <div class="statistics">
+            <h4 class="mb-3">Grafik Perkembangan Nilai</h4>
+            <div class="chart-container">
+                <canvas id="progressChart"></canvas>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <!-- ===== Detail Jawaban ===== -->
         <div class="detail-jawaban">
             <h4 class="mb-3">Detail Jawaban</h4>
@@ -407,7 +419,8 @@
         <div class="page-break"></div>
 
         <!-- ===== Pembahasan ===== -->
-        <?php $adaPembahasan = array_filter($detailJawaban, fn($j) => !empty($j['pembahasan'])); ?>
+        <?php $canShowDiscussion = !empty($hasil['tampilkan_pembahasan']); ?>
+        <?php $adaPembahasan = $canShowDiscussion ? array_filter($detailJawaban, fn($j) => !empty($j['pembahasan'])) : []; ?>
         <?php if (!empty($adaPembahasan)): ?>
             <div class="pembahasan-container">
                 <h4 class="mb-4">Pembahasan Soal</h4>
@@ -437,6 +450,64 @@
     </button>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+    <?php if (count($chartLabels) > 1): ?>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const ctx = document.getElementById('progressChart').getContext('2d');
+
+            const labels = <?= json_encode($chartLabels) ?>;
+            const dataPoints = <?= json_encode($chartData) ?>;
+            const isCbt = <?= json_encode($isCbt) ?>;
+            const labelName = isCbt ? 'Nilai EAP' : 'Skor Kognitif';
+
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: labelName,
+                        data: dataPoints,
+                        borderColor: '#1d4ed8',
+                        backgroundColor: 'rgba(29, 78, 216, 0.1)',
+                        borderWidth: 2,
+                        pointBackgroundColor: '#fff',
+                        pointBorderColor: '#1d4ed8',
+                        pointBorderWidth: 2,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                        fill: true,
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function (context) {
+                                    return labelName + ': ' + context.parsed.y.toFixed(2);
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { borderDash: [4, 4], color: '#e2e8f0' }
+                        },
+                        x: {
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+        });
+    </script>
+    <?php endif; ?>
     <script>
         if (new URLSearchParams(window.location.search).get('autoprint') === 'true') {
             window.onload = function () {

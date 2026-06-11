@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Siswa - Phy-FA-CAT</title>
+    <title>Dashboard Siswa -  Platform Asesmen Digital</title>
 
     <link rel="icon" type="image/png" href="<?= base_url('assets/images/icon-cat.png') ?>">
     <link rel="apple-touch-icon" href="<?= base_url('assets/images/icon-cat.png') ?>">
@@ -200,7 +200,7 @@
                 </button>
                 <a class="navbar-brand" href="<?= base_url('siswa/dashboard') ?>">
                     <i class="bi bi-mortarboard-fill me-2"></i>
-                    PHY-FA-CAT
+                     Platform Asesmen Digital
                 </a>
             </div>
 

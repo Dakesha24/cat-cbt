@@ -445,6 +445,14 @@
                     </a>
                 </li>
 
+                <li class="nav-item">
+                    <a href="<?= base_url('guru/perkembangan-siswa') ?>"
+                        class="nav-link <?= (strpos(current_url(), 'guru/perkembangan-siswa') !== false) ? 'active' : '' ?>">
+                        <i class="bi bi-graph-up-arrow"></i>
+                        <span>Perkembangan Siswa</span>
+                    </a>
+                </li>
+
                 <!-- Lainnya -->
                 <li class="sidebar-section">Lainnya</li>
                 <li class="nav-item">

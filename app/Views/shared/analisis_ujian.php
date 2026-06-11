@@ -82,6 +82,7 @@ $hasChartFilter  = array_reduce($chartFilterKeys, fn($carry, $k) => $carry || !e
 .an-chart-head h6 { margin: 0; font-size: .875rem; font-weight: 600; color: #0f172a; }
 .an-chart-head p  { margin: 3px 0 0; font-size: .75rem; color: #64748b; }
 .an-chart-body    { padding: 20px; }
+.an-chart-canvas-wrap { position: relative; width: 100%; }
 
 /* Badge CBT — muncul di judul grafik eksklusif CBT */
 .an-cbt-badge {
@@ -390,14 +391,14 @@ $hasChartFilter  = array_reduce($chartFilterKeys, fn($carry, $k) => $carry || !e
                 <h6>Distribusi Nilai</h6>
                 <p>Sebaran skor peserta per rentang nilai · klik bar untuk drill-down</p>
             </div>
-            <div class="an-chart-body"><canvas id="chartDistribusiNilai" height="260"></canvas></div>
+            <div class="an-chart-body"><div class="an-chart-canvas-wrap" style="height:260px"><canvas id="chartDistribusiNilai"></canvas></div></div>
         </div>
         <div class="an-chart-card">
             <div class="an-chart-head">
                 <h6>Distribusi Kategori Kemampuan</h6>
                 <p>Komposisi kategori peserta · klik slice untuk drill-down</p>
             </div>
-            <div class="an-chart-body"><canvas id="chartKategori" height="260"></canvas></div>
+            <div class="an-chart-body"><div class="an-chart-canvas-wrap" style="height:260px"><canvas id="chartKategori"></canvas></div></div>
         </div>
     </div>
 
@@ -412,14 +413,76 @@ $hasChartFilter  = array_reduce($chartFilterKeys, fn($carry, $k) => $carry || !e
                 <h6>Rata-rata Nilai per <?= !empty($filters['kelas_id']) ? 'Kelas' : ($role === 'guru' ? 'Kelas' : 'Sekolah') ?></h6>
                 <p>Perbandingan rata-rata skor antar kelompok<?php if (!empty($biodataFilters)): ?> · filter biodata aktif<?php endif; ?></p>
             </div>
-            <div class="an-chart-body"><canvas id="chartKelompok" height="220"></canvas></div>
+            <div class="an-chart-body"><div class="an-chart-canvas-wrap" style="height:220px"><canvas id="chartKelompok"></canvas></div></div>
         </div>
         <div class="an-chart-card">
             <div class="an-chart-head">
                 <h6>Distribusi Durasi Pengerjaan</h6>
                 <p>Sebaran waktu yang digunakan peserta untuk menyelesaikan ujian</p>
             </div>
-            <div class="an-chart-body"><canvas id="chartDurasi" height="220"></canvas></div>
+            <div class="an-chart-body"><div class="an-chart-canvas-wrap" style="height:220px"><canvas id="chartDurasi"></canvas></div></div>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════
+         GRAFIK BARIS 3: Rata-rata Nilai per Jenis Kelamin & Variabel
+         Berlaku untuk CAT maupun CBT.
+         Klik bar Variabel → set filter variabel_id.
+    ══════════════════════════════════════════ -->
+    <div class="an-charts-2">
+        <div class="an-chart-card">
+            <div class="an-chart-head">
+                <h6>Rata-rata Nilai per Jenis Kelamin</h6>
+                <p>Perbandingan rata-rata skor peserta laki-laki dan perempuan</p>
+            </div>
+            <div class="an-chart-body"><div class="an-chart-canvas-wrap" style="height:220px"><canvas id="chartGender"></canvas></div></div>
+        </div>
+        <div class="an-chart-card">
+            <div class="an-chart-head">
+                <h6>Rata-rata Nilai per Variabel</h6>
+                <p>Persentase jawaban benar per variabel · klik bar untuk filter</p>
+            </div>
+            <div class="an-chart-body">
+                <?php if (empty($chartData['chart10']['labels'])): ?>
+                    <div class="an-empty"><i class="bi bi-bar-chart"></i>Belum ada data jawaban per variabel</div>
+                <?php else: ?>
+                    <div class="an-chart-canvas-wrap" style="height:220px"><canvas id="chartVariabel"></canvas></div>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════
+         GRAFIK BARIS 4: Rata-rata Nilai per Indikator & Materi
+         Berlaku untuk CAT maupun CBT.
+         Klik bar → set filter indikator_id / materi_id.
+    ══════════════════════════════════════════ -->
+    <div class="an-charts-2">
+        <div class="an-chart-card">
+            <div class="an-chart-head">
+                <h6>Rata-rata Nilai per Indikator</h6>
+                <p>Persentase jawaban benar per indikator · klik bar untuk filter</p>
+            </div>
+            <div class="an-chart-body">
+                <?php if (empty($chartData['chart11']['labels'])): ?>
+                    <div class="an-empty"><i class="bi bi-bar-chart"></i>Belum ada data jawaban per indikator</div>
+                <?php else: ?>
+                    <div class="an-chart-canvas-wrap" style="height:260px"><canvas id="chartIndikator"></canvas></div>
+                <?php endif; ?>
+            </div>
+        </div>
+        <div class="an-chart-card">
+            <div class="an-chart-head">
+                <h6>Rata-rata Nilai per Materi</h6>
+                <p>Persentase jawaban benar per materi · klik bar untuk filter</p>
+            </div>
+            <div class="an-chart-body">
+                <?php if (empty($chartData['chart12']['labels'])): ?>
+                    <div class="an-empty"><i class="bi bi-bar-chart"></i>Belum ada data jawaban per materi</div>
+                <?php else: ?>
+                    <div class="an-chart-canvas-wrap" style="height:260px"><canvas id="chartMateri"></canvas></div>
+                <?php endif; ?>
+            </div>
         </div>
     </div>
 
@@ -437,14 +500,14 @@ $hasChartFilter  = array_reduce($chartFilterKeys, fn($carry, $k) => $carry || !e
                 <h6>Distribusi θ_EAP <span class="an-cbt-badge">CBT</span></h6>
                 <p>Sebaran kemampuan laten (skala IRT) · klik bar untuk drill-down</p>
             </div>
-            <div class="an-chart-body"><canvas id="chartTheta" height="260"></canvas></div>
+            <div class="an-chart-body"><div class="an-chart-canvas-wrap" style="height:260px"><canvas id="chartTheta"></canvas></div></div>
         </div>
         <div class="an-chart-card">
             <div class="an-chart-head">
                 <h6>Durasi vs Nilai <span class="an-cbt-badge">CBT</span></h6>
                 <p>Korelasi waktu pengerjaan dengan skor akhir</p>
             </div>
-            <div class="an-chart-body"><canvas id="chartScatter" height="260"></canvas></div>
+            <div class="an-chart-body"><div class="an-chart-canvas-wrap" style="height:260px"><canvas id="chartScatter"></canvas></div></div>
         </div>
     </div>
 
@@ -454,14 +517,14 @@ $hasChartFilter  = array_reduce($chartFilterKeys, fn($carry, $k) => $carry || !e
                 <h6>Analisis Residu <span class="an-cbt-badge">CBT</span></h6>
                 <p>Lucky Guess, Ceroboh, Normal per rentang nilai · klik Lucky Guess/Ceroboh untuk drill-down</p>
             </div>
-            <div class="an-chart-body"><canvas id="chartResidu" height="260"></canvas></div>
+            <div class="an-chart-body"><div class="an-chart-canvas-wrap" style="height:260px"><canvas id="chartResidu"></canvas></div></div>
         </div>
         <div class="an-chart-card">
             <div class="an-chart-head">
                 <h6>Standard Error (SEM) per Nilai <span class="an-cbt-badge">CBT</span></h6>
                 <p>Rata-rata SEM estimasi kemampuan — indikator presisi pengukuran</p>
             </div>
-            <div class="an-chart-body"><canvas id="chartSEM" height="260"></canvas></div>
+            <div class="an-chart-body"><div class="an-chart-canvas-wrap" style="height:260px"><canvas id="chartSEM"></canvas></div></div>
         </div>
     </div>
     <?php endif; ?>
@@ -625,6 +688,7 @@ const KAT_COLORS = ['#ef4444','#f97316','#eab308','#22c55e','#3b82f6'];
 // ── Opsi dasar Chart.js (dipakai ulang di beberapa grafik) ────────────
 const baseOpts = {
     responsive: true,
+    maintainAspectRatio: false,
     plugins: { legend: { display: false } },
     scales: {
         x: { grid: { display: false }, border: { display: false } },
@@ -715,6 +779,7 @@ if (chartData.chart1 && document.getElementById('chartDistribusiNilai')) {
         },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
             layout:    { padding: { top: 20 } },
             animation: { duration: 600, easing: 'easeOutQuart' },
             onClick(e, els) {
@@ -780,6 +845,7 @@ if (chartData.chart2 && document.getElementById('chartKategori')) {
         },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
             cutout: '65%',
             onClick(e, els) {
                 if (!els.length) return;
@@ -880,6 +946,7 @@ if (chartData.chart8 && document.getElementById('chartDurasi')) {
         },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
             layout:    { padding: { top: 18 } },
             animation: { duration: 500, easing: 'easeOutQuart' },
             plugins: {
@@ -916,6 +983,106 @@ if (chartData.chart8 && document.getElementById('chartDurasi')) {
         plugins: [barLabelPlugin()],
     });
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   GRAFIK 9 — Rata-rata Nilai per Jenis Kelamin
+   Bar chart 2 batang (Laki-laki / Perempuan). Berlaku CAT & CBT.
+═══════════════════════════════════════════════════════════════════════ */
+if (chartData.chart9 && document.getElementById('chartGender')) {
+    const c9 = chartData.chart9;
+
+    new Chart('chartGender', {
+        type: 'bar',
+        data: {
+            labels:   c9.labels,
+            datasets: [{
+                data:            c9.data,
+                backgroundColor: [COLORS.blueA, 'rgba(236,72,153,.15)'],
+                borderColor:     [COLORS.blue, '#ec4899'],
+                borderWidth:     2,
+                borderRadius:    0,
+                borderSkipped:   false,
+            }],
+        },
+        options: {
+            ...baseOpts,
+            plugins: {
+                legend:  { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => ` Rata-rata: ${ctx.raw} | ${c9.counts[ctx.dataIndex]} peserta`,
+                    },
+                },
+            },
+            scales: {
+                x: { grid: { display: false }, border: { display: false } },
+                y: {
+                    min: 0, max: 100,
+                    grid:   { color: '#f1f5f9' },
+                    border: { display: false },
+                    title:  { display: true, text: 'Rata-rata Nilai (0–100)', color: '#94a3b8', font: { size: 11 } },
+                },
+            },
+        },
+        plugins: [barLabelPlugin()],
+    });
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   GRAFIK 10–12 — Rata-rata Nilai per Variabel / Indikator / Materi
+   Horizontal bar, skala 0–100 (% jawaban benar). Berlaku CAT & CBT.
+   Klik bar → set filter variabel_id / indikator_id / materi_id.
+═══════════════════════════════════════════════════════════════════════ */
+function renderMetadataChart(canvasId, chartObj, filterKey) {
+    if (!chartObj || !document.getElementById(canvasId) || !chartObj.labels.length) return;
+
+    new Chart(canvasId, {
+        type: 'bar',
+        data: {
+            labels:   chartObj.labels,
+            datasets: [{
+                data:            chartObj.data,
+                backgroundColor: COLORS.purpleA,
+                borderColor:     COLORS.purple,
+                borderWidth:     2,
+                borderRadius:    0,
+                borderSkipped:   false,
+            }],
+        },
+        options: {
+            ...baseOpts,
+            indexAxis: 'y',
+            onClick(e, els) {
+                if (!els.length) return;
+                const id = chartObj.ids ? chartObj.ids[els[0].index] : null;
+                if (!id) return;
+                const p = new URLSearchParams(window.location.search);
+                p.set(filterKey, id);
+                window.location.href = BASE_URL + '?' + p.toString();
+            },
+            onHover(e, els) {
+                e.native.target.style.cursor = (chartObj.ids && els.length) ? 'pointer' : 'default';
+            },
+            plugins: {
+                legend:  { display: false },
+                tooltip: { callbacks: { label: ctx => ` Rata-rata: ${ctx.raw}` } },
+            },
+            scales: {
+                x: {
+                    min:    0,
+                    max:    100,
+                    grid:   { color: '#f1f5f9' },
+                    border: { display: false },
+                    title:  { display: true, text: 'Rata-rata Nilai (0–100)', color: '#94a3b8', font: { size: 11 } },
+                },
+                y: { grid: { display: false }, border: { display: false } },
+            },
+        },
+    });
+}
+renderMetadataChart('chartVariabel',  chartData.chart10, 'variabel_id');
+renderMetadataChart('chartIndikator', chartData.chart11, 'indikator_id');
+renderMetadataChart('chartMateri',    chartData.chart12, 'materi_id');
 
 /* ═══════════════════════════════════════════════════════════════════════
    GRAFIK CBT (hanya di-render jika isCbt = true)
@@ -993,6 +1160,7 @@ if (isCbt) {
             },
             options: {
                 responsive: true,
+                maintainAspectRatio: false,
                 plugins: {
                     legend:  { display: false },
                     tooltip: {
@@ -1100,6 +1268,7 @@ if (isCbt) {
             },
             options: {
                 responsive: true,
+                maintainAspectRatio: false,
                 plugins: {
                     legend:  { display: false },
                     tooltip: { callbacks: { label: ctx => ` Rata-rata SEM: ${ctx.raw}` } },

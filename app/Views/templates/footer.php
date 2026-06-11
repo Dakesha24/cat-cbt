@@ -2,7 +2,7 @@
   <div class="container">
     <div class="row">
       <div class="col-lg-5 mb-4">
-        <h5 class="footer-title">PHY-FA-CAT</h5>
+        <h5 class="footer-title">Platform Asesmen Digital</h5>
         <p class="footer-description">
           Platform asesmen formatif untuk pembelajaran Fisika yang adaptif.
         </p>

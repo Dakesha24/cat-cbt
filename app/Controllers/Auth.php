@@ -77,6 +77,42 @@ class Auth extends Controller
     ]);
   }
 
+  
+  public function forgotPassword()
+  {
+    if ($this->request->is('post')) {
+      $rules = [
+        'username' => 'required'
+      ];
+
+      if ($this->validate($rules)) {
+        $username = $this->request->getPost('username');
+        
+        // Cari user berdasarkan username
+        $user = $this->userModel->where('username', $username)->first();
+
+        if (!$user) {
+          return redirect()->back()->with('error', 'Username tidak ditemukan di sistem kami.');
+        }
+
+        // Set password baru = username (di-hash)
+        $newPassword = password_hash($username, PASSWORD_DEFAULT);
+
+        // Update password di database
+        // Asumsi primary key di tabel/model Anda adalah 'user_id' seperti pada sesi login
+        $this->userModel->update($user['user_id'], [
+          'password' => $newPassword
+        ]);
+
+        return redirect()->back()->with('success', 'Password berhasil direset! Silakan login menggunakan username sebagai password Anda.');
+      } else {
+        return redirect()->back()->with('error', 'Username wajib diisi untuk mereset password.');
+      }
+    }
+
+    return redirect()->to('/login');
+  }
+  
   public function register()
   {
     if ($this->request->is('post')) {

@@ -9,6 +9,43 @@ $mengerjakan = array_values(array_filter($hasilSiswa, fn($s) => $s['status'] ===
 $belumMulai  = array_values(array_filter($hasilSiswa, fn($s) => $s['status'] === 'belum_mulai'));
 $skorArr   = array_filter($selesai, fn($s) => $s['skor'] !== null);
 $rataRata  = count($skorArr) > 0 ? array_sum(array_column($skorArr, 'skor')) / count($skorArr) : null;
+
+// Susun data export CSV — label status dibuat ramah-baca, nilai kosong ditandai "-"
+$exportHeaders = ['No', 'Nama', 'No. Peserta', 'Status', $isCbt ? 'Durasi per Percobaan' : 'Durasi', 'Jawaban Benar', 'Total Soal', $isCbt ? 'Hasil (Percobaan Terakhir)' : 'Hasil Akhir'];
+$exportHeaders = array_merge($exportHeaders, $isCbt ? ['Jumlah Percobaan'] : ['Theta', 'SE', 'Klasifikasi']);
+
+$exportRows = [];
+foreach ($hasilSiswa as $i => $s) {
+    $isSelesai = $s['status'] === 'selesai';
+    $stLblExport = match ($s['status']) { 'selesai' => 'Selesai', 'sedang_mengerjakan' => 'Mengerjakan', default => 'Belum Mulai' };
+
+    if ($isCbt && !empty($s['attempts_durasi'])) {
+        $durasi = implode(' | ', array_map(fn($a) => 'P' . $a['nomor'] . ': ' . $a['durasi'], $s['attempts_durasi']));
+    } else {
+        $durasi = $s['durasi_format'] ?? '-';
+    }
+
+    $row = [
+        $i + 1,
+        $s['nama_lengkap'],
+        $s['nomor_peserta'] ?? '-',
+        $stLblExport,
+        $durasi,
+        $isSelesai ? (int) ($s['jawaban_benar'] ?? 0) : '-',
+        $isSelesai ? (int) ($s['total_soal'] ?? 0) : '-',
+        $isSelesai && $s['skor'] !== null ? number_format((float) $s['skor'], 2) : '-',
+    ];
+
+    if ($isCbt) {
+        $row[] = $isSelesai ? ($s['jumlah_attempt'] ?? '-') : '-';
+    } else {
+        $row[] = $isSelesai && isset($s['theta_akhir']) ? number_format((float) $s['theta_akhir'], 4) : '-';
+        $row[] = $isSelesai && isset($s['se_akhir']) ? number_format((float) $s['se_akhir'], 4) : '-';
+        $row[] = $isSelesai ? ($s['klasifikasi_kognitif']['kategori'] ?? '-') : '-';
+    }
+
+    $exportRows[] = $row;
+}
 ?>
 
 <style>
@@ -277,32 +314,18 @@ function resetFilter() {
   filterTable();
 }
 
+const exportHeaders = <?= json_encode($exportHeaders) ?>;
+const exportRows = <?= json_encode($exportRows) ?>;
+
+function csvField(val) {
+  return '"' + String(val ?? '-').replace(/"/g, '""') + '"';
+}
 function exportHasil() {
-  const isCbt = <?= $isCbt ? 'true' : 'false' ?>;
-  const headers = ['No','Nama','No. Peserta','Status','Durasi','Jawaban Benar','Total Soal',isCbt?'Nilai':'Skor'];
-  if (!isCbt) headers.push('Theta','SE','Klasifikasi');
-  let csv = headers.join(',') + '\n';
-  <?php foreach ($hasilSiswa as $i => $s): ?>
-  csv += [
-    <?= $i+1 ?>,
-    '"<?= addslashes($s['nama_lengkap']) ?>"',
-    '"<?= addslashes($s['nomor_peserta'] ?? '') ?>"',
-    '"<?= $s['status'] ?>"',
-    <?php if ($isCbt && !empty($s['attempts_durasi'])): ?>
-      '"<?= implode(' | ', array_map(fn($a) => 'P'.$a['nomor'].': '.$a['durasi'], $s['attempts_durasi'])) ?>"',
-    <?php else: ?>
-      '"<?= $s['durasi_format'] ?? '-' ?>"',
-    <?php endif; ?>
-    <?= (int)($s['jawaban_benar'] ?? 0) ?>,
-    <?= (int)($s['total_soal'] ?? 0) ?>,
-    <?= $s['skor'] !== null ? number_format((float)$s['skor'], 2) : 0 ?>
-    <?php if (!$isCbt): ?>
-    ,<?= isset($s['theta_akhir']) ? number_format((float)$s['theta_akhir'], 4) : 0 ?>
-    ,<?= isset($s['se_akhir']) ? number_format((float)$s['se_akhir'], 4) : 0 ?>
-    ,'"<?= addslashes($s['klasifikasi_kognitif']['kategori'] ?? '') ?>"'
-    <?php endif; ?>
-  ].join(',') + '\n';
-  <?php endforeach; ?>
+  // sep=; agar Excel (locale Indonesia) langsung membuka CSV dalam kolom-kolom rapi, bukan satu kolom
+  let csv = 'sep=;\r\n' + exportHeaders.map(csvField).join(';') + '\r\n';
+  exportRows.forEach(row => {
+    csv += row.map(csvField).join(';') + '\r\n';
+  });
   const blob = new Blob(['﻿' + csv], {type:'text/csv;charset=utf-8'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);

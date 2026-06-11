@@ -154,14 +154,14 @@ $kelasUmumLabel = 'Semua Guru';
   <?php else: ?>
 
     <!-- ── CAT Section ── -->
-    <div class="section-hd">
+    <!-- <div class="section-hd">
       <span class="s-badge bg-primary text-white s-badge">CAT</span>
       <span class="s-title">Computer Adaptive Test</span>
       <span class="s-count"><?= count($ujianCAT) ?> ujian</span>
       <div class="s-line"></div>
-    </div>
+    </div> -->
 
-    <?php if (!empty($ujianCAT)): ?>
+    <!-- <?php if (!empty($ujianCAT)): ?>
       <div class="row g-3 mb-4">
         <?php foreach ($ujianCAT as $u): ?>
           <div class="col-xl-4 col-lg-6">
@@ -212,7 +212,7 @@ $kelasUmumLabel = 'Semua Guru';
       </div>
     <?php else: ?>
       <div class="empty-sec mb-4"><i class="bi bi-inbox me-2"></i>Belum ada ujian CAT</div>
-    <?php endif; ?>
+    <?php endif; ?> -->
 
     <!-- ── CBT Section ── -->
     <div class="section-hd">
@@ -372,10 +372,7 @@ $kelasUmumLabel = 'Semua Guru';
             <div class="col-12">
               <label class="form-label small fw-semibold">Tipe Ujian <span class="text-danger">*</span></label>
               <div class="d-flex gap-3">
-                <div class="form-check">
-                  <input class="form-check-input tipe-radio" type="radio" name="tipe_ujian" value="CAT" id="tCAT" checked>
-                  <label class="form-check-label" for="tCAT"><strong>CAT</strong> <small class="text-muted">(Adaptif)</small></label>
-                </div>
+                
                 <div class="form-check">
                   <input class="form-check-input tipe-radio" type="radio" name="tipe_ujian" value="CBT" id="tCBT">
                   <label class="form-check-label" for="tCBT"><strong>CBT</strong> <small class="text-muted">(Fixed-Form)</small></label>
